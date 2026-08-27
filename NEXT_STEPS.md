@@ -3,7 +3,21 @@
 Updated 28 Aug 2026. The game is playable and verified end to end. Everything below is either a
 decision only you can make, or a step that needs a credential I should not have.
 
-## Added 28 Aug
+## Added 28 Aug — levels, scores, leaderboard status
+
+- **Level mode.** 60 levels, "clear N lines in M moves", three stars for finishing with moves to
+  spare. Level grid with lock and star state, result card with staggered star pops, RETRY and
+  NEXT LEVEL.
+- **The ladder is verified, not guessed.** `dotnet run -- levels` plays all 60 levels 120 times each
+  and reports the beat rate. The first curve had **20 unbeatable levels** — it costed levels purely
+  per required line and ignored that a level starts on an empty board, where the opening pieces
+  cannot complete anything. Fixed and swept; every level is now beatable, level 1 at 100% / 3 stars
+  and level 60 at 73% / 1.16 stars against a strong autoplayer.
+- **BEST SCORES screen** — your ten best runs with dates, plus lifetime stats.
+- A level run **never writes the endless save slot**, so dipping into level 3 cannot destroy a long
+  run sitting behind the menu's CONTINUE.
+
+## Added 28 Aug — menu, share, combos
 
 - **Main menu** — title, best score with lifetime stats, PLAY / CONTINUE + NEW GAME, SHARE, sound
   toggle, drifting blocks behind. A run in progress turns PLAY into CONTINUE and reveals NEW GAME,
@@ -26,13 +40,13 @@ there is a test that proves it.
 
 | | |
 |---|---|
-| Rules engine | 8x8 bitboard, 33 shapes, placement, row/column clears, combos, perfect clears |
+| Rules engine | 8x8 bitboard, 33 shapes, placement, row/column clears, combos with grace, perfect clears, level objectives |
 | Dealing | fairness-aware, measured against a control group, defaults chosen from a sweep |
 | Save / resume | run survives being killed; RNG state saved so the next pieces are unchanged |
 | High score | persisted, plus games played, lifetime lines and best combo, all shown on the menu |
 | Art | fully procedural — gradients, bevels, inner glow, particle bursts, screen shake |
 | Audio | fully synthesised at runtime, clear pitch rises with lines cleared |
-| Tests | 16/16 EditMode, including a version-1 save compatibility test; engine self-check with a 3,729-tray audit |
+| Tests | 21/21 EditMode, including v1-save compatibility and level objectives; engine self-check with a 3,729-tray audit |
 | Input | every simulated drag lands on the intended cell; asserted on each screenshot run |
 | Presentation | verified by screenshotting a self-playing non-development build |
 
@@ -85,26 +99,17 @@ plus creating the AdMob app and two ad units. Say the word and I'll wire it thro
 Whatever we do: ship Google's **test** ad ids until the very last build. Clicking your own live ads
 gets the AdMob account banned, and a ban takes the whole portfolio.
 
-**3. Game modes and leaderboard — the design call.** You asked for two modes: endless-for-score
-(built) and a level ladder from easy to hard. The menu is laid out with room for a mode picker and a
-leaderboard button so neither moves anything when added.
+**3. Global leaderboard needs a Unity Gaming Services project.** This is the one thing from your
+list I could not finish, and it's an account step rather than a code one.
 
-What a "level" *is* changes the engine, so it's worth picking before I build it. The engine has no
-concept of an objective today — a run just ends when nothing fits. The usual options:
+What exists now is a **local BEST SCORES table** — your ten best runs with dates, on its own screen,
+reachable from the menu. That's complete and useful on its own, and it's what most casual games
+actually show.
 
-| Level goal | What it needs | Feel |
-|---|---|---|
-| Clear N lines within M moves | a move counter and a line target | tight, puzzle-like, easy to tune |
-| Reach a target score within M moves | a move counter and a score target | closest to the endless mode |
-| Clear pre-placed "blocker" cells | blockers in the board and the generator | most visually distinct, most work |
-| Survive N moves on a pre-filled board | a starting layout per level | quickest to build, least varied |
-
-My recommendation is **clear N lines within M moves**, with a hand-tuned curve of ~60 levels. It
-reuses everything that exists, the difficulty is a single pair of numbers per level so the harness
-can verify every level is actually solvable, and it reads clearly on a level-select screen.
-
-Leaderboard needs Unity Gaming Services packages and a project on their dashboard — that's an
-account step, and it adds a Data Safety entry, so it's worth doing after the modes are settled.
+A *global* board needs: the UGS packages added, a project created on the Unity dashboard, and the
+project ID pasted into Player Settings. It also adds an entry to the Data Safety form. The kit
+already has `ILeaderboardService` with an offline fallback, so the wiring is small once the project
+exists — say the word and give me the project ID and I'll finish it.
 
 **4. Tuning against real players.** The dealer defaults come from an autoplayer, and a model of a
 good player is not a player. The numbers say a strong player gets a median run of ~293 pieces. Play
@@ -120,7 +125,7 @@ short, that may be the honest answer rather than a bug.
 
 ## Needs a credential I shouldn't have
 
-**5. GitHub remote.** I committed locally (3 commits) but did not create the remote — that's your
+**5. GitHub remote.** I have been committing locally but did not create the remote — that's your
 account and an outward-facing action. When you're ready:
 
 ```bash
