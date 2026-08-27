@@ -415,17 +415,32 @@ namespace Snapline.App
             Vector3 world = _board.CellToWorld(cx, cy);
             Vector2 local = _juice.transform.InverseTransformPoint(world);
 
-            local.y = Mathf.Clamp(local.y, PopupAnchorMinY, PopupAnchorMaxY);
+            local.y = Mathf.Clamp(local.y, _popupAnchorMinY, _popupAnchorMaxY);
             return local;
         }
 
         /// <summary>
         /// Vertical band the popup stack may be centred in, in canvas units from the screen centre.
-        /// Derived from the HUD height at the top and the tray height at the bottom, with room for
-        /// the tallest entry in the stack (PERFECT CLEAR, +258) and the ~80 units popups rise.
+        /// Set from the real layout by Bootstrap, because the usable height depends on the display's
+        /// aspect ratio and safe area — hardcoding it assumed one phone shape.
         /// </summary>
-        private const float PopupAnchorMaxY = 282f;
-        private const float PopupAnchorMinY = -402f;
+        private float _popupAnchorMaxY = 282f;
+        private float _popupAnchorMinY = -402f;
+
+        /// <summary>
+        /// Bound the popup stack to the gap between the HUD and the tray. The stack reaches +258
+        /// above its anchor and -158 below, and the labels drift up ~80 units as they fade.
+        /// </summary>
+        public void SetPopupBounds(float safeHeight, float hudHeight, float trayReserve)
+        {
+            float half = safeHeight * 0.5f;
+            _popupAnchorMaxY = half - hudHeight - 270f;
+            _popupAnchorMinY = -half + trayReserve + 170f;
+
+            // On a short screen the two can cross; collapse to the midpoint rather than inverting.
+            if (_popupAnchorMinY > _popupAnchorMaxY)
+                _popupAnchorMinY = _popupAnchorMaxY = (_popupAnchorMinY + _popupAnchorMaxY) * 0.5f;
+        }
 
         private void RefreshSlotPlayability()
         {

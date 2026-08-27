@@ -70,8 +70,11 @@ namespace Snapline.UI
             var scrollGo = new GameObject("Scroll", typeof(RectTransform), typeof(ScrollRect));
             var scrollRect = (RectTransform)scrollGo.transform;
             scrollRect.SetParent(_root, false);
-            UIKit.Place(scrollRect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                        new Vector2(0f, -30f), new Vector2(1020f, 1290f));
+            scrollRect.anchorMin = new Vector2(0f, 0f);
+            scrollRect.anchorMax = new Vector2(1f, 1f);
+            scrollRect.pivot = new Vector2(0.5f, 0.5f);
+            scrollRect.offsetMin = new Vector2(30f, 190f);
+            scrollRect.offsetMax = new Vector2(-30f, -200f);
 
             RectTransform viewport = UIKit.Stretch("Viewport", scrollRect);
             viewport.gameObject.AddComponent<RectMask2D>();
@@ -207,7 +210,10 @@ namespace Snapline.UI
             int row = (Mathf.Clamp(level, 1, Levels.Count) - 1) / Columns;
             float target = row * (CellSize + CellSpacing) - 400f;
 
-            float maxScroll = Mathf.Max(0f, _content.sizeDelta.y - 1290f);
+            // Measured from the real viewport rather than a hardcoded height, which was only right
+            // on one aspect ratio and would have over-scrolled on anything taller.
+            float viewportHeight = _content.parent is RectTransform vp ? vp.rect.height : 0f;
+            float maxScroll = Mathf.Max(0f, _content.sizeDelta.y - viewportHeight);
             _content.anchoredPosition = new Vector2(0f, Mathf.Clamp(target, 0f, maxScroll));
         }
     }

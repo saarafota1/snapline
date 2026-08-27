@@ -44,13 +44,13 @@ namespace Snapline.UI
 
         public RectTransform Root { get; private set; }
 
-        public void Init(RectTransform parent, long bestScore)
+        public void Init(RectTransform parent, long bestScore, float height = 300f)
         {
             Root = UIKit.Rect("Hud", parent);
             Root.anchorMin = new Vector2(0f, 1f);
             Root.anchorMax = new Vector2(1f, 1f);
             Root.pivot = new Vector2(0.5f, 1f);
-            Root.offsetMin = new Vector2(0f, -300f);
+            Root.offsetMin = new Vector2(0f, -height);
             Root.offsetMax = new Vector2(0f, 0f);
 
             _bestScore = bestScore;
