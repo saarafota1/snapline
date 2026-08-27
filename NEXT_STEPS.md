@@ -21,9 +21,26 @@ decision only you can make, or a step that needs a credential I should not have.
 
 App id is set to `com.sciboxstudios.snapline`, product name `Snapline`, ARM64 on, portrait.
 
+Also verified against the real binary rather than assumed:
+
+- **Save survives a hard kill.** I `kill -9`'d the player mid-run — no clean shutdown, no
+  `OnApplicationQuit` — and on relaunch the board came back with all 14 blocks, score 351 and a full
+  tray. That is the actual Android failure mode, not a graceful quit.
+- **16 KB page alignment.** `llvm-readelf -l` on `libunity.so`, `libil2cpp.so` and `libmain.so` in
+  the built APK reports `0x4000` for every LOAD segment. ARM64 only, no armv7 slice.
+
 ### How to try it
 
-Desktop, if the APK is not to hand:
+**On your phone** — `Builds/Snapline-test.apk` (22.7 MB) is built and ready to sideload:
+
+```bash
+adb install -r "C:\GamesProjects\Snapline\Builds\Snapline-test.apk"
+```
+
+It is debug-signed, which is fine for sideloading and is exactly why Play would reject it — the kit
+warned about this during the build. The signed `.aab` is step 5 below.
+
+**On desktop**, if the phone isn't to hand:
 
 ```bash
 Builds/SnaplineSmoke.exe -screen-width 540 -screen-height 960 -screen-fullscreen 0
