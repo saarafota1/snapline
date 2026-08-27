@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>Snapline.Bench</AssemblyName>
+    <RootNamespace>Snapline.Bench</RootNamespace>
+    <Nullable>disable</Nullable>
+
+    <!--
+      Unity 6 compiles game code as C# 9. Pinning the harness to the same language version means
+      syntax the editor would reject fails here first, at the console, instead of after a
+      round-trip through Unity.
+    -->
+    <LangVersion>9.0</LangVersion>
+
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <!--
+      The rules engine is compiled straight from the Unity project rather than copied. There is
+      exactly one source of truth, so the benchmark can never silently drift from the shipped game.
+    -->
+    <Compile Include="..\..\Assets\Snapline\Scripts\Core\**\*.cs" />
+  </ItemGroup>
+
+</Project>
