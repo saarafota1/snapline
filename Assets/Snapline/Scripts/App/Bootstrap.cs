@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Snapline.Art;
+using GameKit.Art;
 using Snapline.Core;
 using Snapline.UI;
 using Snapline.View;
@@ -30,8 +31,11 @@ namespace Snapline.App
         private const float TrayHeight = 300f;
         private const float TrayBottomInset = 60f;
 
-        private const float TrayCellSize = 60f;
-        private const float TrayGap = 6f;
+        // Sized so the tallest shape in the catalogue still fits inside the tray. The 5-cell bar
+        // needs 5*(cell+gap) - gap <= TrayHeight minus a little padding; at cell 60 that came to
+        // 324 against a 300-tall tray and the piece hung off the bottom of the screen.
+        private const float TrayCellSize = 50f;
+        private const float TrayGap = 5f;
 
         private void Awake()
         {
@@ -90,7 +94,7 @@ namespace Snapline.App
             if (SmokeShots.RequestedOnCommandLine())
             {
                 drag.InputEnabled = false;
-                gameObject.AddComponent<SmokeShots>().Begin(controller);
+                gameObject.AddComponent<SmokeShots>().Begin(controller, drag);
             }
         }
 

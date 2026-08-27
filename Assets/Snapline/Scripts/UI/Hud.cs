@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using Snapline.Art;
+using GameKit.Art;
 
 namespace Snapline.UI
 {

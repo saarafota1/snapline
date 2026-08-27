@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using Snapline.Art;
+using GameKit.Art;
 using Snapline.Core;
 using Snapline.UI;
 using Snapline.View;

@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using Snapline.Art;
+using GameKit.Art;
 using Snapline.Core;
 
 namespace Snapline.View
@@ -33,6 +34,8 @@ namespace Snapline.View
             _trayCellSize = trayCellSize;
             _trayGap = trayGap;
 
+            WarnIfShapesDoNotFit(root, slotWidth, trayCellSize, trayGap);
+
             _slots = new RectTransform[slots];
             _pieces = new PieceVisual[slots];
             _slotPanels = new Image[slots];
@@ -58,6 +61,35 @@ namespace Snapline.View
                 _slotPanels[i] = panel;
 
                 _pieces[i] = new PieceVisual(slot, $"Piece{i}");
+            }
+        }
+
+        /// <summary>
+        /// Complain loudly if any shape in the catalogue is too big for a tray slot.
+        ///
+        /// A piece that does not fit still draws — it just hangs off the bottom of the screen, which
+        /// is easy to miss and was in fact shipped once before a screenshot caught it. Adding a
+        /// taller shape to the catalogue should fail noisily, not quietly.
+        /// </summary>
+        private static void WarnIfShapesDoNotFit(RectTransform root, float slotWidth,
+                                                 float trayCellSize, float trayGap)
+        {
+            float step = trayCellSize + trayGap;
+            float availableHeight = root.sizeDelta.y;
+            float availableWidth = slotWidth - 12f;
+
+            foreach (ShapeDef shape in Shapes.All)
+            {
+                float h = shape.Height * step - trayGap;
+                float w = shape.Width * step - trayGap;
+
+                if (h > availableHeight)
+                    Debug.LogError($"[Snapline] Shape '{shape.Name}' is {h:F0} tall but the tray is " +
+                                   $"{availableHeight:F0}. Reduce TrayCellSize or raise TrayHeight.");
+
+                if (w > availableWidth)
+                    Debug.LogError($"[Snapline] Shape '{shape.Name}' is {w:F0} wide but a slot is " +
+                                   $"{availableWidth:F0}. Reduce TrayCellSize or widen the slots.");
             }
         }
 

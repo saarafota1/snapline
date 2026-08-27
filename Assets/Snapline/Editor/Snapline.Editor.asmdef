@@ -6,6 +6,7 @@
         "Snapline.Core",
         "UnityEngine.UI",
         "StudioKit",
+        "StudioKit.Art",
         "StudioKit.Editor"
     ],
     "includePlatforms": [

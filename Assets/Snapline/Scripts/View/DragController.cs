@@ -213,5 +213,53 @@ namespace Snapline.View
             _dragging = false;
             _activeSlot = -1;
         }
+
+        // --- harness support ---------------------------------------------------------------
+
+        /// <summary>
+        /// Perform a complete drag of a tray piece onto a board cell, through the real pick-up,
+        /// move and release path — screen-point conversions, reparenting and all.
+        ///
+        /// This exists because the screenshot harness previously placed pieces by calling the
+        /// controller directly, which meant the entire input path shipped unexercised. Everything
+        /// downstream of the pointer is covered here; only the reading of the pointer itself is not.
+        /// </summary>
+        public void SimulateDragTo(int slot, int col, int row)
+        {
+            PieceVisual piece = _tray.Piece(slot);
+            if (piece == null || !piece.HasShape) return;
+
+            BeginDrag(slot, Vector2.zero);
+
+            // Recomputed after BeginDrag, which rescales the piece to board size and so changes
+            // its bounding box — the very thing the screen point is derived from.
+            Vector2 screenPoint = ScreenPointForCell(piece, col, row);
+
+            UpdateDrag(screenPoint);
+            EndDrag(screenPoint);
+        }
+
+        /// <summary>
+        /// The pointer position that would leave a piece aligned with a given cell. Inverts exactly
+        /// the offsets UpdateDrag applies, so a mismatch here is a genuine bug in that maths.
+        /// </summary>
+        private Vector2 ScreenPointForCell(PieceVisual piece, int col, int row)
+        {
+            float step = _boardCellSize + _boardGap;
+
+            Vector3 targetWorld = _board.Grid.TransformPoint(new Vector3(col * step, -row * step, 0f));
+            Vector3 rootLocal = _dragLayer.InverseTransformPoint(targetWorld);
+
+            Vector2 size = piece.BoundingSize;
+            float lift = step * LiftCells;
+
+            // UpdateDrag applies (-size.x/2, +size.y + lift) to the pointer to get the root
+            // position, so both terms invert. Getting the y sign wrong here put every simulated
+            // drop two piece-heights above the board and every placement was rejected.
+            var local = new Vector2(rootLocal.x + size.x * 0.5f, rootLocal.y - size.y - lift);
+            Vector3 world = _dragLayer.TransformPoint(local);
+
+            return RectTransformUtility.WorldToScreenPoint(_camera, world);
+        }
     }
 }
