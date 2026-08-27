@@ -53,5 +53,57 @@ namespace Snapline.EditorTools
             BuildScene();
             Debug.Log("[Snapline] SceneBuilder.BuildSceneCLI complete.");
         }
+
+        [MenuItem("Snapline/Open Game Scene")]
+        public static void OpenGameScene()
+        {
+            if (!File.Exists(ScenePath))
+            {
+                Debug.LogError($"[Snapline] {ScenePath} is missing. Use Snapline > Rebuild Game Scene.");
+                return;
+            }
+
+            EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        }
+    }
+
+    /// <summary>
+    /// Opens the game scene when the editor starts up on an empty Untitled scene.
+    ///
+    /// This project has exactly one scene and everything in it is built at runtime, so an editor
+    /// sitting on Untitled means Play does nothing at all and looks broken. Unity only restores a
+    /// previously-opened scene, and a project that has so far only been driven from the command
+    /// line has no such record.
+    /// </summary>
+    [InitializeOnLoad]
+    internal static class OpenSceneOnFirstLoad
+    {
+        private const string SessionKey = "Snapline.GameSceneAutoOpened";
+
+        static OpenSceneOnFirstLoad()
+        {
+            EditorApplication.delayCall += TryOpen;
+        }
+
+        private static void TryOpen()
+        {
+            // SessionState survives script recompiles but resets when the editor restarts, so this
+            // runs once per session and never yanks you out of a scene you opened deliberately.
+            if (SessionState.GetBool(SessionKey, false)) return;
+            SessionState.SetBool(SessionKey, true);
+
+            if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+
+            Scene active = SceneManager.GetActiveScene();
+
+            // Only act on the genuinely empty Untitled scene the editor creates on a cold start.
+            if (!string.IsNullOrEmpty(active.path)) return;
+            if (active.rootCount > 0) return;
+
+            if (!File.Exists(SceneBuilder.ScenePath)) return;
+
+            EditorSceneManager.OpenScene(SceneBuilder.ScenePath, OpenSceneMode.Single);
+            Debug.Log("[Snapline] Opened the game scene. Press Play.");
+        }
     }
 }
