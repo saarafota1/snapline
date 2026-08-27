@@ -30,6 +30,13 @@ namespace Snapline.UI
         private long _bestScore;
         private bool _beatenThisRun;
 
+        /// <summary>Raised when the player taps the small MENU button during a run.</summary>
+
+
+        public event System.Action HomeRequested;
+
+
+
         public RectTransform Root { get; private set; }
 
         public void Init(RectTransform parent, long bestScore)
@@ -56,10 +63,18 @@ namespace Snapline.UI
             UIKit.Place(_scoreRect, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                         new Vector2(0.5f, 1f), new Vector2(0f, -140f), new Vector2(900f, 140f));
 
+            // Small home button. The run is saved after every move, so leaving is lossless and the
+            // menu offers CONTINUE straight back into it.
+            Button home = UIKit.Button("Home", Root, "MENU", new Color(0.26f, 0.30f, 0.50f, 0.9f),
+                                       Palette.TextDim, 30);
+            UIKit.Place(home.GetComponent<RectTransform>(), new Vector2(0f, 1f), new Vector2(0f, 1f),
+                        new Vector2(0f, 1f), new Vector2(34f, -34f), new Vector2(170f, 78f));
+            home.onClick.AddListener(() => HomeRequested?.Invoke());
+
             // Combo badge, hidden until a streak is actually running.
             _comboRect = UIKit.Rect("Combo", Root);
             UIKit.Place(_comboRect, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                        new Vector2(0.5f, 1f), new Vector2(0f, -272f), new Vector2(300f, 62f));
+                        new Vector2(0.5f, 1f), new Vector2(0f, -272f), new Vector2(440f, 62f));
 
             _comboPanel = UIKit.Image("ComboPanel", _comboRect,
                                       ArtKit.RoundedRect("combo", new Color(1f, 0.72f, 0.18f, 0.92f),
@@ -114,13 +129,22 @@ namespace Snapline.UI
             _punch = StartCoroutine(Punch(_scoreRect, 1.14f));
         }
 
-        public void SetCombo(int combo)
+        /// <summary>
+        /// Show the streak and what it is currently worth.
+        ///
+        /// The multiplier is spelled out rather than left implicit in the score. A player who can
+        /// see "x2.5 PTS" knows why the numbers jumped and has a reason to keep the streak alive;
+        /// without it a combo is just a word that appears.
+        /// </summary>
+        public void SetCombo(int combo, double multiplier = 1.0)
         {
             bool show = combo >= 2;
             if (_comboRect.gameObject.activeSelf != show) _comboRect.gameObject.SetActive(show);
             if (!show) return;
 
-            _comboLabel.text = $"COMBO x{combo}";
+            _comboLabel.text = multiplier >= 1.05
+                ? $"COMBO x{combo}   ·   x{multiplier:0.#} PTS"
+                : $"COMBO x{combo}";
 
             // Ramp the badge from amber toward hot pink as the streak grows, so a long combo is
             // visible at a glance without reading the number.

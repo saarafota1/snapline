@@ -45,6 +45,9 @@ namespace Snapline.Core
         public int TotalPiecesPlaced;
         public int BestSimultaneousLines;
         public bool GameOver;
+
+        /// <summary>Added in save version 2. Absent from a version 1 save, which defaults it to 0.</summary>
+        public int DryMovesSinceClear;
     }
 
     /// <summary>
@@ -223,6 +226,7 @@ namespace Snapline.Core
                 TotalPiecesPlaced = Score.TotalPiecesPlaced,
                 BestSimultaneousLines = Score.BestSimultaneousLines,
                 GameOver = IsGameOver,
+                DryMovesSinceClear = Score.DryMovesSinceClear,
             };
         }
 
@@ -257,6 +261,8 @@ namespace Snapline.Core
             Score.TotalLinesCleared = snap.TotalLinesCleared;
             Score.TotalPiecesPlaced = snap.TotalPiecesPlaced;
             Score.BestSimultaneousLines = snap.BestSimultaneousLines;
+
+            Score.DryMovesSinceClear = snap.DryMovesSinceClear;
 
             IsGameOver = snap.GameOver;
 

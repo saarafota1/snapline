@@ -48,20 +48,23 @@ namespace Snapline.App
 
             BuildBackground(canvasRect);
 
-            // Everything that should shake lives under here. The game-over panel deliberately does
-            // not, so a big final clear cannot leave the results card wobbling.
+            // Everything that should shake lives under here. The menu and the game-over panel
+            // deliberately do not, so a big final clear cannot leave a card wobbling.
             RectTransform shakeRoot = UIKit.Stretch("ShakeRoot", canvasRect);
+
+            // The whole game screen hangs off one rect that gets switched off for the menu.
+            _gameRoot = UIKit.Stretch("GameRoot", shakeRoot);
 
             float boardCell = ComputeBoardCellSize();
             float gridExtent = Board.Width * boardCell + (Board.Width - 1) * BoardGap;
 
-            RectTransform grid = BuildBoardPanel(shakeRoot, gridExtent);
+            RectTransform grid = BuildBoardPanel(_gameRoot, gridExtent);
             RectTransform ghostLayer = BuildGhostLayer(grid);
-            RectTransform trayRoot = BuildTrayRoot(shakeRoot);
-            RectTransform dragLayer = UIKit.Stretch("DragLayer", shakeRoot);
+            RectTransform trayRoot = BuildTrayRoot(_gameRoot);
+            RectTransform dragLayer = UIKit.Stretch("DragLayer", _gameRoot);
 
             // Effects sit above the board and the tray but below the results card.
-            RectTransform effectLayer = UIKit.Stretch("EffectLayer", shakeRoot);
+            RectTransform effectLayer = UIKit.Stretch("EffectLayer", _gameRoot);
             var juice = effectLayer.gameObject.AddComponent<Juice>();
             RectTransform particleLayer = UIKit.Stretch("Particles", effectLayer);
             RectTransform popupLayer = UIKit.Stretch("Popups", effectLayer);
@@ -74,8 +77,8 @@ namespace Snapline.App
             trayView.Init(trayRoot, 3, RefWidth / 3f, TrayCellSize, TrayGap);
 
             var hud = new GameObject("HudController").AddComponent<Hud>();
-            hud.transform.SetParent(shakeRoot, false);
-            hud.Init(shakeRoot, SaveSystem.HighScore);
+            hud.transform.SetParent(_gameRoot, false);
+            hud.Init(_gameRoot, SaveSystem.HighScore);
 
             var gameOver = new GameObject("GameOverController").AddComponent<GameOverPanel>();
             gameOver.transform.SetParent(canvasRect, false);
@@ -84,18 +87,67 @@ namespace Snapline.App
             var drag = gameObject.AddComponent<DragController>();
             drag.Init(boardView, trayView, dragLayer, canvas, boardCell, BoardGap);
 
-            var sfx = gameObject.AddComponent<Sfx>();
-            sfx.Init();
+            _sfx = gameObject.AddComponent<Sfx>();
+            _sfx.Init();
+            _sfx.Muted = !Settings.SoundEnabled;
 
-            var controller = gameObject.AddComponent<GameController>();
-            controller.Init(boardView, trayView, drag, hud, gameOver, juice, sfx);
-            controller.Begin();
+            _controller = gameObject.AddComponent<GameController>();
+            _controller.Init(boardView, trayView, drag, hud, gameOver, juice, _sfx);
+            _controller.MenuRequested += ShowMenu;
+
+            _menu = new GameObject("MainMenu").AddComponent<MainMenu>();
+            _menu.transform.SetParent(canvasRect, false);
+            _menu.Init(canvasRect);
+            _menu.NewGameRequested += StartNewGame;
+            _menu.ContinueRequested += ContinueGame;
+            _menu.ShareRequested += () => GameKit.Share.Text(GameController.ShareMessage(SaveSystem.HighScore));
+            _menu.SoundToggled += ToggleSound;
 
             if (SmokeShots.RequestedOnCommandLine())
             {
+                // The harness captures the menu, then starts a game itself.
                 drag.InputEnabled = false;
-                gameObject.AddComponent<SmokeShots>().Begin(controller, drag);
+                ShowMenu();
+                gameObject.AddComponent<SmokeShots>().Begin(_controller, drag, StartNewGame);
+                return;
             }
+
+            ShowMenu();
+        }
+
+        private RectTransform _gameRoot;
+        private GameController _controller;
+        private MainMenu _menu;
+        private Sfx _sfx;
+
+        private void ShowMenu()
+        {
+            _gameRoot.gameObject.SetActive(false);
+            _menu.Show(SaveSystem.HighScore, GameController.HasSavedRun);
+        }
+
+        private void StartNewGame()
+        {
+            _menu.Hide();
+            _gameRoot.gameObject.SetActive(true);
+            _controller.StartNewRun();
+        }
+
+        private void ContinueGame()
+        {
+            _menu.Hide();
+            _gameRoot.gameObject.SetActive(true);
+
+            // The save can vanish between the menu being drawn and the tap — a crash, or the run
+            // having already ended. Fall back to a fresh board rather than an empty screen.
+            if (!_controller.ResumeSavedRun()) _controller.StartNewRun();
+        }
+
+        private void ToggleSound()
+        {
+            Settings.SoundEnabled = !Settings.SoundEnabled;
+            _sfx.Muted = !Settings.SoundEnabled;
+            _menu.RefreshSoundLabel();
         }
 
         private static void ConfigureScreen()

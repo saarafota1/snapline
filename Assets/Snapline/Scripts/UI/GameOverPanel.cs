@@ -24,6 +24,12 @@ namespace Snapline.UI
 
         public event Action PlayAgainRequested;
 
+
+        public event Action MenuRequested;
+
+
+        public event Action ShareRequested;
+
         public bool IsVisible => _root != null && _root.gameObject.activeSelf;
 
         public void Init(RectTransform parent)
@@ -40,7 +46,7 @@ namespace Snapline.UI
 
             _card = UIKit.Rect("Card", _root);
             UIKit.Place(_card, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                        Vector2.zero, new Vector2(860f, 900f));
+                        Vector2.zero, new Vector2(860f, 1000f));
 
             Image cardBg = UIKit.Image("CardBg", _card, ArtKit.RoundedRect("gocard",
                                         Palette.BoardPanel, Palette.BoardPanelRim, 5f),
@@ -69,17 +75,29 @@ namespace Snapline.UI
 
             _bestLabel = UIKit.Label("Best", _card, "BEST 0", 42, Palette.Accent);
             UIKit.Place(_bestLabel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                        new Vector2(0f, -470f), new Vector2(800f, 56f));
+                        new Vector2(0f, -455f), new Vector2(800f, 56f));
 
             _statsLabel = UIKit.Label("Stats", _card, "", 34, Palette.TextDim);
             UIKit.Place(_statsLabel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                        new Vector2(0f, -556f), new Vector2(800f, 120f));
+                        new Vector2(0f, -525f), new Vector2(800f, 100f));
 
             Button again = UIKit.Button("PlayAgain", _card, "PLAY AGAIN", new Color(0.24f, 0.78f, 0.45f, 1f),
                                         Color.white, 52);
             UIKit.Place(again.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                        new Vector2(0.5f, 0f), new Vector2(0f, 90f), new Vector2(620f, 140f));
+                        new Vector2(0.5f, 0f), new Vector2(0f, 190f), new Vector2(620f, 130f));
             again.onClick.AddListener(() => PlayAgainRequested?.Invoke());
+
+            Button share = UIKit.Button("Share", _card, "SHARE", new Color(0.34f, 0.55f, 0.85f, 1f),
+                                        Color.white, 40);
+            UIKit.Place(share.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                        new Vector2(0.5f, 0f), new Vector2(-160f, 55f), new Vector2(290f, 105f));
+            share.onClick.AddListener(() => ShareRequested?.Invoke());
+
+            Button menu = UIKit.Button("Menu", _card, "MENU", new Color(0.30f, 0.36f, 0.62f, 1f),
+                                       Color.white, 40);
+            UIKit.Place(menu.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                        new Vector2(0.5f, 0f), new Vector2(160f, 55f), new Vector2(290f, 105f));
+            menu.onClick.AddListener(() => MenuRequested?.Invoke());
 
             _root.gameObject.SetActive(false);
         }

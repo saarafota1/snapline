@@ -54,10 +54,13 @@ namespace Snapline.App
             return Path.Combine(Application.persistentDataPath, "shots");
         }
 
-        public void Begin(GameController controller, DragController drag)
+        private System.Action _startGame;
+
+        public void Begin(GameController controller, DragController drag, System.Action startGame)
         {
             _controller = controller;
             _drag = drag;
+            _startGame = startGame;
             _outputDir = ResolveOutputDir();
             Directory.CreateDirectory(_outputDir);
 
@@ -75,7 +78,13 @@ namespace Snapline.App
 
         private IEnumerator Run()
         {
-            // Let Bootstrap finish and the first tray animate in.
+            // The front screen, with its drifting blocks settled.
+            yield return new WaitForSeconds(1.1f);
+            yield return Capture("00_menu");
+
+            _startGame?.Invoke();
+
+            // Let the first tray animate in.
             yield return new WaitForSeconds(1.2f);
             yield return Capture("01_start");
 

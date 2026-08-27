@@ -18,7 +18,14 @@ namespace Snapline.Core
     public static class SaveCodec
     {
         private const string Magic = "SNAP";
-        private const int CurrentVersion = 1;
+
+        /// <summary>
+        /// 2 added DryMovesSinceClear. New fields are appended, never inserted, so an older save
+        /// simply has a shorter field list and the missing values take their defaults — a player
+        /// mid-run through an update keeps their board.
+        /// </summary>
+        private const int CurrentVersion = 2;
+
         private const char Sep = '|';
 
         public static string Encode(RunSnapshot snap)
@@ -39,7 +46,8 @@ namespace Snapline.Core
             sb.Append(snap.TotalLinesCleared.ToString(CultureInfo.InvariantCulture)).Append(Sep);
             sb.Append(snap.TotalPiecesPlaced.ToString(CultureInfo.InvariantCulture)).Append(Sep);
             sb.Append(snap.BestSimultaneousLines.ToString(CultureInfo.InvariantCulture)).Append(Sep);
-            sb.Append(snap.GameOver ? '1' : '0');
+            sb.Append(snap.GameOver ? '1' : '0').Append(Sep);
+            sb.Append(snap.DryMovesSinceClear.ToString(CultureInfo.InvariantCulture));
 
             string payload = sb.ToString();
             return payload + Sep + Checksum(payload).ToString("X8", CultureInfo.InvariantCulture);
@@ -89,6 +97,11 @@ namespace Snapline.Core
                     TotalPiecesPlaced = int.Parse(f[11], CultureInfo.InvariantCulture),
                     BestSimultaneousLines = int.Parse(f[12], CultureInfo.InvariantCulture),
                     GameOver = f[13] == "1",
+
+                    // Version 2 onward. A version 1 save stops at field 13 and defaults this to 0.
+                    DryMovesSinceClear = f.Length > 14
+                        ? int.Parse(f[14], CultureInfo.InvariantCulture)
+                        : 0,
                 };
             }
             catch (FormatException) { return null; }

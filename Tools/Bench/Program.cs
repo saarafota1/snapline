@@ -25,6 +25,7 @@ namespace Snapline.Bench
             if (mode == "measure" || mode == "all") Measure();
             if (mode == "sweep" || mode == "all") Sweep();
             if (mode == "validate" || mode == "all") Validate();
+            if (mode == "combo" || mode == "all") Combos();
 
             if (_failures > 0)
             {
@@ -122,9 +123,19 @@ namespace Snapline.Bench
             Assert(Math.Abs(d1.ComboMultiplier - 1.0) < 1e-9, "first clear scores at 1.0x");
             ScoreDelta d2 = Scoring.Apply(state, rules, oneLine, false);
             Assert(Math.Abs(d2.ComboMultiplier - (1.0 + rules.ComboStep)) < 1e-9, "second consecutive clear steps up");
+            // Default rules allow one dry move of grace, so it takes two to break a streak.
             var dry = new PlaceResult { Placed = true, CellsPlaced = 3 };
             Scoring.Apply(state, rules, dry, false);
-            Assert(state.ComboCount == 0, "a dry move breaks the combo");
+            Assert(state.ComboCount == 2, "one dry move is forgiven at the default grace of 1");
+            Scoring.Apply(state, rules, dry, false);
+            Assert(state.ComboCount == 0, "a second dry move breaks the combo");
+
+            // And with grace turned off, the strict rule still holds.
+            var strict = new ScoreRules { ComboGraceMoves = 0 };
+            var strictState = new ScoreState();
+            Scoring.Apply(strictState, strict, oneLine, false);
+            Scoring.Apply(strictState, strict, dry, false);
+            Assert(strictState.ComboCount == 0, "at grace 0 a single dry move breaks the combo");
 
             // Save round-trip, including a mid-tray state.
             var run = new GameRun();
@@ -285,6 +296,72 @@ namespace Snapline.Bench
                                       $"mean score {r.MeanScore,9:F0}   under-20 {r.ShareUnder20Pieces,6:P2}");
                 }
             }
+            Console.WriteLine();
+        }
+
+        // --- combo grace ----------------------------------------------------------------
+
+        /// <summary>
+        /// How often does a player actually see a combo?
+        ///
+        /// With no grace a streak needs a clear on literally every move, so combos are rare and the
+        /// feature is invisible to most players. Grace lets a streak survive a few dry moves. The
+        /// question is how much is needed to make combos a regular event without turning the score
+        /// into nonsense, and that is measurable rather than arguable.
+        /// </summary>
+        private static void Combos()
+        {
+            Console.WriteLine("=== combo grace ===");
+            const int runs = 400;
+
+            Console.WriteLine($"  {"grace",6} {"mean best",10} {"reach x2",9} {"reach x3",9} {"reach x5",9} " +
+                              $"{"combo moves",12} {"mean score",12} {"median run",11}");
+
+            foreach (int grace in new[] { 0, 1, 2, 3 })
+            {
+                var rules = new ScoreRules { ComboGraceMoves = grace };
+
+                int reach2 = 0, reach3 = 0, reach5 = 0;
+                long comboMoves = 0, totalMoves = 0;
+                double sumBest = 0, sumScore = 0;
+                var lengths = new int[runs];
+
+                for (int i = 0; i < runs; i++)
+                {
+                    var run = new GameRun(DealerConfig.Default(), rules);
+                    var player = new AutoPlayer(PlayerSkill.Heuristic);
+                    var rng = new Rng((7000UL + (ulong)i) ^ 0xA5A5A5A5A5A5A5A5UL);
+                    run.StartNew(7000UL + (ulong)i);
+
+                    int placed = 0;
+                    while (!run.IsGameOver && placed < Simulator.MaxPiecesPerRun)
+                    {
+                        if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+                        if (!run.Place(slot, col, row).Accepted) break;
+                        placed++;
+
+                        // A move "inside a combo" is one scored at better than 1x.
+                        if (run.Score.ComboCount >= 2) comboMoves++;
+                        totalMoves++;
+                    }
+
+                    lengths[i] = placed;
+                    sumBest += run.Score.BestCombo;
+                    sumScore += run.Score.Score;
+
+                    if (run.Score.BestCombo >= 2) reach2++;
+                    if (run.Score.BestCombo >= 3) reach3++;
+                    if (run.Score.BestCombo >= 5) reach5++;
+                }
+
+                Array.Sort(lengths);
+
+                Console.WriteLine($"  {grace,6} {sumBest / runs,10:F2} {reach2 / (double)runs,9:P1} " +
+                                  $"{reach3 / (double)runs,9:P1} {reach5 / (double)runs,9:P1} " +
+                                  $"{comboMoves / (double)Math.Max(1, totalMoves),12:P1} " +
+                                  $"{sumScore / runs,12:F0} {lengths[runs / 2],11}");
+            }
+
             Console.WriteLine();
         }
 

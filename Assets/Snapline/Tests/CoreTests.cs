@@ -93,7 +93,7 @@ namespace Snapline.Tests
         }
 
         [Test]
-        public void DryMove_BreaksTheCombo()
+        public void DryMoves_BreakTheComboOnceGraceIsUsedUp()
         {
             var state = new ScoreState();
             var rules = new ScoreRules();
@@ -101,7 +101,10 @@ namespace Snapline.Tests
             Scoring.Apply(state, rules, new PlaceResult { Placed = true, CellsPlaced = 4, RowsCleared = 1 }, false);
             Assert.AreEqual(1, state.ComboCount);
 
-            Scoring.Apply(state, rules, new PlaceResult { Placed = true, CellsPlaced = 3 }, false);
+            // The shipped rules forgive one dry move, so it takes ComboGraceMoves + 1 to break.
+            for (int i = 0; i <= rules.ComboGraceMoves; i++)
+                Scoring.Apply(state, rules, new PlaceResult { Placed = true, CellsPlaced = 3 }, false);
+
             Assert.AreEqual(0, state.ComboCount);
         }
 
@@ -129,6 +132,76 @@ namespace Snapline.Tests
             Assert.IsNull(SaveCodec.Decode("not a save"));
             Assert.IsNull(SaveCodec.Decode(""));
             Assert.IsNull(SaveCodec.Decode(null));
+        }
+
+        [Test]
+        public void Version1Save_StillLoadsAfterTheFormatGrew()
+        {
+            // A player mid-run when the update lands has a version 1 payload in PlayerPrefs. It has
+            // one fewer field than version 2, and must still restore rather than silently starting
+            // them on a fresh board.
+            // Byte fields are continuous hex with no separators; only the int list uses commas.
+            const string body =
+                "SNAP1|1234567890|00010203|0,1,2|000102|100|9876543210|4200|3|5|17|42|2|0";
+
+            string v1 = body + "|" + Fnv1a(body).ToString("X8");
+
+            RunSnapshot decoded = SaveCodec.Decode(v1);
+
+            Assert.IsNotNull(decoded, "A version 1 save was rejected outright.");
+            Assert.AreEqual(1, decoded.Version);
+            Assert.AreEqual(1234567890UL, decoded.Occupied);
+            Assert.AreEqual(4200, decoded.Score);
+            Assert.AreEqual(9876543210UL, decoded.RngState);
+            Assert.AreEqual(0, decoded.DryMovesSinceClear, "The field added in v2 should default to 0.");
+        }
+
+        [Test]
+        public void ComboGrace_LetsAStreakSurviveOneDryMove()
+        {
+            var rules = new ScoreRules { ComboGraceMoves = 1 };
+            var state = new ScoreState();
+
+            var clear = new PlaceResult { Placed = true, CellsPlaced = 4, RowsCleared = 1 };
+            var dry = new PlaceResult { Placed = true, CellsPlaced = 3 };
+
+            Scoring.Apply(state, rules, clear, false);
+            Scoring.Apply(state, rules, clear, false);
+            Assert.AreEqual(2, state.ComboCount);
+
+            Scoring.Apply(state, rules, dry, false);
+            Assert.AreEqual(2, state.ComboCount, "One dry move should be forgiven at grace 1.");
+
+            Scoring.Apply(state, rules, dry, false);
+            Assert.AreEqual(0, state.ComboCount, "A second dry move should break the streak.");
+        }
+
+        [Test]
+        public void ComboGraceZero_BreaksOnTheFirstDryMove()
+        {
+            var rules = new ScoreRules { ComboGraceMoves = 0 };
+            var state = new ScoreState();
+
+            Scoring.Apply(state, rules, new PlaceResult { Placed = true, CellsPlaced = 4, RowsCleared = 1 }, false);
+            Assert.AreEqual(1, state.ComboCount);
+
+            Scoring.Apply(state, rules, new PlaceResult { Placed = true, CellsPlaced = 3 }, false);
+            Assert.AreEqual(0, state.ComboCount);
+        }
+
+        /// <summary>Mirrors SaveCodec's private checksum so a fixture payload can be built by hand.</summary>
+        private static uint Fnv1a(string s)
+        {
+            unchecked
+            {
+                uint hash = 2166136261u;
+                for (int i = 0; i < s.Length; i++)
+                {
+                    hash ^= s[i];
+                    hash *= 16777619u;
+                }
+                return hash;
+            }
         }
 
         [Test]
