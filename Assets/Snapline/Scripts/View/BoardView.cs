@@ -244,8 +244,9 @@ namespace Snapline.View
             if (delay > 0f) yield return new WaitForSeconds(delay);
             if (block == null) yield break;
 
-            _juice.Burst(effectPosition, colour.Glow, 7, _cellSize * 7.5f, _cellSize * 0.34f);
-            _juice.Flash(effectPosition, colour.Top, _cellSize * 1.3f, 0.22f);
+            _juice.Burst(effectPosition, colour.Glow, 11, _cellSize * 8.5f, _cellSize * 0.46f);
+            _juice.Burst(effectPosition, colour.Top, 5, _cellSize * 4.5f, _cellSize * 0.30f);
+            _juice.Flash(effectPosition, colour.Top, _cellSize * 1.5f, 0.24f);
 
             RectTransform rt = block.rectTransform;
             const float duration = 0.17f;

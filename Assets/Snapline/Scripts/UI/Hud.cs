@@ -111,18 +111,6 @@ namespace Snapline.UI
 
             if (_punch != null) StopCoroutine(_punch);
             _punch = StartCoroutine(Punch(_scoreRect, 1.14f));
-
-            if (score > _bestScore)
-            {
-                _bestScore = score;
-                _bestLabel.text = Format(score);
-                if (!_beatenThisRun)
-                {
-                    _beatenThisRun = true;
-                    _bestLabel.color = Palette.Accent;
-                    StartCoroutine(Punch(_bestLabel.rectTransform, 1.35f));
-                }
-            }
         }
 
         public void SetCombo(int combo)
@@ -152,6 +140,20 @@ namespace Snapline.UI
             else _displayedScore += delta > 0 ? move : -move;
 
             _scoreLabel.text = Format(_displayedScore);
+
+            // Best tracks the *rolling* score, not the target. Driving it from the target instead
+            // made BEST display a number the score had not visibly reached yet, which reads as a
+            // bug the first time a player beats their record.
+            if (_displayedScore <= _bestScore) return;
+
+            _bestScore = _displayedScore;
+            _bestLabel.text = Format(_displayedScore);
+
+            if (_beatenThisRun) return;
+
+            _beatenThisRun = true;
+            _bestLabel.color = Palette.Accent;
+            StartCoroutine(Punch(_bestLabel.rectTransform, 1.35f));
         }
 
         private IEnumerator Punch(RectTransform rt, float scale)

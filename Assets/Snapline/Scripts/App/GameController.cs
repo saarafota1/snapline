@@ -22,13 +22,14 @@ namespace Snapline.App
         private Hud _hud;
         private GameOverPanel _gameOver;
         private Juice _juice;
+        private Sfx _sfx;
 
         private bool _busy;
 
         public GameRun Run => _run;
 
         public void Init(BoardView board, TrayView tray, DragController drag, Hud hud,
-                         GameOverPanel gameOver, Juice juice)
+                         GameOverPanel gameOver, Juice juice, Sfx sfx)
         {
             _board = board;
             _tray = tray;
@@ -36,6 +37,7 @@ namespace Snapline.App
             _hud = hud;
             _gameOver = gameOver;
             _juice = juice;
+            _sfx = sfx;
 
             _run = new GameRun(DealerConfig.Default(), new ScoreRules());
 
@@ -100,6 +102,15 @@ namespace Snapline.App
 
         // --- moves --------------------------------------------------------------------------
 
+        /// <summary>
+        /// Play a move without going through the drag input. Used by the screenshot and smoke
+        /// harnesses so they exercise the real animation and scoring path rather than a shortcut.
+        /// </summary>
+        public void PlaceProgrammatically(int slot, int col, int row) => OnPlacementRequested(slot, col, row);
+
+        /// <summary>True while a move is still animating and input should be ignored.</summary>
+        public bool IsBusy => _busy;
+
         private void OnPlacementRequested(int slot, int col, int row)
         {
             if (_busy || _run.IsGameOver) return;
@@ -128,10 +139,15 @@ namespace Snapline.App
                 _board.AnimateClear(move.Placement);
                 _juice.Shake(ShakeFor(lines, move.Score.ComboCount));
                 ShowClearPopups(move);
+
+                _sfx.PlayClear(lines);
+                _sfx.PlayCombo(move.Score.ComboCount);
+                if (move.PerfectClear) _sfx.PlayPerfect();
             }
             else
             {
                 _juice.Shake(0.06f);
+                _sfx.PlayPlace();
             }
 
             _hud.SetScore(_run.Score.Score);
@@ -152,6 +168,7 @@ namespace Snapline.App
             if (move.GameOver)
             {
                 _drag.InputEnabled = false;
+                _sfx.PlayGameOver();
                 yield return new WaitForSeconds(0.45f);
                 yield return _board.PlayGameOverSweep();
                 yield return new WaitForSeconds(0.25f);
@@ -166,6 +183,7 @@ namespace Snapline.App
         private void OnPlacementRejected(int slot)
         {
             if (slot < 0 || slot >= _tray.SlotCount) return;
+            _sfx.PlayInvalid();
             StartCoroutine(_tray.ReturnToSlot(slot));
         }
 

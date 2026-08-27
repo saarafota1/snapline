@@ -198,6 +198,12 @@ namespace Snapline.Art
             PopupLabel label = _popups[_nextPopup];
             _nextPopup = (_nextPopup + 1) % PopupPoolSize;
 
+            // Popups are anchored over the piece the player dropped, which near the board edge puts
+            // half the word off screen. Clamp so the text always reads in full.
+            float halfWidth = _popupLayer.rect.width * 0.5f;
+            float margin = Mathf.Min(halfWidth * 0.5f, message.Length * fontSize * 0.28f);
+            position.x = Mathf.Clamp(position.x, -halfWidth + margin, halfWidth - margin);
+
             label.Alive = true;
             label.Life = life;
             label.MaxLife = life;

@@ -80,9 +80,18 @@ namespace Snapline.App
             var drag = gameObject.AddComponent<DragController>();
             drag.Init(boardView, trayView, dragLayer, canvas, boardCell, BoardGap);
 
+            var sfx = gameObject.AddComponent<Sfx>();
+            sfx.Init();
+
             var controller = gameObject.AddComponent<GameController>();
-            controller.Init(boardView, trayView, drag, hud, gameOver, juice);
+            controller.Init(boardView, trayView, drag, hud, gameOver, juice, sfx);
             controller.Begin();
+
+            if (SmokeShots.RequestedOnCommandLine())
+            {
+                drag.InputEnabled = false;
+                gameObject.AddComponent<SmokeShots>().Begin(controller);
+            }
         }
 
         private static void ConfigureScreen()
