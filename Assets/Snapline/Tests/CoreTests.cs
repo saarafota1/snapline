@@ -273,6 +273,90 @@ namespace Snapline.Tests
                             "A hole in the corner is still enclosed.");
         }
 
+        [Test]
+        public void EveryLevel_HasASaneTargetAndBudget()
+        {
+            for (int n = 1; n <= Levels.Count; n++)
+            {
+                LevelDef level = Levels.Get(n);
+
+                Assert.AreEqual(n, level.Number);
+                Assert.Greater(level.LineTarget, 0, $"Level {n} asks for no lines.");
+                Assert.Greater(level.MoveBudget, level.LineTarget,
+                               $"Level {n} allows fewer moves than lines, which cannot be beaten.");
+                Assert.Greater(level.ThreeStarSpare, level.TwoStarSpare,
+                               $"Level {n} star thresholds are inverted.");
+            }
+        }
+
+        [Test]
+        public void LevelDifficulty_IncreasesDownTheLadder()
+        {
+            LevelDef first = Levels.Get(1);
+            LevelDef last = Levels.Get(Levels.Count);
+
+            Assert.Greater(last.LineTarget, first.LineTarget);
+            Assert.Less(last.MoveBudget / (double)last.LineTarget,
+                        first.MoveBudget / (double)first.LineTarget,
+                        "Moves allowed per required line should tighten as levels go on.");
+        }
+
+        [Test]
+        public void ReachingTheLineTarget_CompletesTheLevel()
+        {
+            var run = new GameRun();
+            run.StartLevel(Levels.Get(1));
+
+            Assert.AreEqual(GameMode.Level, run.Mode);
+            Assert.IsFalse(run.LevelComplete);
+
+            var rng = new Rng(4242UL);
+            var player = new AutoPlayer(PlayerSkill.Heuristic);
+
+            while (!run.IsGameOver)
+            {
+                if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+                if (!run.Place(slot, col, row).Accepted) break;
+            }
+
+            Assert.IsTrue(run.LevelComplete, "The autoplayer should beat level 1.");
+            Assert.IsFalse(run.LevelFailed);
+            Assert.GreaterOrEqual(run.Score.TotalLinesCleared, run.Objective.LineTarget);
+        }
+
+        [Test]
+        public void RunningOutOfMoves_FailsTheLevel()
+        {
+            var run = new GameRun();
+
+            // A target no one can reach inside a single move.
+            var level = new LevelDef(1, lineTarget: 99, moveBudget: 1, seed: 12345UL);
+            run.StartLevel(level);
+
+            var rng = new Rng(1UL);
+            var player = new AutoPlayer(PlayerSkill.Heuristic);
+
+            Assert.IsTrue(player.ChooseMove(run, ref rng, out int slot, out int col, out int row));
+            run.Place(slot, col, row);
+
+            Assert.IsTrue(run.LevelFailed);
+            Assert.IsFalse(run.LevelComplete);
+            Assert.IsTrue(run.IsGameOver);
+            Assert.AreEqual(0, run.MovesRemaining);
+        }
+
+        [Test]
+        public void EndlessRun_HasNoObjective()
+        {
+            var run = new GameRun();
+            run.StartNew(7UL);
+
+            Assert.AreEqual(GameMode.Endless, run.Mode);
+            Assert.IsNull(run.Objective);
+            Assert.IsFalse(run.LevelComplete);
+            Assert.IsFalse(run.LevelFailed);
+        }
+
         // --- helpers ---------------------------------------------------------------------
 
         private static GameRun PlayedRun(int moves)

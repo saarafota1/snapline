@@ -29,9 +29,19 @@ namespace Snapline.App
 
         public GameRun Run => _run;
 
+        private LevelResultPanel _levelResult;
+
+        /// <summary>Raised when the player wants the level grid.</summary>
+        public event System.Action LevelsRequested;
+
         public void Init(BoardView board, TrayView tray, DragController drag, Hud hud,
-                         GameOverPanel gameOver, Juice juice, Sfx sfx)
+                         GameOverPanel gameOver, Juice juice, Sfx sfx, LevelResultPanel levelResult)
         {
+            _levelResult = levelResult;
+            _levelResult.NextRequested += () => StartLevel(_run.LevelNumber + 1);
+            _levelResult.RetryRequested += () => StartLevel(_run.LevelNumber);
+            _levelResult.LevelsRequested += () => LevelsRequested?.Invoke();
+
             _board = board;
             _tray = tray;
             _drag = drag;
@@ -57,6 +67,19 @@ namespace Snapline.App
         public event System.Action MenuRequested;
 
         public static bool HasSavedRun => SaveSystem.HasSavedRun();
+
+        /// <summary>
+        /// Dismiss the end-of-run cards.
+        ///
+        /// They are parented to the canvas rather than to the game screen, so switching screens does
+        /// not take them down — a finished level's result card sat on top of the main menu until
+        /// this was called from every screen transition.
+        /// </summary>
+        public void HideOverlays()
+        {
+            _gameOver.Hide();
+            _levelResult.Hide();
+        }
 
         /// <summary>Pick the saved run back up exactly where it was left.</summary>
         public bool ResumeSavedRun()
@@ -101,12 +124,14 @@ namespace Snapline.App
         public void StartNewRun()
         {
             _gameOver.Hide();
+            _levelResult.Hide();
             SaveSystem.ClearRun();
 
             _run.StartNew(NewSeed());
 
             _board.SyncFromBoard(_run.Board);
             _tray.Refresh(_run.Tray, animate: true);
+            _hud.SetMode(GameMode.Endless);
             _hud.ResetForNewRun(SaveSystem.HighScore);
             RefreshSlotPlayability();
 
@@ -114,6 +139,34 @@ namespace Snapline.App
             _busy = false;
 
             SaveNow();
+        }
+
+        /// <summary>Begin a level. Clamped to the ladder, so "next level" past the end is harmless.</summary>
+        public void StartLevel(int number)
+        {
+            number = Mathf.Clamp(number, 1, Levels.Count);
+
+            _gameOver.Hide();
+            _levelResult.Hide();
+
+            _run.StartLevel(Levels.Get(number));
+
+            _board.SyncFromBoard(_run.Board);
+            _tray.Refresh(_run.Tray, animate: true);
+            _hud.SetMode(GameMode.Level);
+            _hud.ResetForNewRun(SaveSystem.HighScore);
+            PushObjective();
+            RefreshSlotPlayability();
+
+            _drag.InputEnabled = true;
+            _busy = false;
+        }
+
+        private void PushObjective()
+        {
+            if (_run.Objective == null) return;
+            _hud.SetObjective(_run.LevelNumber, _run.Score.TotalLinesCleared, _run.Objective.LineTarget,
+                              _run.MovesRemaining, _run.Objective.MoveBudget);
         }
 
         /// <summary>
@@ -187,24 +240,62 @@ namespace Snapline.App
                 _tray.Refresh(_run.Tray, animate: true);
             }
 
+            PushObjective();
             RefreshSlotPlayability();
             SaveNow();
 
             _busy = false;
 
-            if (move.GameOver)
-            {
-                _drag.InputEnabled = false;
-                _sfx.PlayGameOver();
-                yield return new WaitForSeconds(0.45f);
-                yield return _board.PlayGameOverSweep();
-                yield return new WaitForSeconds(0.25f);
+            if (!move.GameOver) yield break;
 
-                bool isNewBest = SaveSystem.SubmitScore(_run.Score.Score);
-                SaveSystem.RecordFinishedRun(_run.Score.Score, _run.Score.TotalLinesCleared, _run.Score.BestCombo);
-                SaveSystem.ClearRun();
-                ShowGameOver(isNewBest);
+            _drag.InputEnabled = false;
+
+            if (_run.Mode == GameMode.Level)
+            {
+                yield return ResolveLevelEnd(move);
+                yield break;
             }
+
+            _sfx.PlayGameOver();
+            yield return new WaitForSeconds(0.45f);
+            yield return _board.PlayGameOverSweep();
+            yield return new WaitForSeconds(0.25f);
+
+            bool isNewBest = SaveSystem.SubmitScore(_run.Score.Score);
+            SaveSystem.RecordFinishedRun(_run.Score.Score, _run.Score.TotalLinesCleared, _run.Score.BestCombo);
+            SaveSystem.ClearRun();
+            ShowGameOver(isNewBest);
+        }
+
+        private IEnumerator ResolveLevelEnd(MoveResult move)
+        {
+            LevelDef level = Levels.Get(_run.LevelNumber);
+
+            if (move.LevelComplete)
+            {
+                _sfx.PlayPerfect();
+                _juice.Shake(0.5f);
+
+                // The winning clear should be seen before the card covers it.
+                yield return new WaitForSeconds(0.85f);
+
+                int stars = level.StarsFor(_run.MovesRemaining);
+                SaveSystem.RecordLevelResult(level.Number, stars);
+                SaveSystem.SubmitScore(_run.Score.Score);
+
+                _levelResult.Show(level.Number, complete: true, stars, _run.Score.TotalLinesCleared,
+                                  level.LineTarget, _run.MovesUsed, _run.Score.Score,
+                                  hasNextLevel: level.Number < Levels.Count);
+                yield break;
+            }
+
+            _sfx.PlayGameOver();
+            yield return new WaitForSeconds(0.4f);
+            yield return _board.PlayGameOverSweep();
+            yield return new WaitForSeconds(0.2f);
+
+            _levelResult.Show(level.Number, complete: false, 0, _run.Score.TotalLinesCleared,
+                              level.LineTarget, _run.MovesUsed, _run.Score.Score, hasNextLevel: false);
         }
 
         private void OnPlacementRejected(int slot)
@@ -358,6 +449,12 @@ namespace Snapline.App
         private void SaveNow()
         {
             if (_run == null || _run.IsGameOver) return;
+
+            // Only the endless run is resumable. Saving a level here would overwrite the endless
+            // board the menu's CONTINUE button offers, losing a long run because someone dipped
+            // into level 3 — levels are short and restart cleanly, so they are not worth saving.
+            if (_run.Mode != GameMode.Endless) return;
+
             SaveSystem.SaveRun(_run.Snapshot());
         }
 

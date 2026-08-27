@@ -18,6 +18,11 @@ namespace Snapline.UI
         private Text _scoreLabel;
         private Text _bestLabel;
         private Text _comboLabel;
+        private Text _levelLabel;
+        private Text _objectiveLabel;
+        private Text _movesLabel;
+        private RectTransform _endlessGroup;
+        private RectTransform _levelGroup;
         private RectTransform _scoreRect;
         private RectTransform _comboRect;
         private Image _comboPanel;
@@ -50,13 +55,43 @@ namespace Snapline.UI
 
             _bestScore = bestScore;
 
-            Text bestCaption = UIKit.Label("BestCaption", Root, "BEST", 34, Palette.TextDim);
+            // Endless shows the best score up top; level mode replaces it with the objective. Both
+            // live in their own group so switching modes is one SetActive rather than re-layout.
+            _endlessGroup = UIKit.Rect("EndlessTop", Root);
+            _endlessGroup.anchorMin = new Vector2(0f, 1f);
+            _endlessGroup.anchorMax = new Vector2(1f, 1f);
+            _endlessGroup.pivot = new Vector2(0.5f, 1f);
+            _endlessGroup.offsetMin = new Vector2(0f, -140f);
+            _endlessGroup.offsetMax = Vector2.zero;
+
+            Text bestCaption = UIKit.Label("BestCaption", _endlessGroup, "BEST", 34, Palette.TextDim);
             UIKit.Place(bestCaption.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                         new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(500f, 40f));
 
-            _bestLabel = UIKit.Label("Best", Root, Format(bestScore), 44, Palette.Accent);
+            _bestLabel = UIKit.Label("Best", _endlessGroup, Format(bestScore), 44, Palette.Accent);
             UIKit.Place(_bestLabel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                         new Vector2(0.5f, 1f), new Vector2(0f, -74f), new Vector2(500f, 56f));
+
+            _levelGroup = UIKit.Rect("LevelTop", Root);
+            _levelGroup.anchorMin = new Vector2(0f, 1f);
+            _levelGroup.anchorMax = new Vector2(1f, 1f);
+            _levelGroup.pivot = new Vector2(0.5f, 1f);
+            _levelGroup.offsetMin = new Vector2(0f, -140f);
+            _levelGroup.offsetMax = Vector2.zero;
+
+            _levelLabel = UIKit.Label("LevelName", _levelGroup, "LEVEL 1", 34, Palette.TextDim);
+            UIKit.Place(_levelLabel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                        new Vector2(0.5f, 1f), new Vector2(0f, -26f), new Vector2(600f, 40f));
+
+            _objectiveLabel = UIKit.Label("Objective", _levelGroup, "LINES 0 / 4", 46, Palette.TextBright);
+            UIKit.Place(_objectiveLabel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                        new Vector2(0.5f, 1f), new Vector2(-190f, -66f), new Vector2(460f, 56f));
+
+            _movesLabel = UIKit.Label("Moves", _levelGroup, "MOVES 22", 46, Palette.Accent);
+            UIKit.Place(_movesLabel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                        new Vector2(0.5f, 1f), new Vector2(190f, -66f), new Vector2(460f, 56f));
+
+            _levelGroup.gameObject.SetActive(false);
 
             _scoreLabel = UIKit.Label("Score", Root, "0", 118, Palette.TextBright);
             _scoreRect = _scoreLabel.rectTransform;
@@ -94,6 +129,32 @@ namespace Snapline.UI
             cl.offsetMax = Vector2.zero;
 
             _comboRect.gameObject.SetActive(false);
+        }
+
+        /// <summary>Switch the top bar between the endless best score and the level objective.</summary>
+        public void SetMode(Core.GameMode mode)
+        {
+            bool level = mode == Core.GameMode.Level;
+            _endlessGroup.gameObject.SetActive(!level);
+            _levelGroup.gameObject.SetActive(level);
+        }
+
+        /// <summary>
+        /// Update the level objective readout. Moves turn amber and then red as the budget runs
+        /// down, so the pressure is visible without the player counting.
+        /// </summary>
+        public void SetObjective(int levelNumber, int linesCleared, int lineTarget, int movesLeft, int moveBudget)
+        {
+            _levelLabel.text = $"LEVEL {levelNumber}";
+            _objectiveLabel.text = $"LINES {Mathf.Min(linesCleared, lineTarget)} / {lineTarget}";
+            _movesLabel.text = $"MOVES {movesLeft}";
+
+            float fraction = moveBudget <= 0 ? 1f : movesLeft / (float)moveBudget;
+            _movesLabel.color = fraction <= 0.15f
+                ? new Color(1f, 0.42f, 0.40f)
+                : fraction <= 0.35f
+                    ? new Color(1f, 0.72f, 0.30f)
+                    : Palette.Accent;
         }
 
         public void ResetForNewRun(long bestScore)

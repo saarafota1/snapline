@@ -26,6 +26,7 @@ namespace Snapline.Bench
             if (mode == "sweep" || mode == "all") Sweep();
             if (mode == "validate" || mode == "all") Validate();
             if (mode == "combo" || mode == "all") Combos();
+            if (mode == "levels" || mode == "all") LevelLadder();
 
             if (_failures > 0)
             {
@@ -296,6 +297,86 @@ namespace Snapline.Bench
                                       $"mean score {r.MeanScore,9:F0}   under-20 {r.ShareUnder20Pieces,6:P2}");
                 }
             }
+            Console.WriteLine();
+        }
+
+        // --- level ladder ----------------------------------------------------------------
+
+        /// <summary>
+        /// Play every level with the autoplayer and report how often it is beaten.
+        ///
+        /// This is the whole reason the ladder is generated from a curve instead of hand-authored:
+        /// a level that is accidentally impossible, or trivially free, shows up here as a number
+        /// rather than as a one-star review. A level nobody can beat is a bug, and it is silent.
+        /// </summary>
+        private static void LevelLadder()
+        {
+            Console.WriteLine("=== level ladder ===");
+            const int attemptsPerLevel = 120;
+
+            int impossible = 0, trivialTail = 0;
+            double sumRate = 0;
+
+            Console.WriteLine($"  {"lvl",4} {"lines",6} {"moves",6} {"beat",8} {"avg stars",10} {"avg spare",10}");
+
+            for (int n = 1; n <= Levels.Count; n++)
+            {
+                LevelDef level = Levels.Get(n);
+
+                int wins = 0, stars = 0, spare = 0;
+
+                for (int a = 0; a < attemptsPerLevel; a++)
+                {
+                    var run = new GameRun(DealerConfig.Default(), new ScoreRules());
+                    var player = new AutoPlayer(PlayerSkill.Heuristic);
+                    var rng = new Rng(unchecked((ulong)(n * 7919 + a) * 0x2545F4914F6CDD1DUL));
+
+                    run.StartLevel(level);
+
+                    while (!run.IsGameOver)
+                    {
+                        if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+                        if (!run.Place(slot, col, row).Accepted) break;
+                    }
+
+                    if (!run.LevelComplete) continue;
+
+                    wins++;
+                    spare += run.MovesRemaining;
+                    stars += level.StarsFor(run.MovesRemaining);
+                }
+
+                double rate = wins / (double)attemptsPerLevel;
+                sumRate += rate;
+
+                if (wins == 0) impossible++;
+                if (n > Levels.Count / 2 && rate > 0.97) trivialTail++;
+
+                // Print a sample rather than all 60 lines, plus anything alarming.
+                bool notable = n <= 3 || n % 10 == 0 || n == Levels.Count || wins == 0;
+                if (notable)
+                {
+                    Console.WriteLine($"  {n,4} {level.LineTarget,6} {level.MoveBudget,6} {rate,8:P0} " +
+                                      $"{(wins == 0 ? 0 : stars / (double)wins),10:F2} " +
+                                      $"{(wins == 0 ? 0 : spare / (double)wins),10:F1}");
+                }
+            }
+
+            Console.WriteLine($"  mean beat rate across the ladder: {sumRate / Levels.Count:P1}");
+
+            if (impossible > 0)
+            {
+                _failures++;
+                Console.WriteLine($"  FAIL  {impossible} level(s) were never beaten in {attemptsPerLevel} attempts");
+            }
+            else
+            {
+                Console.WriteLine("  every level was beaten at least once");
+            }
+
+            if (trivialTail > 0)
+                Console.WriteLine($"  note: {trivialTail} level(s) in the back half are beaten >97% of the time");
+
             Console.WriteLine();
         }
 

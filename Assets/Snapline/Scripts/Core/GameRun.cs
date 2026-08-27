@@ -24,6 +24,15 @@ namespace Snapline.Core
 
         /// <summary>True when the board was completely emptied by this move.</summary>
         public bool PerfectClear;
+
+        /// <summary>Level mode only: this move met the line target.</summary>
+        public bool LevelComplete;
+
+        /// <summary>Level mode only: the run ended without meeting the target.</summary>
+        public bool LevelFailed;
+
+        /// <summary>Level mode only: moves left in the budget after this one.</summary>
+        public int MovesRemaining;
     }
 
     /// <summary>
@@ -87,14 +96,58 @@ namespace Snapline.Core
             Tray = new TrayPiece[Math.Max(1, Dealer.Config.TraySize)];
         }
 
+        /// <summary>Which mode this run is being played in. Endless has no objective.</summary>
+        public GameMode Mode { get; private set; } = GameMode.Endless;
+
+        /// <summary>Null in endless. In level mode, what has to be achieved and by when.</summary>
+        public LevelObjective Objective { get; private set; }
+
+        /// <summary>Level mode only: which level this is, for saving and for the results screen.</summary>
+        public int LevelNumber { get; private set; }
+
+        public int MovesUsed { get; private set; }
+
+        public int MovesRemaining =>
+            Objective == null ? int.MaxValue : Math.Max(0, Objective.MoveBudget - MovesUsed);
+
+        public bool LevelComplete { get; private set; }
+        public bool LevelFailed { get; private set; }
+
+        /// <summary>Lines still needed. Level mode only.</summary>
+        public int LinesRemaining =>
+            Objective == null ? 0 : Math.Max(0, Objective.LineTarget - Score.TotalLinesCleared);
+
         public void StartNew(ulong seed)
+        {
+            Mode = GameMode.Endless;
+            Objective = null;
+            LevelNumber = 0;
+            ResetRun(seed);
+        }
+
+        /// <summary>Begin a level. The seed comes from the level, so everyone gets the same challenge.</summary>
+        public void StartLevel(LevelDef level)
+        {
+            if (level == null) throw new ArgumentNullException(nameof(level));
+
+            Mode = GameMode.Level;
+            Objective = level.ToObjective();
+            LevelNumber = level.Number;
+            ResetRun(level.Seed);
+        }
+
+        private void ResetRun(ulong seed)
         {
             Board.Clear();
             Score.Reset();
             _rng = new Rng(seed);
             IsGameOver = false;
+            MovesUsed = 0;
+            LevelComplete = false;
+            LevelFailed = false;
             DealTray();
             RefreshGameOver();
+            ResolveLevelOutcome();
         }
 
         // --- moves ---------------------------------------------------------------------
@@ -133,6 +186,8 @@ namespace Snapline.Core
             Tray[traySlot].Consumed = true;
             Tray[traySlot].ShapeId = -1;
 
+            if (Objective != null) MovesUsed++;
+
             if (TrayIsEmpty())
             {
                 DealTray();
@@ -140,12 +195,42 @@ namespace Snapline.Core
             }
 
             RefreshGameOver();
+            ResolveLevelOutcome();
+
             move.GameOver = IsGameOver;
+            move.LevelComplete = LevelComplete;
+            move.LevelFailed = LevelFailed;
+            move.MovesRemaining = MovesRemaining;
 
             MoveResolved?.Invoke(move);
             if (IsGameOver) GameOverRaised?.Invoke();
 
             return move;
+        }
+
+        /// <summary>
+        /// Decide whether a level has been won or lost.
+        ///
+        /// Meeting the line target wins immediately, even on the move that also exhausts the budget
+        /// or fills the board — reaching the goal should never be stolen by a technicality. Anything
+        /// else that ends the run in level mode is a loss.
+        /// </summary>
+        private void ResolveLevelOutcome()
+        {
+            if (Objective == null || LevelComplete || LevelFailed) return;
+
+            if (Score.TotalLinesCleared >= Objective.LineTarget)
+            {
+                LevelComplete = true;
+                IsGameOver = true;
+                return;
+            }
+
+            if (MovesUsed >= Objective.MoveBudget || IsGameOver)
+            {
+                LevelFailed = true;
+                IsGameOver = true;
+            }
         }
 
         public bool TrayIsEmpty()

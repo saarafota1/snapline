@@ -54,13 +54,13 @@ namespace Snapline.App
             return Path.Combine(Application.persistentDataPath, "shots");
         }
 
-        private System.Action _startGame;
+        private Bootstrap _app;
 
-        public void Begin(GameController controller, DragController drag, System.Action startGame)
+        public void Begin(GameController controller, DragController drag, Bootstrap app)
         {
             _controller = controller;
             _drag = drag;
-            _startGame = startGame;
+            _app = app;
             _outputDir = ResolveOutputDir();
             Directory.CreateDirectory(_outputDir);
 
@@ -82,7 +82,7 @@ namespace Snapline.App
             yield return new WaitForSeconds(1.1f);
             yield return Capture("00_menu");
 
-            _startGame?.Invoke();
+            _app.StartNewGame();
 
             // Let the first tray animate in.
             yield return new WaitForSeconds(1.2f);
@@ -140,8 +140,69 @@ namespace Snapline.App
                 Debug.LogError($"[Snapline] drag path BROKEN: {_dragMismatches} of {_dragsPerformed} " +
                                "drags landed on the wrong cell.");
 
+            yield return LevelPhase();
+
             yield return new WaitForSeconds(0.4f);
             Application.Quit(0);
+        }
+
+        /// <summary>
+        /// Walk the level side of the game: the grid, a level being played, and the result card.
+        /// Endless being fine says nothing about whether level mode renders at all.
+        /// </summary>
+        private IEnumerator LevelPhase()
+        {
+            _app.ShowLevelSelect();
+            yield return new WaitForSeconds(0.7f);
+            yield return Capture("06_level_select");
+
+            _app.StartLevel(1);
+            yield return new WaitForSeconds(1.1f);
+
+            GameRun run = _controller.Run;
+            var rng = new Rng(31337UL);
+            var player = new AutoPlayer(PlayerSkill.Heuristic);
+
+            int moves = 0;
+            bool captured = false;
+
+            while (!run.IsGameOver && moves < MaxMoves)
+            {
+                while (_controller.IsBusy) yield return null;
+                if (run.IsGameOver) break;
+
+                if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+
+                _drag.SimulateDragTo(slot, col, row);
+                moves++;
+                yield return new WaitForSeconds(0.2f);
+
+                if (!captured && moves >= 6)
+                {
+                    captured = true;
+                    yield return Capture("07_level_playing");
+                }
+            }
+
+            // The result card slides in and the stars land one by one.
+            yield return new WaitForSeconds(2.6f);
+            yield return Capture("08_level_result");
+
+            Debug.Log($"[Snapline] level 1: complete={run.LevelComplete} failed={run.LevelFailed} " +
+                      $"lines={run.Score.TotalLinesCleared}/{run.Objective?.LineTarget} moves={run.MovesUsed}");
+
+            // The level grid again, now with level 1 cleared and level 2 unlocked.
+            _app.ShowLevelSelect();
+            yield return new WaitForSeconds(0.6f);
+            yield return Capture("09_level_select_progress");
+
+            _app.ShowScores();
+            yield return new WaitForSeconds(0.6f);
+            yield return Capture("10_scores");
+
+            _app.ShowMenu();
+            yield return new WaitForSeconds(0.8f);
+            yield return Capture("11_menu_returning");
         }
 
         private IEnumerator Capture(string name)

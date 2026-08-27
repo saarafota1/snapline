@@ -92,23 +92,43 @@ namespace Snapline.App
             _sfx.Muted = !Settings.SoundEnabled;
 
             _controller = gameObject.AddComponent<GameController>();
-            _controller.Init(boardView, trayView, drag, hud, gameOver, juice, _sfx);
+            var levelResult = new GameObject("LevelResult").AddComponent<LevelResultPanel>();
+            levelResult.transform.SetParent(canvasRect, false);
+            levelResult.Init(canvasRect);
+
+            _controller.Init(boardView, trayView, drag, hud, gameOver, juice, _sfx, levelResult);
             _controller.MenuRequested += ShowMenu;
+            _controller.LevelsRequested += ShowLevelSelect;
 
             _menu = new GameObject("MainMenu").AddComponent<MainMenu>();
             _menu.transform.SetParent(canvasRect, false);
             _menu.Init(canvasRect);
             _menu.NewGameRequested += StartNewGame;
             _menu.ContinueRequested += ContinueGame;
+            _menu.LevelsRequested += ShowLevelSelect;
+
+            _menu.ScoresRequested += ShowScores;
             _menu.ShareRequested += () => GameKit.Share.Text(GameController.ShareMessage(SaveSystem.HighScore));
             _menu.SoundToggled += ToggleSound;
+
+            _levelSelect = new GameObject("LevelSelect").AddComponent<LevelSelect>();
+            _levelSelect.transform.SetParent(canvasRect, false);
+            _levelSelect.Init(canvasRect);
+            _levelSelect.LevelChosen += StartLevel;
+            _levelSelect.BackRequested += ShowMenu;
+
+            _scores = new GameObject("ScoresPanel").AddComponent<ScoresPanel>();
+            _scores.transform.SetParent(canvasRect, false);
+            _scores.Init(canvasRect);
+            _scores.BackRequested += ShowMenu;
+            _scores.ShareRequested += () => GameKit.Share.Text(GameController.ShareMessage(SaveSystem.HighScore));
 
             if (SmokeShots.RequestedOnCommandLine())
             {
                 // The harness captures the menu, then starts a game itself.
                 drag.InputEnabled = false;
                 ShowMenu();
-                gameObject.AddComponent<SmokeShots>().Begin(_controller, drag, StartNewGame);
+                gameObject.AddComponent<SmokeShots>().Begin(_controller, drag, this);
                 return;
             }
 
@@ -118,17 +138,55 @@ namespace Snapline.App
         private RectTransform _gameRoot;
         private GameController _controller;
         private MainMenu _menu;
+        private LevelSelect _levelSelect;
+
+        private ScoresPanel _scores;
         private Sfx _sfx;
 
-        private void ShowMenu()
+        internal void ShowMenu()
         {
             _gameRoot.gameObject.SetActive(false);
+            _controller.HideOverlays();
+            _levelSelect.Hide();
+            _scores.Hide();
             _menu.Show(SaveSystem.HighScore, GameController.HasSavedRun);
         }
 
-        private void StartNewGame()
+        internal void ShowScores()
+        {
+            _gameRoot.gameObject.SetActive(false);
+            _controller.HideOverlays();
+            _menu.Hide();
+            _levelSelect.Hide();
+            _scores.Show();
+        }
+
+
+
+        internal void ShowLevelSelect()
+        {
+            _gameRoot.gameObject.SetActive(false);
+            _controller.HideOverlays();
+            _menu.Hide();
+            _scores.Hide();
+            _levelSelect.Show();
+            _levelSelect.ScrollTo(SaveSystem.HighestUnlockedLevel());
+        }
+
+        internal void StartLevel(int number)
         {
             _menu.Hide();
+            _levelSelect.Hide();
+            _scores.Hide();
+            _gameRoot.gameObject.SetActive(true);
+            _controller.StartLevel(number);
+        }
+
+        internal void StartNewGame()
+        {
+            _menu.Hide();
+            _levelSelect.Hide();
+            _scores.Hide();
             _gameRoot.gameObject.SetActive(true);
             _controller.StartNewRun();
         }
@@ -136,6 +194,8 @@ namespace Snapline.App
         private void ContinueGame()
         {
             _menu.Hide();
+            _levelSelect.Hide();
+            _scores.Hide();
             _gameRoot.gameObject.SetActive(true);
 
             // The save can vanish between the menu being drawn and the tap — a crash, or the run

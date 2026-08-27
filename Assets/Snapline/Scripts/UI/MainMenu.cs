@@ -25,6 +25,9 @@ namespace Snapline.UI
         private Button _primary;
         private Text _primaryCaption;
         private Button _secondary;
+        private Button _levels;
+        private Text _levelsCaption;
+        private Button _share;
 
         private RectTransform[] _decor;
         private float[] _decorPhase;
@@ -32,6 +35,8 @@ namespace Snapline.UI
 
         public event Action ContinueRequested;
         public event Action NewGameRequested;
+        public event Action LevelsRequested;
+        public event Action ScoresRequested;
         public event Action ShareRequested;
         public event Action SoundToggled;
 
@@ -81,20 +86,30 @@ namespace Snapline.UI
             // --- buttons ------------------------------------------------------------------
             _primary = UIKit.Button("Primary", _root, "PLAY", new Color(0.24f, 0.78f, 0.45f, 1f), Color.white, 58);
             UIKit.Place(_primary.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                        new Vector2(0.5f, 0.5f), new Vector2(0f, -80f), new Vector2(660f, 150f));
+                        new Vector2(0.5f, 0.5f), new Vector2(0f, -50f), new Vector2(660f, 140f));
             _primaryCaption = _primary.GetComponentInChildren<Text>();
             _primary.onClick.AddListener(OnPrimary);
 
+            _levels = UIKit.Button("Levels", _root, "LEVELS", new Color(0.55f, 0.38f, 0.82f, 1f), Color.white, 52);
+            UIKit.Place(_levels.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                        new Vector2(0.5f, 0.5f), new Vector2(0f, -200f), new Vector2(660f, 140f));
+            _levelsCaption = _levels.GetComponentInChildren<Text>();
+            _levels.onClick.AddListener(() => LevelsRequested?.Invoke());
+
+            Button scores = UIKit.Button("Scores", _root, "BEST SCORES", new Color(0.32f, 0.45f, 0.72f, 1f),
+                                         Color.white, 44);
+            UIKit.Place(scores.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                        new Vector2(0.5f, 0.5f), new Vector2(0f, -345f), new Vector2(660f, 120f));
+            scores.onClick.AddListener(() => ScoresRequested?.Invoke());
+
             _secondary = UIKit.Button("Secondary", _root, "NEW GAME", new Color(0.30f, 0.36f, 0.62f, 1f),
-                                      Color.white, 44);
+                                      Color.white, 40);
             UIKit.Place(_secondary.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                        new Vector2(0.5f, 0.5f), new Vector2(0f, -250f), new Vector2(660f, 118f));
+                        new Vector2(0.5f, 0.5f), new Vector2(-170f, -475f), new Vector2(320f, 108f));
             _secondary.onClick.AddListener(() => NewGameRequested?.Invoke());
 
-            Button share = UIKit.Button("Share", _root, "SHARE", new Color(0.34f, 0.55f, 0.85f, 1f), Color.white, 44);
-            UIKit.Place(share.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                        new Vector2(0.5f, 0.5f), new Vector2(0f, -420f), new Vector2(660f, 118f));
-            share.onClick.AddListener(() => ShareRequested?.Invoke());
+            _share = UIKit.Button("Share", _root, "SHARE", new Color(0.34f, 0.55f, 0.85f, 1f), Color.white, 40);
+            _share.onClick.AddListener(() => ShareRequested?.Invoke());
 
             Button sound = UIKit.Button("Sound", _root, "SOUND ON", new Color(0.28f, 0.31f, 0.52f, 1f),
                                         Palette.TextDim, 36);
@@ -158,6 +173,18 @@ namespace Snapline.UI
             // saved board is never thrown away by someone just tapping the big green button.
             _primaryCaption.text = hasSavedRun ? "CONTINUE" : "PLAY";
             _secondary.gameObject.SetActive(hasSavedRun);
+
+            // With no saved run there is no NEW GAME beside it, so SHARE takes the whole row rather
+            // than sitting lopsided in half of one.
+            RectTransform shareRect = _share.GetComponent<RectTransform>();
+            UIKit.Place(shareRect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                        new Vector2(hasSavedRun ? 170f : 0f, -475f),
+                        new Vector2(hasSavedRun ? 320f : 660f, 108f));
+
+            int completed = App.SaveSystem.LevelsCompleted();
+            _levelsCaption.text = completed == 0
+                ? "LEVELS"
+                : $"LEVELS   {completed}/{Core.Levels.Count}";
 
             RefreshSoundLabel();
 
