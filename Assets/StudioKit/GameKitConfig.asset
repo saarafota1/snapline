@@ -20,6 +20,10 @@ MonoBehaviour:
   admobInterstitialAndroid: ca-app-pub-3940256099942544/1033173712
   admobRewardedIOS: ca-app-pub-3940256099942544/1712485313
   admobInterstitialIOS: ca-app-pub-3940256099942544/4411468910
+  admobRewardedAndroidRelease: ca-app-pub-1931205009793131/6078132186
+  admobInterstitialAndroidRelease: ca-app-pub-1931205009793131/4765050515
+  admobRewardedIOSRelease: 
+  admobInterstitialIOSRelease: 
   androidGameId: 
   iosGameId: 
   adsTestMode: 1

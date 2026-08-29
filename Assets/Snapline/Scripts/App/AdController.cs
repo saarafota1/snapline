@@ -55,6 +55,15 @@ namespace Snapline.App
                 Debug.Log("[Snapline] Simulated ad network installed (development flag).");
             }
 
+            // Log which units are actually live. Whether a build serves test or real ads is the one
+            // thing here worth being able to confirm from a device log rather than reason about.
+            if (config != null)
+            {
+                Debug.Log($"[Snapline] ad units: release build={GameKitConfig.IsReleaseBuild}, " +
+                          $"using {(config.UsingAdMobTestUnits ? "GOOGLE TEST" : "LIVE")} units — " +
+                          $"rewarded={config.AdMobRewardedUnit} interstitial={config.AdMobInterstitialUnit}");
+            }
+
             Debug.Log($"[Snapline] ads: rewardedReady={GameKitRuntime.Ads.IsRewardedReady} " +
                       $"interstitialReady={GameKitRuntime.Ads.IsInterstitialReady} " +
                       $"firstAdAfter={_policy.GamesBeforeFirstAd} games, " +
