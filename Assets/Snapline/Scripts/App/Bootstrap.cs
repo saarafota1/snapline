@@ -58,6 +58,14 @@ namespace Snapline.App
 
             RectTransform canvasRect = canvas.GetComponent<RectTransform>();
 
+            // The feature graphic is a landscape banner, not the game. Build it and quit before any
+            // of the portrait layout below runs.
+            if (StoreShots.FeatureGraphicRequested())
+            {
+                StartCoroutine(StoreShots.BuildAndCaptureFeatureGraphic(canvasRect));
+                return;
+            }
+
             // The background is the only thing outside the safe area, so it bleeds behind a notch
             // rather than leaving a bar of nothing there.
             BuildBackground(canvasRect);
@@ -163,6 +171,14 @@ namespace Snapline.App
             _scores.BackRequested += ShowMenu;
             _scores.ShareRequested += () => GameKit.Share.Text(GameController.ShareMessage(SaveSystem.HighScore));
 
+            if (StoreShots.StoreShotsRequested())
+            {
+                drag.InputEnabled = false;
+                ShowMenu();
+                gameObject.AddComponent<StoreShots>().Begin(_controller, this);
+                return;
+            }
+
             if (SmokeShots.RequestedOnCommandLine())
             {
                 // The harness captures the menu, then starts a game itself.
@@ -252,6 +268,15 @@ namespace Snapline.App
 
         private static void ConfigureScreen()
         {
+            // A standalone player pauses entirely when it loses focus, which hangs any capture run
+            // launched from a script. Only enabled for the harnesses; the shipped game keeps the
+            // default so it never burns battery in the background.
+            if (StoreShots.StoreShotsRequested() || StoreShots.FeatureGraphicRequested() ||
+                SmokeShots.RequestedOnCommandLine())
+            {
+                Application.runInBackground = true;
+            }
+
             Application.targetFrameRate = 60;
             Screen.sleepTimeout = SleepTimeout.NeverSleep;
             Screen.orientation = ScreenOrientation.Portrait;
