@@ -3,6 +3,124 @@
 Updated 28 Aug 2026. The game is playable and verified end to end. Everything below is either a
 decision only you can make, or a step that needs a credential I should not have.
 
+## Store artwork — done, in `StoreAssets/`
+
+Not in git: `.gitignore` excludes `StoreAssets/`, the studio convention for build outputs. The
+tooling that makes them is committed, so they regenerate at any time.
+
+| File | Size | Play slot |
+|---|---|---|
+| `icon-512.png` | 512×512 | Store listing icon |
+| `icon-1024.png` | 1024×1024 | Source for the launcher icon (already installed in the project) |
+| `feature-graphic-1024x500.png` | 1024×500 | Feature graphic |
+| `1-menu.png` … `7-best-scores.png` | 1080×1920 | Phone screenshots (7 of the 8 allowed) |
+
+Regenerate:
+
+```bash
+Unity.exe -batchmode -nographics -quit -projectPath . \
+  -executeMethod Snapline.EditorTools.StoreAssets.GenerateIconsCLI
+
+Builds/SnaplineShots.exe -snapline-feature -snapline-store-dir StoreAssets \
+  -screen-width 1024 -screen-height 500 -screen-fullscreen 0
+
+Builds/SnaplineShots.exe -snapline-store -snapline-store-dir StoreAssets \
+  -screen-width 540 -screen-height 960 -screen-fullscreen 0
+```
+
+The screenshots are **real gameplay from a non-development build** — the harness wipes progress and
+genuinely beats levels 1–8 and plays an endless run before capturing. Play rejects mock-ups, so this
+matters. The stats visible in them (31,070 best, 8 levels, 24 stars) were earned during that run.
+
+---
+
+## Adding ads
+
+**Decide first: where do ads go?** This is a design call, not a technical one. My recommendation for
+a casual puzzle:
+
+| Placement | Why |
+|---|---|
+| **Rewarded "CONTINUE"** on game over | Highest value per impression and player-initiated, so it never feels like an interruption. The single best fit for an endless scoring game. |
+| **Interstitial** after game over | Capped — never on the first 2 games of a session, and no more than one every ~3 minutes. |
+| **No banner** | It would eat board width, and the board is already the width-constrained element. |
+
+**What you need to get (account steps I can't do):**
+
+1. An **AdMob app** for `com.sciboxstudios.snapline` → gives an App ID (`ca-app-pub-…~…`)
+2. Two **ad units** → an Interstitial ID and a Rewarded ID
+3. The **Google Mobile Ads Unity plugin** `.unitypackage` downloaded
+
+**What I do once you have those:**
+
+4. Import it via the kit: `AdMobSetup.Import -admobPackage GoogleMobileAds.unitypackage`
+5. Write `AdPolicy` (frequency caps, cooldowns) and the revive flow, behind the kit's
+   `IAdService` — the game never touches the vendor SDK, so swapping networks later is one adapter
+6. Wire the App ID into the manifest via the kit's AdMob sync
+
+**One step only you can do, in the editor:** `Assets → External Dependency Manager → Android
+Resolver → Resolve`. This is not optional and it fails *silently*: without it the manifest lacks
+`com.google.android.gms.ads.APPLICATION_ID`, and the Google SDK deliberately throws on launch. The
+build succeeds, the APK installs, the app dies instantly, and nothing appears in the build log. The
+kit's `AndroidBuildGuard` now fails the build instead of shipping that.
+
+**Non-negotiable:** ship Google's **test** ad IDs until the very last build. Clicking your own live
+ads is the fastest way to get the AdMob account permanently banned, and a ban takes the whole
+portfolio, not just this app.
+
+**Cost:** adding ads puts three entries on the Data Safety form — Device IDs, Approximate location,
+App activity, purpose Advertising. "No data collected" while shipping the ads SDK is a false
+declaration and a common suspension reason; Play scans the bundle.
+
+---
+
+## Deploying to Google Play
+
+Already done and verified: app id `com.sciboxstudios.snapline`, ARM64-only, every native library
+16 KB aligned, targetSdk 36, portrait, launcher icon installed, store artwork ready.
+
+**Needs you:**
+
+1. **Keystore alias.** Studio convention is one keystore, a new alias per game:
+   ```bash
+   keytool -genkeypair -v -keystore "C:\Users\saara\Projects\Games\Flying Penguin Saga\user.keystore" \
+     -alias snapline -keyalg RSA -keysize 2048 -validity 10000
+   ```
+2. **Signed bundle** — run it yourself so passwords stay out of any shared log (command in the
+   section below). Play needs `.aab`, not `.apk`, and rejects debug-signed uploads.
+3. **Play Console**: create the app, paste the listing, upload the graphics.
+4. **Content rating** questionnaire → puzzle, no objectionable content → Everyone.
+5. **Data safety** → whatever the ads decision above lands on.
+6. **Target audience 13+.** Never tick a band under 13 on an ad-funded game: it triggers the
+   Families programme, personalised ads stop, and revenue collapses.
+7. **Privacy policy** — add Snapline to the list at `scibox-studios.com/privacy-policy`.
+8. **Register the package** for Android developer verification, or the app gets removed.
+9. Upload to **Internal testing** first. It is the only way to verify real ads on a device.
+
+Run `Studio → Release → Check Readiness` before the final build; it enforces most of the above.
+
+### Draft listing text
+
+**Title** (30 char limit): `Snapline: Block Puzzle` — 22 characters.
+
+**Short description** (80 char limit):
+> Drop blocks, clear lines, chase combos. 60 levels plus an endless high-score run.
+
+**Full description**:
+> Fit blocks onto the grid. Fill a row or a column and it explodes.
+>
+> Snapline is a block puzzle built around one idea: it should never feel unfair. The pieces you are
+> offered are chosen with the board in mind, so a run ends because of a decision you made, not
+> because the game handed you something that could not fit.
+>
+> • ENDLESS — no timer, no levels, just you and your best score
+> • 60 LEVELS — clear a line target inside a move budget, three stars for finishing with moves to spare
+> • COMBOS — keep clearing to build a multiplier, with a little forgiveness so streaks are actually reachable
+> • PICK UP WHERE YOU LEFT OFF — a run in progress survives closing the app
+> • PLAYS OFFLINE — no account, no sign-in
+
+---
+
 ## Added 28 Aug — levels, scores, leaderboard status
 
 - **Level mode.** 60 levels, "clear N lines in M moves", three stars for finishing with moves to
