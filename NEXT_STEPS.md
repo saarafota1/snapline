@@ -47,15 +47,25 @@ APPLICATION_ID. Test ads should appear on device.
 | Rewarded unit | `ca-app-pub-1931205009793131/6078132186` |
 | Interstitial unit | `ca-app-pub-1931205009793131/4765050515` |
 
-**These are recorded here but deliberately NOT active.** `GameKitConfig.asset` still holds Google's
-test units, per the studio rule: testing on live units is the fastest way to get the AdMob account
-banned, and a ban takes the whole portfolio. Paste the real unit IDs into the config **only when
-building the release bundle** — the kit's `Validate()` already fails a release build that still has
-test units, so it cannot be forgotten.
+**These are already in the config, and switch over automatically.** Nothing to paste before shipping.
 
-The App ID is different: it identifies the app, not an ad unit, and Google's own guidance is to use
-your real App ID with test *units* during development. It goes into `GoogleMobileAdsSettings`, which
-only exists once the SDK is imported.
+`GameKitConfig` holds both sets: the development units (Google's test ones) and the release units
+(yours). The release set is selected only when the build defines `GAMEKIT_RELEASE`, which only
+`BuildAndroidRelease` sets. So the editor, a sideloaded test APK and a screenshot build all keep
+using test units by construction — no one can forget to swap, in either direction.
+
+Verified on a built player rather than assumed:
+
+```
+without the define →  release build=False, using GOOGLE TEST units
+with the define    →  release build=True,  using LIVE units
+```
+
+`AdController` logs that line at startup, so which units a build is on is answerable from a device
+log rather than from memory.
+
+The App ID is real in every build. It identifies the app, not an ad unit, and Google's guidance is
+to pair the real App ID with test *units* during development.
 
 ### What is built
 
@@ -281,19 +291,63 @@ cd C:\GamesProjects\Snapline
 gh repo create saarafota1/snapline --private --source=. --remote=origin --push
 ```
 
-**6. Signed bundle.** Run this yourself so the passwords stay out of any shared log:
+**6. Build the production bundle.** Run this yourself so the passwords stay out of any shared log.
 
-```bash
+Readiness was checked on 30 Aug and reports **"Ready to ship."** — the only thing left is signing.
+
+**Step 1 — make sure the `snapline` key alias exists.** Studio convention is one keystore, a new
+alias per game. Check:
+
+```bat
+set KT=C:\UnityVersions\6000.2.7f2\Editor\Data\PlaybackEngines\AndroidPlayer\OpenJDK\bin\keytool.exe
+"%KT%" -list -keystore "C:\Users\saara\Projects\Games\Flying Penguin Saga\user.keystore"
+```
+
+If `snapline` is not in that list, create it (same keystore, new alias):
+
+```bat
+"%KT%" -genkeypair -v ^
+  -keystore "C:\Users\saara\Projects\Games\Flying Penguin Saga\user.keystore" ^
+  -alias snapline -keyalg RSA -keysize 2048 -validity 10000
+```
+
+**Step 2 — build the AAB.** Passwords via environment variables, so they never reach your shell
+history or a log file:
+
+```bat
+set PIPES_KEYSTORE=C:\Users\saara\Projects\Games\Flying Penguin Saga\user.keystore
+set PIPES_KEYSTORE_PASS=<keystore password>
+set PIPES_KEY_ALIAS=snapline
+set PIPES_KEY_ALIAS_PASS=<alias password>
+
 "C:\UnityVersions\6000.2.7f2\Editor\Unity.exe" -batchmode -nographics -quit ^
   -projectPath "C:\GamesProjects\Snapline" ^
   -executeMethod StudioKit.EditorTools.BuildTool.BuildAndroidRelease ^
-  -buildOut "Builds\Snapline.aab" ^
-  -keystore "C:\Users\saara\Projects\Games\Flying Penguin Saga\user.keystore" ^
-  -keystorePass <pw> -keyalias snapline -keyaliasPass <pw>
+  -buildOut "C:\GamesProjects\Snapline\Builds\Snapline.aab" ^
+  -logFile "C:\GamesProjects\Snapline\Builds\release.log"
 ```
 
-Note the alias: the studio convention is one keystore, a **new alias per game**, so `snapline`
-rather than `user`. Create it first if it doesn't exist.
+(`-keystore/-keystorePass/-keyalias/-keyaliasPass` work as arguments too, but they end up in shell
+history.)
+
+That entry point refuses to build unless signing is configured and `ReleaseCheck` passes, and it is
+the only path that sets `GAMEKIT_RELEASE` — so this bundle, and only this bundle, carries the live
+ad units.
+
+**Step 3 — verify what you are about to upload**, before touching Play Console:
+
+```bat
+"%KT%" -printcert -jarfile "C:\GamesProjects\Snapline\Builds\Snapline.aab" | findstr Owner
+```
+
+`CN=Android Debug` means it is debug-signed and Play will reject it. You want your own certificate.
+
+Then confirm the log contains `GAMEKIT_RELEASE enabled for this build` and
+`[StudioKit] Build succeeded`. A missing define means it silently built with test ad units.
+
+**versionCode is currently 1**, which is right for a first upload. Every later upload needs a
+*higher* number — Play never lets one be reused, even from a deleted draft. A rejected upload does
+not consume one.
 
 ---
 
