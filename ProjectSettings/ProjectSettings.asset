@@ -795,7 +795,10 @@ PlayerSettings:
   webGLCloseOnQuit: 0
   webWasm2023: 0
   webEnableSubmoduleStrippingCompatibility: 0
-  scriptingDefineSymbols: {}
+  scriptingDefineSymbols:
+    Android: GAMEKIT_ADMOB
+    Standalone: GAMEKIT_ADMOB
+    iPhone: GAMEKIT_ADMOB
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

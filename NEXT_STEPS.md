@@ -34,10 +34,10 @@ matters. The stats visible in them (31,070 best, 8 levels, 24 stars) were earned
 
 ---
 
-## Ads — built, waiting on the SDK
+## Ads — integrated and verified in the APK
 
-The whole flow is implemented and verified against a simulated network. What is **not** done is
-importing Google's SDK, which needs a file only you can download.
+Google Mobile Ads v11.4.0 is imported, EDM4U has resolved, and the shipped APK carries a valid
+APPLICATION_ID. Test ads should appear on device.
 
 ### Your real AdMob IDs
 
@@ -80,11 +80,19 @@ Rules baked in:
 Verified end to end with `-snapline-fake-ads`: ad played, board went from 42 to 21 filled cells, run
 resumed with the score intact.
 
-### The three steps left
+### SDK integration — done
 
-1. **You:** download the Google Mobile Ads Unity plugin `.unitypackage`.
-2. **Me:** `AdMobSetup.Import -admobPackage <file>`, then paste the App ID into GoogleMobileAdsSettings.
-3. **You, in the editor:** `Assets → External Dependency Manager → Android Resolver → Resolve`.
+All three steps are complete, including the resolve, which the kit can now run headlessly:
+
+```bash
+Unity.exe ... -executeMethod StudioKit.EditorTools.AdMobSetup.Import -admobPackage <file>
+Unity.exe ... -executeMethod StudioKit.EditorTools.AdMobSetup.SetAppIdsFromArgs -androidAppId <id>
+Unity.exe ... -executeMethod StudioKit.EditorTools.AdMobSetup.ResolveAndroidDependencies
+Unity.exe ... -executeMethod StudioKit.EditorTools.AdMobSetup.SyncAppIdToManifest
+```
+
+Verified in the built APK with aapt2 rather than assumed:
+`com.google.android.gms.ads.APPLICATION_ID = ca-app-pub-1931205009793131~9498502442`.
 
 Step 3 is not optional and fails *silently*: without it the manifest lacks
 `com.google.android.gms.ads.APPLICATION_ID`, the Google SDK deliberately throws on launch, the build
@@ -93,46 +101,6 @@ succeeds, the APK installs, and the app dies instantly with nothing in the build
 
 Ads also add three entries to the Data Safety form: Device IDs, Approximate location, App activity,
 purpose Advertising.
-
----
-
-## Original ads plan (superseded by the section above)
-
-**Decide first: where do ads go?** This is a design call, not a technical one. My recommendation for
-a casual puzzle:
-
-| Placement | Why |
-|---|---|
-| **Rewarded "CONTINUE"** on game over | Highest value per impression and player-initiated, so it never feels like an interruption. The single best fit for an endless scoring game. |
-| **Interstitial** after game over | Capped — never on the first 2 games of a session, and no more than one every ~3 minutes. |
-| **No banner** | It would eat board width, and the board is already the width-constrained element. |
-
-**What you need to get (account steps I can't do):**
-
-1. An **AdMob app** for `com.sciboxstudios.snapline` → gives an App ID (`ca-app-pub-…~…`)
-2. Two **ad units** → an Interstitial ID and a Rewarded ID
-3. The **Google Mobile Ads Unity plugin** `.unitypackage` downloaded
-
-**What I do once you have those:**
-
-4. Import it via the kit: `AdMobSetup.Import -admobPackage GoogleMobileAds.unitypackage`
-5. Write `AdPolicy` (frequency caps, cooldowns) and the revive flow, behind the kit's
-   `IAdService` — the game never touches the vendor SDK, so swapping networks later is one adapter
-6. Wire the App ID into the manifest via the kit's AdMob sync
-
-**One step only you can do, in the editor:** `Assets → External Dependency Manager → Android
-Resolver → Resolve`. This is not optional and it fails *silently*: without it the manifest lacks
-`com.google.android.gms.ads.APPLICATION_ID`, and the Google SDK deliberately throws on launch. The
-build succeeds, the APK installs, the app dies instantly, and nothing appears in the build log. The
-kit's `AndroidBuildGuard` now fails the build instead of shipping that.
-
-**Non-negotiable:** ship Google's **test** ad IDs until the very last build. Clicking your own live
-ads is the fastest way to get the AdMob account permanently banned, and a ban takes the whole
-portfolio, not just this app.
-
-**Cost:** adding ads puts three entries on the Data Safety form — Device IDs, Approximate location,
-App activity, purpose Advertising. "No data collected" while shipping the ads SDK is a false
-declaration and a common suspension reason; Play scans the bundle.
 
 ---
 
