@@ -233,6 +233,41 @@ namespace Snapline.Core
             }
         }
 
+        /// <summary>How many times this run has been rescued. The app decides the cap.</summary>
+        public int RevivesUsed { get; private set; }
+
+        /// <summary>
+        /// Bring a finished endless run back to life by clearing space and dealing a fresh tray.
+        ///
+        /// Only meaningful in endless: a level has a move budget, so reviving it would just be a
+        /// worse version of RETRY. The score carries over — that is the whole point of paying for it
+        /// — but the combo streak does not, so a revive cannot be used to bank a multiplier.
+        ///
+        /// Returns the cells cleared, so the view can blow them up with the ordinary clear effect.
+        /// Zero means the revive was refused or achieved nothing.
+        /// </summary>
+        public ulong Revive(int rowsToClear = 3)
+        {
+            if (!IsGameOver || Mode != GameMode.Endless) return 0UL;
+
+            ulong cleared = Board.ClearFullestRows(rowsToClear);
+
+            RevivesUsed++;
+            Score.ComboCount = 0;
+            Score.DryMovesSinceClear = 0;
+            IsGameOver = false;
+
+            // Throw away whatever could not be placed and deal again. The dealer's survivability
+            // guarantee then applies to the freshly cleared board, so the new tray is playable.
+            for (int i = 0; i < Tray.Length; i++) Tray[i] = TrayPiece.Empty;
+            DealTray();
+
+            RefreshGameOver();
+
+            // If even a cleared board cannot take the new tray, the rescue failed; do not pretend.
+            return IsGameOver ? 0UL : cleared;
+        }
+
         public bool TrayIsEmpty()
         {
             for (int i = 0; i < Tray.Length; i++)

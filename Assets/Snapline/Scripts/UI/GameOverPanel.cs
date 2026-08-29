@@ -22,6 +22,12 @@ namespace Snapline.UI
         private Text _statsLabel;
         private Text _newBest;
 
+        private Button _revive;
+
+        private Text _reviveCaption;
+
+        private Text _reviveHint;
+
         public event Action PlayAgainRequested;
 
 
@@ -29,6 +35,10 @@ namespace Snapline.UI
 
 
         public event Action ShareRequested;
+
+
+
+        public event Action ReviveRequested;
 
         public bool IsVisible => _root != null && _root.gameObject.activeSelf;
 
@@ -46,7 +56,7 @@ namespace Snapline.UI
 
             _card = UIKit.Rect("Card", _root);
             UIKit.Place(_card, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                        Vector2.zero, new Vector2(860f, 1000f));
+                        Vector2.zero, new Vector2(860f, 1140f));
 
             Image cardBg = UIKit.Image("CardBg", _card, ArtKit.RoundedRect("gocard",
                                         Palette.BoardPanel, Palette.BoardPanelRim, 5f),
@@ -81,10 +91,27 @@ namespace Snapline.UI
             UIKit.Place(_statsLabel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                         new Vector2(0f, -525f), new Vector2(800f, 100f));
 
+            // The rescue sits above PLAY AGAIN and is the brightest thing on the card, because it is
+            // the offer the player most likely wants at the exact moment their run just ended.
+            _revive = UIKit.Button("Revive", _card, "CONTINUE", new Color(1f, 0.72f, 0.18f, 1f),
+                                   new Color(0.16f, 0.09f, 0f), 50);
+            UIKit.Place(_revive.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                        new Vector2(0.5f, 0f), new Vector2(0f, 360f), new Vector2(620f, 130f));
+            _revive.onClick.AddListener(() => ReviveRequested?.Invoke());
+
+            _reviveCaption = _revive.GetComponentInChildren<Text>();
+
+            // States what it costs before it is tapped. An ad that arrives unannounced feels like a
+            // trick; one the player chose feels like a trade.
+            _reviveHint = UIKit.Label("ReviveHint", _card, "watch a short ad  ·  clears 3 rows",
+                                      28, Palette.TextDim);
+            UIKit.Place(_reviveHint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                        new Vector2(0.5f, 0f), new Vector2(0f, 322f), new Vector2(620f, 32f));
+
             Button again = UIKit.Button("PlayAgain", _card, "PLAY AGAIN", new Color(0.24f, 0.78f, 0.45f, 1f),
                                         Color.white, 52);
             UIKit.Place(again.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                        new Vector2(0.5f, 0f), new Vector2(0f, 190f), new Vector2(620f, 130f));
+                        new Vector2(0.5f, 0f), new Vector2(0f, 180f), new Vector2(620f, 130f));
             again.onClick.AddListener(() => PlayAgainRequested?.Invoke());
 
             Button share = UIKit.Button("Share", _card, "SHARE", new Color(0.34f, 0.55f, 0.85f, 1f),
@@ -102,7 +129,8 @@ namespace Snapline.UI
             _root.gameObject.SetActive(false);
         }
 
-        public void Show(long score, long best, bool isNewBest, int lines, int bestCombo, int pieces)
+        public void Show(long score, long best, bool isNewBest, int lines, int bestCombo, int pieces,
+                         bool reviveAvailable = false)
         {
             _scoreLabel.text = Hud.Format(score);
             _bestLabel.text = $"BEST  {Hud.Format(best)}";
@@ -110,8 +138,27 @@ namespace Snapline.UI
             _newBest.gameObject.SetActive(isNewBest);
             _title.text = isNewBest ? "WHAT A RUN" : "NO ROOM LEFT";
 
+            SetReviveAvailable(reviveAvailable);
+
             _root.gameObject.SetActive(true);
             StartCoroutine(SlideIn());
+        }
+
+        /// <summary>
+        /// Show or hide the rescue. Hidden rather than greyed out when there is no ad to show: a
+        /// disabled button still promises something the game cannot deliver.
+        /// </summary>
+        public void SetReviveAvailable(bool available)
+        {
+            _revive.gameObject.SetActive(available);
+            _reviveHint.gameObject.SetActive(available);
+        }
+
+        /// <summary>Reflect that the ad is loading, so a slow network does not look like a dead button.</summary>
+        public void SetReviveBusy(bool busy)
+        {
+            _revive.interactable = !busy;
+            _reviveCaption.text = busy ? "LOADING…" : "CONTINUE";
         }
 
         public void Hide()

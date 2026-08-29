@@ -41,6 +41,13 @@ namespace Snapline.App
         private const float TrayGap = 5f;
 
 
+        /// <summary>
+        /// Services config. Assigned by SceneBuilder rather than loaded from Resources, so the asset
+        /// stays where the kit puts it and the reference is visible in the scene.
+        /// </summary>
+        [SerializeField] private GameKit.GameKitConfig _gameKitConfig;
+
+
         /// <summary>Heights resolved at startup from the real screen shape.</summary>
 
         private float _hudHeight = HudHeight;
@@ -142,7 +149,14 @@ namespace Snapline.App
             levelResult.transform.SetParent(safeRoot, false);
             levelResult.Init(safeRoot);
 
-            _controller.Init(boardView, trayView, drag, hud, gameOver, juice, _sfx, levelResult);
+            // Services come up in the background. Nothing waits on them: with no SDK installed the
+            // kit hands back offline implementations and the game plays exactly the same.
+            if (_gameKitConfig != null) _ = GameKit.GameKitRuntime.InitializeAsync(_gameKitConfig);
+
+            var ads = gameObject.AddComponent<AdController>();
+            ads.Init(_gameKitConfig);
+
+            _controller.Init(boardView, trayView, drag, hud, gameOver, juice, _sfx, levelResult, ads);
             _controller.SetPopupBounds(safeHeight, _hudHeight, _trayHeight + _trayInset);
 
             _controller.MenuRequested += ShowMenu;

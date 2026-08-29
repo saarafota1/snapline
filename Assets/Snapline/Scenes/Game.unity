@@ -119,7 +119,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &1166779595
+--- !u!1 &611985640
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -127,8 +127,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1166779597}
-  - component: {fileID: 1166779596}
+  - component: {fileID: 611985642}
+  - component: {fileID: 611985641}
   m_Layer: 0
   m_Name: Bootstrap
   m_TagString: Untagged
@@ -136,25 +136,26 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1166779596
+--- !u!114 &611985641
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1166779595}
+  m_GameObject: {fileID: 611985640}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ba0b0cf01e1352647bbd16cd19b98176, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Snapline::Snapline.App.Bootstrap
---- !u!4 &1166779597
+  _gameKitConfig: {fileID: 11400000, guid: eb43d1587670d4244ae349abb3767d1e, type: 2}
+--- !u!4 &611985642
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1166779595}
+  m_GameObject: {fileID: 611985640}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -167,4 +168,4 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 1166779597}
+  - {fileID: 611985642}

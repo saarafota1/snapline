@@ -357,7 +357,93 @@ namespace Snapline.Tests
             Assert.IsFalse(run.LevelFailed);
         }
 
+        [Test]
+        public void Revive_FreesSpaceKeepsScoreAndResumesTheRun()
+        {
+            GameRun run = PlayedToGameOver();
+
+            Assert.IsTrue(run.IsGameOver, "The run should have ended.");
+
+            int filledBefore = run.Board.FilledCells;
+            long scoreBefore = run.Score.Score;
+
+            ulong cleared = run.Revive(3);
+
+            Assert.AreNotEqual(0UL, cleared, "The revive should have cleared something.");
+            Assert.IsFalse(run.IsGameOver, "The run should be live again.");
+            Assert.Less(run.Board.FilledCells, filledBefore, "The board should have freed up.");
+            Assert.AreEqual(scoreBefore, run.Score.Score, "The score must carry over.");
+            Assert.AreEqual(1, run.RevivesUsed);
+            Assert.AreEqual(0, run.Score.ComboCount, "A revive must not bank a combo multiplier.");
+            Assert.IsTrue(run.AnyRemainingPieceFits(), "The fresh tray should be playable.");
+        }
+
+        [Test]
+        public void Revive_DoesNothingToALiveRun()
+        {
+            var run = new GameRun();
+            run.StartNew(99UL);
+
+            Assert.AreEqual(0UL, run.Revive(3));
+            Assert.AreEqual(0, run.RevivesUsed);
+        }
+
+        [Test]
+        public void Revive_IsRefusedInLevelMode()
+        {
+            var run = new GameRun();
+
+            // A target nobody reaches, so the level fails on the first move.
+            run.StartLevel(new LevelDef(1, lineTarget: 99, moveBudget: 1, seed: 5UL));
+
+            var rng = new Rng(1UL);
+            var player = new AutoPlayer(PlayerSkill.Heuristic);
+            player.ChooseMove(run, ref rng, out int slot, out int col, out int row);
+            run.Place(slot, col, row);
+
+            Assert.IsTrue(run.IsGameOver);
+            Assert.AreEqual(0UL, run.Revive(3), "Levels retry rather than revive.");
+            Assert.AreEqual(0, run.RevivesUsed);
+        }
+
+        [Test]
+        public void ClearFullestRows_TakesTheDensestRowsNotTheLowest()
+        {
+            var board = new Board();
+            ShapeDef dot = Shapes.Get(0);
+
+            // Row 2 gets four blocks, row 6 gets one. Neither completes, so nothing auto-clears.
+            for (int c = 0; c < 4; c++) board.Place(dot, c, 2, 1);
+            board.Place(dot, 0, 6, 1);
+
+            Assert.AreEqual(5, board.FilledCells);
+
+            ulong cleared = board.ClearFullestRows(1);
+
+            Assert.AreEqual(4, Bits.PopCount(cleared), "The four-block row should have gone.");
+            Assert.AreEqual(1, board.FilledCells, "The single block in the lower row should remain.");
+        }
+
         // --- helpers ---------------------------------------------------------------------
+
+        /// <summary>Play an endless run all the way to its end.</summary>
+        private static GameRun PlayedToGameOver()
+        {
+            var run = new GameRun();
+            run.StartNew(31337UL);
+
+            var rng = new Rng(7UL);
+            var player = new AutoPlayer(PlayerSkill.Random);
+
+            int guard = 0;
+            while (!run.IsGameOver && guard++ < 5000)
+            {
+                if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+                if (!run.Place(slot, col, row).Accepted) break;
+            }
+
+            return run;
+        }
 
         private static GameRun PlayedRun(int moves)
         {

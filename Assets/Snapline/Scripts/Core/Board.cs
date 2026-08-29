@@ -177,6 +177,56 @@ namespace Snapline.Core
         }
 
         /// <summary>
+        /// Clear the rows holding the most blocks, and report what was removed.
+        ///
+        /// Used by the revive. Picking the fullest rows rather than, say, the bottom ones means the
+        /// rescue is always worth something: on a board where the mess is all at the top, clearing
+        /// three empty bottom rows would hand the player nothing and the run would end again on the
+        /// very next tray.
+        /// </summary>
+        public ulong ClearFullestRows(int count)
+        {
+            if (count <= 0 || _occupied == 0UL) return 0UL;
+
+            var order = new int[Height];
+            for (int r = 0; r < Height; r++) order[r] = r;
+
+            // Small fixed-size insertion sort, densest row first.
+            for (int i = 1; i < Height; i++)
+            {
+                int key = order[i];
+                int keyCount = Bits.PopCount(_occupied & Bits.RowMask[key]);
+                int j = i - 1;
+
+                while (j >= 0 && Bits.PopCount(_occupied & Bits.RowMask[order[j]]) < keyCount)
+                {
+                    order[j + 1] = order[j];
+                    j--;
+                }
+
+                order[j + 1] = key;
+            }
+
+            ulong cleared = 0UL;
+            int taken = Math.Min(count, Height);
+            for (int i = 0; i < taken; i++) cleared |= _occupied & Bits.RowMask[order[i]];
+
+            if (cleared == 0UL) return 0UL;
+
+            _occupied &= ~cleared;
+
+            ulong q = cleared;
+            while (q != 0UL)
+            {
+                int idx = Bits.TrailingZeroCount(q);
+                q &= q - 1;
+                _colour[idx] = 0;
+            }
+
+            return cleared;
+        }
+
+        /// <summary>
         /// Board state after placing a shape and resolving clears, without mutating anything and
         /// without allocating. The dealer lookahead and the offline simulator run on this.
         /// </summary>

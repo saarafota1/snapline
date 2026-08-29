@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 781f2833a9c2b31409b26feea7aaa704, type: 3}
+  m_Name: GameKitConfig
+  m_EditorClassIdentifier: StudioKit::GameKit.GameKitConfig
+  enableServices: 1
+  environment: production
+  autoSignInAnonymously: 1
+  adNetwork: 2
+  admobRewardedAndroid: ca-app-pub-3940256099942544/5224354917
+  admobInterstitialAndroid: ca-app-pub-3940256099942544/1033173712
+  admobRewardedIOS: ca-app-pub-3940256099942544/1712485313
+  admobInterstitialIOS: ca-app-pub-3940256099942544/4411468910
+  androidGameId: 
+  iosGameId: 
+  adsTestMode: 1
+  rewardedPlacementAndroid: Rewarded_Android
+  rewardedPlacementIOS: Rewarded_iOS
+  interstitialPlacementAndroid: Interstitial_Android
+  interstitialPlacementIOS: Interstitial_iOS
+  levelsBetweenInterstitials: 4
+  secondsBetweenInterstitials: 120
+  interstitialGraceLevels: 5
+  leaderboardLevelsSolved: levels_solved
+  leaderboardDailyChallenge: daily_challenge
+  cloudSaveKey: progress

@@ -27,7 +27,22 @@ namespace Snapline.EditorTools
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             var go = new GameObject("Bootstrap");
-            go.AddComponent<Bootstrap>();
+            var bootstrap = go.AddComponent<Bootstrap>();
+
+            // Wire the services config in by reference. Without it the game still runs — the kit
+            // stays on its offline implementations and no ad ever loads — so this warns, not throws.
+            GameKit.GameKitConfig config = StudioKit.EditorTools.StudioPaths.FindConfig();
+            if (config != null)
+            {
+                var so = new SerializedObject(bootstrap);
+                so.FindProperty("_gameKitConfig").objectReferenceValue = config;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            else
+            {
+                Debug.LogWarning("[Snapline] No GameKitConfig found; ads and services stay offline. " +
+                                 "Run Studio > Services > Create Config Asset.");
+            }
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, ScenePath);

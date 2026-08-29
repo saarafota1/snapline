@@ -34,7 +34,69 @@ matters. The stats visible in them (31,070 best, 8 levels, 24 stars) were earned
 
 ---
 
-## Adding ads
+## Ads — built, waiting on the SDK
+
+The whole flow is implemented and verified against a simulated network. What is **not** done is
+importing Google's SDK, which needs a file only you can download.
+
+### Your real AdMob IDs
+
+| | |
+|---|---|
+| App ID | `ca-app-pub-1931205009793131~9498502442` |
+| Rewarded unit | `ca-app-pub-1931205009793131/6078132186` |
+| Interstitial unit | `ca-app-pub-1931205009793131/4765050515` |
+
+**These are recorded here but deliberately NOT active.** `GameKitConfig.asset` still holds Google's
+test units, per the studio rule: testing on live units is the fastest way to get the AdMob account
+banned, and a ban takes the whole portfolio. Paste the real unit IDs into the config **only when
+building the release bundle** — the kit's `Validate()` already fails a release build that still has
+test units, so it cannot be forgotten.
+
+The App ID is different: it identifies the app, not an ad unit, and Google's own guidance is to use
+your real App ID with test *units* during development. It goes into `GoogleMobileAdsSettings`, which
+only exists once the SDK is imported.
+
+### What is built
+
+| Piece | Where |
+|---|---|
+| Rewarded **CONTINUE** on game over | `GameOverPanel`, `GameController.ReviveFlow` |
+| The revive itself — clears the 3 fullest rows, keeps the score, resets the combo | `GameRun.Revive`, `Board.ClearFullestRows` |
+| Interstitial pacing | `GameKit.AdPolicy` (in the kit, unit-tested) |
+| Ad orchestration | `Snapline.App.AdController` |
+| Fake network for testing | `GameKit.Offline.SimulatedAdService` |
+
+Rules baked in:
+
+- **One revive per run.** More would make a score a measure of patience rather than skill.
+- The rescue clears the **fullest** rows, not the bottom ones — on a board where the mess is all up
+  top, clearing three empty bottom rows would hand the player nothing.
+- A **failed or skipped ad pays out nothing and costs nothing**; the offer just disappears.
+- The interstitial fires **as the player leaves** the results card, never on top of it, and never
+  over the rescue offer.
+- Navigation is **never gated on an ad** — if the network hangs, the button still works.
+
+Verified end to end with `-snapline-fake-ads`: ad played, board went from 42 to 21 filled cells, run
+resumed with the score intact.
+
+### The three steps left
+
+1. **You:** download the Google Mobile Ads Unity plugin `.unitypackage`.
+2. **Me:** `AdMobSetup.Import -admobPackage <file>`, then paste the App ID into GoogleMobileAdsSettings.
+3. **You, in the editor:** `Assets → External Dependency Manager → Android Resolver → Resolve`.
+
+Step 3 is not optional and fails *silently*: without it the manifest lacks
+`com.google.android.gms.ads.APPLICATION_ID`, the Google SDK deliberately throws on launch, the build
+succeeds, the APK installs, and the app dies instantly with nothing in the build log. The kit's
+`AndroidBuildGuard` fails the build rather than shipping that.
+
+Ads also add three entries to the Data Safety form: Device IDs, Approximate location, App activity,
+purpose Advertising.
+
+---
+
+## Original ads plan (superseded by the section above)
 
 **Decide first: where do ads go?** This is a design call, not a technical one. My recommendation for
 a casual puzzle:

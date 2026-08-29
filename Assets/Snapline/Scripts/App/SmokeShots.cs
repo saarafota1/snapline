@@ -140,10 +140,73 @@ namespace Snapline.App
                 Debug.LogError($"[Snapline] drag path BROKEN: {_dragMismatches} of {_dragsPerformed} " +
                                "drags landed on the wrong cell.");
 
+            yield return RevivePhase();
             yield return LevelPhase();
 
             yield return new WaitForSeconds(0.4f);
             Application.Quit(0);
+        }
+
+        /// <summary>
+        /// Exercise the rewarded CONTINUE.
+        ///
+        /// The run has just ended, so if the offer is live this taps it, waits out the ad, and
+        /// checks the run genuinely came back with more room than it had. Only meaningful with
+        /// -snapline-fake-ads; with no ad network the offer is correctly absent and this is a no-op.
+        /// </summary>
+        private IEnumerator RevivePhase()
+        {
+            GameRun run = _controller.Run;
+
+            if (!run.IsGameOver)
+            {
+                Debug.Log("[Snapline] revive: skipped, run is not over");
+                yield break;
+            }
+
+            int filledBefore = run.Board.FilledCells;
+            int revivesBefore = run.RevivesUsed;
+
+            yield return Capture("05b_game_over_with_continue");
+
+            _controller.RequestRevive();
+
+            // The simulated ad takes about a second; give it and the clear animation room.
+            yield return new WaitForSeconds(3.0f);
+
+            if (run.IsGameOver || run.RevivesUsed == revivesBefore)
+            {
+                Debug.Log($"[Snapline] revive: not offered or declined " +
+                          $"(gameOver={run.IsGameOver} revives={run.RevivesUsed})");
+                yield break;
+            }
+
+            int filledAfter = run.Board.FilledCells;
+
+            if (filledAfter < filledBefore)
+                Debug.Log($"[Snapline] revive OK: board went from {filledBefore} to {filledAfter} " +
+                          $"filled cells, run resumed, score kept at {run.Score.Score}");
+            else
+                Debug.LogError($"[Snapline] revive BROKEN: board did not free up " +
+                               $"({filledBefore} -> {filledAfter})");
+
+            yield return Capture("05c_after_continue");
+
+            // Play the rescued run out so the rest of the harness starts from a finished state.
+            var rng = new Rng(4242UL);
+            var player = new AutoPlayer(PlayerSkill.Heuristic);
+            int guard = 0;
+
+            while (!run.IsGameOver && guard++ < 400)
+            {
+                while (_controller.IsBusy) yield return null;
+                if (run.IsGameOver) break;
+                if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+                _drag.SimulateDragTo(slot, col, row);
+                yield return new WaitForSeconds(0.05f);
+            }
+
+            yield return new WaitForSeconds(1.2f);
         }
 
         /// <summary>

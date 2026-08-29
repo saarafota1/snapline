@@ -25,6 +25,9 @@ namespace Snapline.App
         private Juice _juice;
         private Sfx _sfx;
 
+        private AdController _ads;
+
+
         private bool _busy;
 
         public GameRun Run => _run;
@@ -35,8 +38,11 @@ namespace Snapline.App
         public event System.Action LevelsRequested;
 
         public void Init(BoardView board, TrayView tray, DragController drag, Hud hud,
-                         GameOverPanel gameOver, Juice juice, Sfx sfx, LevelResultPanel levelResult)
+                         GameOverPanel gameOver, Juice juice, Sfx sfx, LevelResultPanel levelResult,
+                         AdController ads)
         {
+            _ads = ads;
+
             _levelResult = levelResult;
             _levelResult.NextRequested += () => StartLevel(_run.LevelNumber + 1);
             _levelResult.RetryRequested += () => StartLevel(_run.LevelNumber);
@@ -57,8 +63,11 @@ namespace Snapline.App
             _drag.PlacementRequested += OnPlacementRequested;
             _drag.PlacementRejected += OnPlacementRejected;
 
-            _gameOver.PlayAgainRequested += StartNewRun;
-            _gameOver.MenuRequested += () => MenuRequested?.Invoke();
+            _gameOver.ReviveRequested += OnReviveRequested;
+
+            // The interstitial runs as the player leaves the results card, never on top of it.
+            _gameOver.PlayAgainRequested += () => StartCoroutine(LeaveGameOver(StartNewRun));
+            _gameOver.MenuRequested += () => StartCoroutine(LeaveGameOver(() => MenuRequested?.Invoke()));
             _gameOver.ShareRequested += ShareScore;
             _hud.HomeRequested += () => { SaveNow(); MenuRequested?.Invoke(); };
         }
@@ -264,6 +273,12 @@ namespace Snapline.App
             bool isNewBest = SaveSystem.SubmitScore(_run.Score.Score);
             SaveSystem.RecordFinishedRun(_run.Score.Score, _run.Score.TotalLinesCleared, _run.Score.BestCombo);
             SaveSystem.ClearRun();
+
+            // Count the run before the card appears, so the pacing sees it. The interstitial itself
+            // waits until the player leaves the card — landing one on top of their final score, and
+            // over the rescue offer, would be the worst possible moment for it.
+            _ads?.RecordGameFinished();
+
             ShowGameOver(isNewBest);
         }
 
@@ -456,7 +471,98 @@ namespace Snapline.App
         {
             _drag.InputEnabled = false;
             _gameOver.Show(_run.Score.Score, SaveSystem.HighScore, isNewBest,
-                           _run.Score.TotalLinesCleared, _run.Score.BestCombo, _run.Score.TotalPiecesPlaced);
+                           _run.Score.TotalLinesCleared, _run.Score.BestCombo, _run.Score.TotalPiecesPlaced,
+                           reviveAvailable: _ads != null && _ads.CanOfferRevive(_run));
+        }
+
+        /// <summary>
+        /// The player asked for a rescue. Play the ad, and only then clear the board.
+        ///
+        /// If the ad does not complete — closed early, no fill, network error — nothing happens
+        /// except the offer going away. The run stays over and the score stands; a failed ad must
+        /// never cost the player anything, and must never pay out either.
+        /// </summary>
+        /// <summary>
+        /// Run the paced interstitial, then do whatever the player actually asked for.
+        ///
+        /// The action always happens, whether or not an ad appeared or succeeded. Gating navigation
+        /// on an ad is how a game ends up with players stuck on a results screen because a network
+        /// call hung.
+        /// </summary>
+        private IEnumerator LeaveGameOver(System.Action then)
+        {
+            _gameOver.Hide();
+
+            if (_ads != null)
+            {
+                System.Threading.Tasks.Task showing = _ads.MaybeShowInterstitialAsync();
+                while (!showing.IsCompleted) yield return null;
+            }
+
+            then?.Invoke();
+        }
+
+        /// <summary>Trigger the rescue as if the button were tapped. Used by the smoke harness.</summary>
+
+
+        public void RequestRevive() => OnReviveRequested();
+
+
+
+        private void OnReviveRequested()
+        {
+            if (_ads == null || _busy) return;
+            StartCoroutine(ReviveFlow());
+        }
+
+        private IEnumerator ReviveFlow()
+        {
+            _busy = true;
+            _gameOver.SetReviveBusy(true);
+
+            System.Threading.Tasks.Task<bool> watching = _ads.ShowReviveAdAsync();
+            while (!watching.IsCompleted) yield return null;
+
+            bool earned = watching.Result;
+            _gameOver.SetReviveBusy(false);
+
+            if (!earned)
+            {
+                // Do not offer again this run; a second failure reads as a broken button.
+                _gameOver.SetReviveAvailable(false);
+                _busy = false;
+                yield break;
+            }
+
+            ulong cleared = _run.Revive(AdController.ReviveRowsCleared);
+
+            if (cleared == 0UL)
+            {
+                _gameOver.SetReviveAvailable(false);
+                _busy = false;
+                yield break;
+            }
+
+            _gameOver.Hide();
+
+            // Reuse the ordinary clear effect, so a rescue reads as the game doing something
+            // generous rather than as a menu closing.
+            var rescue = new PlaceResult { ClearedMask = cleared };
+            _board.AnimateClear(rescue);
+            _juice.Shake(0.6f);
+            _sfx.PlayClear(3);
+
+            yield return new WaitForSeconds(0.45f);
+
+            _board.SyncFromBoard(_run.Board);
+            _tray.Refresh(_run.Tray, animate: true);
+            _hud.SetCombo(_run.Score.ComboCount, ComboMultiplier(_run.Score.ComboCount));
+            RefreshSlotPlayability();
+
+            _drag.InputEnabled = true;
+            _busy = false;
+
+            SaveNow();
         }
 
         // --- persistence --------------------------------------------------------------------
