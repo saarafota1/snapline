@@ -34,6 +34,8 @@ MonoBehaviour:
   levelsBetweenInterstitials: 4
   secondsBetweenInterstitials: 120
   interstitialGraceLevels: 5
+  enableAnalytics: 1
+  analyticsUsesAdvertisingId: 1
   leaderboardLevelsSolved: levels_solved
   leaderboardDailyChallenge: daily_challenge
   cloudSaveKey: progress

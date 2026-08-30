@@ -153,6 +153,13 @@ namespace Snapline.App
             // kit hands back offline implementations and the game plays exactly the same.
             if (_gameKitConfig != null) _ = GameKit.GameKitRuntime.InitializeAsync(_gameKitConfig);
 
+            // Attribution networks measure retention in sessions; Android gives them no warm-start resume.
+
+
+            Telemetry.ResumeSession();
+
+
+
             var ads = gameObject.AddComponent<AdController>();
             ads.Init(_gameKitConfig);
 

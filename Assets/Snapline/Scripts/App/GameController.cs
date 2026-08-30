@@ -271,6 +271,9 @@ namespace Snapline.App
             yield return new WaitForSeconds(0.25f);
 
             bool isNewBest = SaveSystem.SubmitScore(_run.Score.Score);
+
+
+            if (isNewBest) Telemetry.NewHighScore(_run.Score.Score);
             SaveSystem.RecordFinishedRun(_run.Score.Score, _run.Score.TotalLinesCleared, _run.Score.BestCombo);
             SaveSystem.ClearRun();
 
@@ -296,6 +299,7 @@ namespace Snapline.App
 
                 int stars = level.StarsFor(_run.MovesRemaining);
                 SaveSystem.RecordLevelResult(level.Number, stars);
+                Telemetry.LevelCompleted();
                 SaveSystem.SubmitScore(_run.Score.Score);
 
                 _levelResult.Show(level.Number, complete: true, stars, _run.Score.TotalLinesCleared,
@@ -524,6 +528,9 @@ namespace Snapline.App
             while (!watching.IsCompleted) yield return null;
 
             bool earned = watching.Result;
+
+
+            if (earned) Telemetry.RewardedAdWatched();
             _gameOver.SetReviveBusy(false);
 
             if (!earned)
@@ -587,6 +594,7 @@ namespace Snapline.App
         private void OnApplicationPause(bool paused)
         {
             if (paused) SaveNow();
+            else Telemetry.ResumeSession();
         }
 
         private void OnApplicationFocus(bool focused)
