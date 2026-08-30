@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.scibox.meta.plugin">
+  <application>
+    <meta-data android:name="com.facebook.sdk.ApplicationId" android:value="fb1726889715093878" />
+    <meta-data android:name="com.facebook.sdk.ClientToken" android:value="8aa19a47233f543832e6394bc169d5cc" />
+    <meta-data android:name="com.facebook.sdk.AutoLogAppEventsEnabled" android:value="true" />
+    <meta-data android:name="com.facebook.sdk.AdvertiserIDCollectionEnabled" android:value="true" />
+  </application>
+</manifest>
