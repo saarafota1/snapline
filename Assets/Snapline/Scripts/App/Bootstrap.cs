@@ -179,6 +179,7 @@ namespace Snapline.App
             _menu.ScoresRequested += ShowScores;
             _menu.ShareRequested += () => GameKit.Share.Text(GameController.ShareMessage(SaveSystem.HighScore));
             _menu.SoundToggled += ToggleSound;
+            _menu.PrivacyRequested += ShowPrivacyOptions;
 
             _levelSelect = new GameObject("LevelSelect").AddComponent<LevelSelect>();
             _levelSelect.transform.SetParent(safeRoot, false);
@@ -226,6 +227,10 @@ namespace Snapline.App
             _controller.HideOverlays();
             _levelSelect.Hide();
             _scores.Hide();
+            // Re-asked every time the menu opens rather than cached at startup: consent is gathered
+            // asynchronously, so at first launch the answer often is not known yet when the menu is
+            // first built.
+            _menu.SetPrivacyAvailable(GameKit.GameKitRuntime.Consent.IsPrivacyOptionsRequired);
             _menu.Show(SaveSystem.HighScore, GameController.HasSavedRun);
         }
 
@@ -285,6 +290,20 @@ namespace Snapline.App
             Settings.SoundEnabled = !Settings.SoundEnabled;
             _sfx.Muted = !Settings.SoundEnabled;
             _menu.RefreshSoundLabel();
+        }
+
+        /// <summary>
+        /// Reopens the consent form so the player can change their answer. Fire and forget: the
+        /// form is a native overlay, and the menu underneath needs no state change either way.
+        /// </summary>
+        private async void ShowPrivacyOptions()
+        {
+            await GameKit.GameKitRuntime.Consent.ShowPrivacyOptionsAsync();
+
+            // Withdrawing consent can remove the entry point, so re-read rather than assuming it
+            // still applies.
+            if (_menu != null)
+                _menu.SetPrivacyAvailable(GameKit.GameKitRuntime.Consent.IsPrivacyOptionsRequired);
         }
 
         private static void ConfigureScreen()

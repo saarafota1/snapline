@@ -28,6 +28,7 @@ namespace Snapline.UI
         private Button _levels;
         private Text _levelsCaption;
         private Button _share;
+        private Button _privacy;
 
         private RectTransform[] _decor;
         private float[] _decorPhase;
@@ -40,7 +41,19 @@ namespace Snapline.UI
         public event Action ShareRequested;
         public event Action SoundToggled;
 
+        /// <summary>Reopens the consent form. Only ever raised where a form actually exists.</summary>
+        public event Action PrivacyRequested;
+
         public bool IsVisible => _root != null && _root.gameObject.activeSelf;
+
+        /// <summary>
+        /// Shows or hides the privacy entry point. Driven by the consent SDK rather than a setting,
+        /// because whether a form exists depends on where the player is.
+        /// </summary>
+        public void SetPrivacyAvailable(bool available)
+        {
+            if (_privacy != null) _privacy.gameObject.SetActive(available);
+        }
 
         public void Init(RectTransform parent)
         {
@@ -117,6 +130,16 @@ namespace Snapline.UI
                         new Vector2(0.5f, 0f), new Vector2(0f, 130f), new Vector2(400f, 90f));
             _soundLabel = sound.GetComponentInChildren<Text>();
             sound.onClick.AddListener(() => SoundToggled?.Invoke());
+
+            // Deliberately quiet, and hidden outside the regions that require it. Google asks for a
+            // persistent way back into the consent form, but a player in a region with no form must
+            // not be shown a button that opens nothing.
+            _privacy = UIKit.Button("Privacy", _root, "PRIVACY SETTINGS", new Color(0.22f, 0.24f, 0.40f, 1f),
+                                    Palette.TextDim, 28);
+            UIKit.Place(_privacy.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                        new Vector2(0.5f, 0f), new Vector2(0f, 52f), new Vector2(400f, 62f));
+            _privacy.onClick.AddListener(() => PrivacyRequested?.Invoke());
+            _privacy.gameObject.SetActive(false);
 
             _root.gameObject.SetActive(false);
         }
