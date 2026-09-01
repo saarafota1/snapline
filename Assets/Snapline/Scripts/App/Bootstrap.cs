@@ -177,7 +177,7 @@ namespace Snapline.App
             _menu.LevelsRequested += ShowLevelSelect;
 
             _menu.ScoresRequested += ShowScores;
-            _menu.ShareRequested += () => GameKit.Share.Text(GameController.ShareMessage(SaveSystem.HighScore));
+            _menu.ShareRequested += () => GameKit.Share.TextWithLink(GameController.ShareMessage(SaveSystem.HighScore));
             _menu.SoundToggled += ToggleSound;
             _menu.PrivacyRequested += ShowPrivacyOptions;
 
@@ -191,7 +191,7 @@ namespace Snapline.App
             _scores.transform.SetParent(safeRoot, false);
             _scores.Init(safeRoot);
             _scores.BackRequested += ShowMenu;
-            _scores.ShareRequested += () => GameKit.Share.Text(GameController.ShareMessage(SaveSystem.HighScore));
+            _scores.ShareRequested += () => GameKit.Share.TextWithLink(GameController.ShareMessage(SaveSystem.HighScore));
 
             if (StoreShots.StoreShotsRequested())
             {

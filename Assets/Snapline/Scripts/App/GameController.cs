@@ -122,7 +122,7 @@ namespace Snapline.App
         public void ShareScore()
         {
             long score = _run != null && _run.Score.Score > 0 ? _run.Score.Score : SaveSystem.HighScore;
-            GameKit.Share.Text(ShareMessage(score));
+            GameKit.Share.TextWithLink(ShareMessage(score));
         }
 
         public static string ShareMessage(long score) =>
