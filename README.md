@@ -140,5 +140,40 @@ Unity.exe -batchmode -nographics -quit -projectPath . \
 
 ## Shipping
 
-See `_StudioKit/Documentation~/NEW_GAME.md` and `PLAYBOOK.md`. Package id is
-`com.sciboxstudios.snapline`, permanent from the first upload.
+Process lives in `_StudioKit/Documentation~/NEW_GAME.md` and `PLAYBOOK.md`. Build a release with
+**Studio > Release > Build Android Release...** — never File > Build Settings, which produces test
+ad units and a debug signature.
+
+### Permanent identifiers
+
+Recorded here because they are painful to dig out later and some of them can never be changed.
+
+| | |
+|---|---|
+| Package id | `com.sciboxstudios.snapline` — **permanent from the first upload** |
+| Legal entity | Aplicatzia Software House LTD |
+| IARC Global Rating ID | `b6f3e76f-65d4-8a2a-8a70-3f87c1ac943c` (rated 31 Aug 2026) |
+| AdMob app id | `ca-app-pub-1931205009793131~9498502442` |
+| AdMob rewarded (live) | `ca-app-pub-1931205009793131/6078132186` |
+| AdMob interstitial (live) | `ca-app-pub-1931205009793131/4765050515` |
+| Meta app id | `1726889715093878` |
+| Keystore | `C:\GamesProjects\_Keys\user.keystore`, alias `user` — shared by every Scibox game |
+| Privacy policy | `https://scibox-studios.com/privacy` |
+
+None of the above is a secret: the ad unit ids, the Meta app id and the client token all ship
+inside the APK manifest and are readable by anyone who unzips it. The **Meta App Secret** and the
+**keystore passwords** are the real secrets and appear nowhere in this repo.
+
+### The IARC rating
+
+The Play Console *Content rating* questionnaire is the IARC questionnaire; the Global Rating ID
+above is its result and can be reused on any other storefront that licenses IARC (Amazon, Microsoft,
+Epic) instead of retaking it.
+
+**Retake it if an update would change the answers** — adding in-app purchases, user-generated
+content, chat, or player-named leaderboards would. Ads alone do not, provided ads were declared the
+first time.
+
+Not to be confused with *Target audience and content*, which is a separate form and must stay
+**13+**. Any band under 13 pulls the app into the Families programme, which bans personalised ads.
+Rated Everyone, targeted 13+ is the correct combination for this game.
