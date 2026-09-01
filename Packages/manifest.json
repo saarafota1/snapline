@@ -2,6 +2,7 @@
   "dependencies": {
     "com.sciboxstudios.studiokit": "file:../../_StudioKit",
     "com.unity.ugui": "2.0.0",
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.test-framework": "1.4.6",
     "com.unity.modules.accessibility": "1.0.0",
     "com.unity.modules.androidjni": "1.0.0",

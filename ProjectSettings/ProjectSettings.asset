@@ -280,7 +280,7 @@ PlayerSettings:
   AndroidEnableTango: 0
   androidEnableBanner: 1
   androidUseLowAccuracyLocation: 0
-  androidUseCustomKeystore: 0
+  androidUseCustomKeystore: 1
   m_AndroidBanners:
   - width: 320
     height: 180
@@ -799,9 +799,9 @@ PlayerSettings:
   webWasm2023: 0
   webEnableSubmoduleStrippingCompatibility: 0
   scriptingDefineSymbols:
-    Android: GAMEKIT_ADMOB;GAMEKIT_META
+    Android: GAMEKIT_ADMOB;GAMEKIT_META;GAMEKIT_TIKTOK
     Standalone: GAMEKIT_ADMOB
-    iPhone: GAMEKIT_ADMOB;GAMEKIT_META
+    iPhone: GAMEKIT_ADMOB;GAMEKIT_META;GAMEKIT_TIKTOK
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

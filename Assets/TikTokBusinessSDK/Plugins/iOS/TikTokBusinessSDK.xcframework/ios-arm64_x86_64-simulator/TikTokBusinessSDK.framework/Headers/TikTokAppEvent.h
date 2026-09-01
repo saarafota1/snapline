@@ -1,0 +1,90 @@
+//
+// Copyright (c) 2020. TikTok Inc.
+//
+// This source code is licensed under the MIT license found in
+// the LICENSE file in the root directory of this source tree.
+//
+
+#import <Foundation/Foundation.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+@interface TikTokAppEvent : NSObject<NSCopying, NSSecureCoding>
+/**
+ * @brief Name of event
+ */
+@property (nonatomic, copy, nonnull) NSString *eventName;
+
+/**
+ * @brief Timestamp
+ */
+@property (nonatomic, nonnull) NSString *timestamp;
+
+/**
+ * @brief Additional properties in the form of NSDictionary
+ */
+@property (nonatomic) NSDictionary *properties;
+
+/**
+ * @brief Type of event ('track' or 'identify')
+ */
+@property (nonatomic, nonnull) NSString *type;
+
+/// Whether the event is from EDP.
+@property (nonatomic, assign) BOOL isEDPEvent;
+
+/**
+ * @brief AnonymousID at the time event is tracked.
+ */
+@property (nonatomic) NSString *anonymousID;
+
+/**
+ * @brief User info at the time event is tracked. If not logged in, will be nil
+ */
+@property (nonatomic, nullable) NSDictionary *userInfo;
+
+/**
+ * @brief Event ID defined by advertisers.
+ */
+@property (nonatomic, copy, nullable) NSString *tteventID;
+
+/**
+ * @brief Event ID for duplication.
+ */
+@property (nonatomic, copy, nullable) NSString *eventID;
+
+/**
+ * @brief ID in database storage.
+ */
+@property (nonatomic, copy, nullable) NSString *dbID;
+
+/**
+ * @brief Count of retried sending.
+ */
+@property (nonatomic, assign) NSInteger retryTimes;
+
+/**
+ * @brief Snapshot of the screen when event is generated (only when Debug Token is valid from TTEM).
+ */
+@property (nonatomic, copy, nullable) NSString *screenshot;
+
+- (instancetype)initWithEventName: (NSString *)eventName;
+
+- (instancetype)initWithEventName: (NSString *)eventName
+                         withType: (NSString *)type;
+
+- (instancetype)initWithEventName: (NSString *)eventName
+                   withProperties: (NSDictionary *)properties
+                      withEventID:(NSString *)eventID;
+
+- (instancetype)initWithEventName: (NSString *)eventName
+                   withProperties: (NSDictionary *)properties
+                         withType: (NSString *)type;
+
+- (instancetype)initWithEventName: (NSString *)eventName
+                   withProperties: (NSDictionary *)properties
+                         withType: (NSString *)type
+                      withEventId: (NSString *)eventID;
+@end
+
+NS_ASSUME_NONNULL_END
