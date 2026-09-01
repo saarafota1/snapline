@@ -157,6 +157,7 @@ Recorded here because they are painful to dig out later and some of them can nev
 | AdMob rewarded (live) | `ca-app-pub-1931205009793131/6078132186` |
 | AdMob interstitial (live) | `ca-app-pub-1931205009793131/4765050515` |
 | Meta app id | `1726889715093878` |
+| TikTok App ID | `7680497997288914964` — the numeric id, distinct from Plumbline's |
 | Keystore | `C:\GamesProjects\_Keys\user.keystore`, alias `user` — shared by every Scibox game |
 | Privacy policy | `https://scibox-studios.com/privacy` |
 

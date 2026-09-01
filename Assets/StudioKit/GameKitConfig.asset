@@ -36,6 +36,7 @@ MonoBehaviour:
   interstitialGraceLevels: 5
   enableAnalytics: 1
   analyticsUsesAdvertisingId: 1
+  tiktokAppId: 7680497997288914964
   leaderboardLevelsSolved: levels_solved
   leaderboardDailyChallenge: daily_challenge
   cloudSaveKey: progress
