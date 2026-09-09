@@ -233,14 +233,12 @@ namespace Snapline.UI
                               new Vector2(cell - 5f, cell - 5f));
             }
 
-            // Generated, not the delivered fx_line_clear. Every effect sprite delivered so far has the
-            // transparency checkerboard blended into its faint halo: the file has real alpha, and at
-            // low alpha the colour washes from gold to grey-tan, which renders as visible checks
-            // across the board. Sampling the bright core says clean and is not enough — only looking
-            // at it rendered catches this.
-            Image flare = CandyUI.Icon("ClearFlare", frame, ArtKit.SoftCircle());
+            // The delivered line-clear effect. Earlier versions had the transparency checkerboard
+            // blended into the faint halo, where the colour drifted from gold to grey-tan as the
+            // alpha fell; this one holds a constant saturated #FFAE16 down to alpha 8, which is what
+            // an uncontaminated glow looks like.
+            Image flare = CandyUI.Icon("ClearFlare", frame, ArtLoader.Sprite("FX/fx_line_clear"));
             flare.preserveAspect = false;
-            flare.color = new Color(1f, 0.86f, 0.30f, 0.55f);
             CandyUI.Place(flare, new Vector2(0f, 1f),
                           new Vector2(size * 0.5f, -(inset + cell * (clearingRow + 0.5f))),
                           new Vector2(size - inset * 0.5f, cell * 2.4f));
