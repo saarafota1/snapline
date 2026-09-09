@@ -24,6 +24,39 @@ namespace Snapline.UI
         // Design space. The reference art is 941x1672, which is this shape.
         private const float RefWidth = 1080f;
 
+        /// <summary>
+        /// Where everything on this screen sits.
+        ///
+        /// All Y values are distance DOWN from the top of the screen, on a 1920-tall canvas. They
+        /// share one budget on purpose: the screen used to anchor its top half to the top and its
+        /// bottom half to the bottom, and once any section grew the two halves collided — the board
+        /// covered the wordmark and the play button covered the board.
+        ///
+        /// To move something down, raise its Y. To make a gap, raise the Y of everything below it.
+        /// The numbers below add up to about 1850 of the 1920 available, so there is roughly 70 to
+        /// give away before something has to shrink.
+        /// </summary>
+        private static class Layout
+        {
+            public const float StatusY = 78f;      // gear, coins, toolbox, sound
+            public const float LogoY = 242f;       // centre of the wordmark
+            public const float LogoWidth = 860f;   // height follows the artwork's own aspect
+            public const float BoardY = 684f;      // centre of the framed board
+            public const float BoardSize = 664f;
+            public const float BoardInset = 60f;   // frame edge to the first block; must clear the border
+            public const float PlayY = 1108f;
+            public const float PlayWidth = 880f;
+            public const float ModesY = 1288f;
+            public const float ModeWidth = 448f;
+            public const float ModeHeight = 148f;
+            public const float ModeSplit = 232f;   // how far each mode button sits from the centre
+            public const float DailyY = 1494f;
+            public const float DailyWidth = 950f;
+            public const float DailyHeight = 258f;
+            public const float BottomRowY = 1742f;
+            public const float BottomRowSplit = 286f;
+        }
+
         private RectTransform _root;
 
         private Text _coinLabel;
@@ -95,7 +128,7 @@ namespace Snapline.UI
             var top = new Vector2(0.5f, 1f);
 
             Button gear = CandyUI.SpriteButton("Settings", _root, ArtKit.Ui("btn_gear"));
-            CandyUI.Place(gear, top, new Vector2(-438f, -78f), new Vector2(116f, 116f));
+            CandyUI.Place(gear, top, new Vector2(-438f, -Layout.StatusY), new Vector2(Design.StatusButtonSize, Design.StatusButtonSize));
             // PLACEHOLDER: there is no settings screen. Sound lives on its own button for now, so
             // this opens nothing until there is something to open.
             gear.onClick.AddListener(() => Debug.Log("[Snapline] settings: not built yet"));
@@ -104,7 +137,7 @@ namespace Snapline.UI
             Image coinPill = CandyUI.Icon("CoinPill", _root, ArtKit.Ui("pill_blue"));
             coinPill.type = Image.Type.Sliced;
             coinPill.preserveAspect = false;
-            CandyUI.Place(coinPill, top, new Vector2(-78f, -78f), new Vector2(300f, 88f));
+            CandyUI.Place(coinPill, top, new Vector2(-78f, -Layout.StatusY), new Vector2(300f, Design.PillHeight));
 
             CandyUI.Place(CandyUI.Icon("CoinIcon", coinPill.transform, ArtKit.Ui("coin_s")),
                           new Vector2(0f, 0.5f), new Vector2(46f, 0f), new Vector2(68f, 68f));
@@ -129,7 +162,7 @@ namespace Snapline.UI
             _toolsBadge.gameObject.SetActive(false);
 
             Button sound = CandyUI.SpriteButton("Sound", _root, ArtKit.Ui("btn_sound"));
-            CandyUI.Place(sound, top, new Vector2(438f, -78f), new Vector2(116f, 116f));
+            CandyUI.Place(sound, top, new Vector2(438f, -Layout.StatusY), new Vector2(Design.StatusButtonSize, Design.StatusButtonSize));
             sound.onClick.AddListener(() => SoundToggled?.Invoke());
             _soundIcon = sound.GetComponent<Image>();
         }
@@ -144,8 +177,8 @@ namespace Snapline.UI
                 _logo = img.rectTransform;
                 // Height follows the art's own aspect, so a re-exported wordmark at a different
                 // shape is not stretched to fit a hard-coded box.
-                float height = 860f * (logo.rect.height / Mathf.Max(1f, logo.rect.width));
-                CandyUI.Place(_logo, new Vector2(0.5f, 1f), new Vector2(0f, -242f), new Vector2(860f, height));
+                float height = Layout.LogoWidth * (logo.rect.height / Mathf.Max(1f, logo.rect.width));
+                CandyUI.Place(_logo, new Vector2(0.5f, 1f), new Vector2(0f, -Layout.LogoY), new Vector2(Layout.LogoWidth, height));
                 return;
             }
 
@@ -163,11 +196,11 @@ namespace Snapline.UI
         /// </summary>
         private void BuildBoardPreview()
         {
-            const float size = 664f;
+            const float size = Layout.BoardSize;
             const int grid = 8;
 
             RectTransform frame = UIKit.Rect("BoardPreview", _root);
-            CandyUI.Place(frame, new Vector2(0.5f, 1f), new Vector2(0f, -684f), new Vector2(size, size));
+            CandyUI.Place(frame, new Vector2(0.5f, 1f), new Vector2(0f, -Layout.BoardY), new Vector2(size, size));
 
             // The frame's centre is transparent, and the empty-cell sprites do not quite meet at
             // their corners, so without a solid ground behind them the candy background shows
@@ -194,7 +227,7 @@ namespace Snapline.UI
             // Clear of the candy border, which nine-slicing keeps at its drawn thickness however
             // large the frame gets. An inset narrower than the border puts the outer blocks
             // underneath it.
-            const float inset = 60f;
+            const float inset = Layout.BoardInset;
             float cell = (size - inset * 2f) / grid;
 
             // A fixed arrangement, not a random one: the front screen should look the same every
@@ -255,7 +288,7 @@ namespace Snapline.UI
             var top = new Vector2(0.5f, 1f);
 
             _continue = CandyUI.SpriteButton("Continue", _root, ArtKit.Ui("tile_pink"), Image.Type.Sliced);
-            CandyUI.Place(_continue, top, new Vector2(0f, -1108f), new Vector2(880f, 162f));
+            CandyUI.Place(_continue, top, new Vector2(0f, -Layout.PlayY), new Vector2(Layout.PlayWidth, Design.PrimaryButtonHeight));
             _continue.onClick.AddListener(OnPrimary);
 
             _continueCaption = CandyUI.Label("Caption", _continue.transform, "PLAY", 68, CandyUI.Caption);
@@ -268,15 +301,15 @@ namespace Snapline.UI
         private void BuildModes()
         {
             var top = new Vector2(0.5f, 1f);
-            var size = new Vector2(448f, 148f);
+            var size = new Vector2(Layout.ModeWidth, Layout.ModeHeight);
 
             Button levels = CandyUI.SpriteButton("Levels", _root, ArtKit.Ui("tile_purple"), Image.Type.Sliced);
-            CandyUI.Place(levels, top, new Vector2(-232f, -1288f), size);
+            CandyUI.Place(levels, top, new Vector2(-Layout.ModeSplit, -Layout.ModesY), size);
             levels.onClick.AddListener(() => LevelsRequested?.Invoke());
             BuildModeFace(levels, ArtKit.Ui("icon_levels"), "60 LEVELS", out _levelsDetail);
 
             Button endless = CandyUI.SpriteButton("Endless", _root, ArtKit.Ui("tile_cyan"), Image.Type.Sliced);
-            CandyUI.Place(endless, top, new Vector2(232f, -1288f), size);
+            CandyUI.Place(endless, top, new Vector2(Layout.ModeSplit, -Layout.ModesY), size);
             // Starts a fresh endless run. When one is already saved, CONTINUE above resumes it and
             // this replaces it — the same pair the old NEW GAME button provided.
             endless.onClick.AddListener(() => NewGameRequested?.Invoke());
@@ -309,11 +342,11 @@ namespace Snapline.UI
         private void BuildDaily()
         {
             var top = new Vector2(0.5f, 1f);
-            const float panelW = 950f;
-            const float panelH = 258f;
+            const float panelW = Layout.DailyWidth;
+            const float panelH = Layout.DailyHeight;
 
             Button daily = CandyUI.SpriteButton("Daily", _root, ArtKit.Ui("tile_yellow"), Image.Type.Sliced);
-            CandyUI.Place(daily, top, new Vector2(0f, -1494f), new Vector2(panelW, panelH));
+            CandyUI.Place(daily, top, new Vector2(0f, -Layout.DailyY), new Vector2(panelW, panelH));
             daily.onClick.AddListener(() => Debug.Log("[Snapline] daily challenge: not built yet"));
 
             // The calendar sits in its own column on the left, separated by a rule, so the panel
@@ -378,13 +411,13 @@ namespace Snapline.UI
         private void BuildBottomRow()
         {
             var top = new Vector2(0.5f, 1f);
-            const float y = -1742f;
-            const float disc = 142f;
+            const float y = -Layout.BottomRowY;
+            const float disc = Design.DiscButtonSize;
 
             // A disc behind each icon, rather than a bare icon. The reference reads as three buttons
             // because of the discs; without them the icons float and the row stops looking pressable.
             Button best = MakeDiscButton("Best", "circle_gold", "icon_trophy", "BEST", disc);
-            CandyUI.Place(best, top, new Vector2(-286f, y), new Vector2(disc, disc));
+            CandyUI.Place(best, top, new Vector2(-Layout.BottomRowSplit, y), new Vector2(disc, disc));
             best.onClick.AddListener(() => ScoresRequested?.Invoke());
 
             Button share = MakeDiscButton("Share", "circle_pink", "icon_share", "SHARE", disc);
@@ -392,7 +425,7 @@ namespace Snapline.UI
             share.onClick.AddListener(() => ShareRequested?.Invoke());
 
             Button tools = MakeDiscButton("ToolsBig", "circle_blue", "icon_toolbox", "TOOLS", disc);
-            CandyUI.Place(tools, top, new Vector2(286f, y), new Vector2(disc, disc));
+            CandyUI.Place(tools, top, new Vector2(Layout.BottomRowSplit, y), new Vector2(disc, disc));
             tools.onClick.AddListener(OpenTools);
         }
 

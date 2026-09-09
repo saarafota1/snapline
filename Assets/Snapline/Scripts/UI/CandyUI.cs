@@ -21,9 +21,9 @@ namespace Snapline.UI
         /// Text colour on the candy palette. The artwork is bright and saturated, so the near-white
         /// used on the old dark navy has too little contrast; captions carry a dark outline instead.
         /// </summary>
-        public static readonly Color Caption = Color.white;
-        public static readonly Color CaptionDim = new Color(1f, 1f, 1f, 0.86f);
-        public static readonly Color CaptionDark = new Color(0.35f, 0.14f, 0.30f, 1f);
+        public static Color Caption => Design.Text;
+        public static Color CaptionDim => Design.TextDim;
+        public static Color CaptionDark => Design.TextOnPale;
 
         /// <summary>
         /// Small text on the yellow panels.
@@ -32,7 +32,7 @@ namespace Snapline.UI
         /// pairing that goes muddy below about 30px — the day names were the proof. A warm near-black
         /// keeps the same warmth and reads at any size.
         /// </summary>
-        public static readonly Color CaptionOnYellow = new Color(0.28f, 0.13f, 0.02f, 1f);
+        public static Color CaptionOnYellow => Design.TextOnPale;
 
         /// <summary>
         /// A button whose entire appearance is one sprite.
@@ -97,8 +97,8 @@ namespace Snapline.UI
             if (outline)
             {
                 var o = label.gameObject.AddComponent<Outline>();
-                o.effectColor = new Color(0.20f, 0.07f, 0.24f, 0.55f);
-                o.effectDistance = new Vector2(2.5f, -2.5f);
+                o.effectColor = Design.OutlineColour;
+                o.effectDistance = new Vector2(Design.OutlineOffset, -Design.OutlineOffset);
             }
 
             return label;
@@ -161,7 +161,7 @@ namespace Snapline.UI
         UnityEngine.EventSystems.IPointerDownHandler,
         UnityEngine.EventSystems.IPointerUpHandler
     {
-        private const float Pressed = 0.94f;
+        private static float Pressed => Design.PressScale;
 
         public void OnPointerDown(UnityEngine.EventSystems.PointerEventData _) =>
             transform.localScale = Vector3.one * Pressed;
