@@ -171,6 +171,10 @@ namespace Snapline.Core
             var move = new MoveResult { TraySlot = traySlot, Col = col, Row = row };
             if (!CanPlace(traySlot, col, row)) return move;
 
+            // Taken before anything changes, and only once the move is known to be legal, so a
+            // rejected drop cannot quietly consume the player's undo.
+            _undoPoint = Snapshot();
+
             TrayPiece piece = Tray[traySlot];
             move.Colour = piece.Colour;
             move.ShapeId = piece.ShapeId;
@@ -293,6 +297,84 @@ namespace Snapline.Core
                 if (Board.CanPlaceAnywhere(occupied, Tray[i].Shape)) return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// The state to return to if the player undoes. One move deep.
+        ///
+        /// Deliberately not saved. A resumed run cannot undo the move that came before the app was
+        /// closed, which costs a player almost nothing and keeps the save format — and the version-1
+        /// and version-2 compatibility already proven by tests — exactly as it is.
+        /// </summary>
+        private RunSnapshot _undoPoint;
+
+        public bool CanUndo => _undoPoint != null && !IsGameOver;
+
+        /// <summary>
+        /// Takes back the last placement, restoring the board, the tray, the score and the combo.
+        ///
+        /// Returns false when there is nothing to undo, so the caller can decline to spend the tool
+        /// rather than charging for nothing. The undo point is cleared either way: undo is one move
+        /// deep, and letting it be used twice would silently rewind two.
+        /// </summary>
+        public bool Undo()
+        {
+            if (!CanUndo) return false;
+
+            RunSnapshot point = _undoPoint;
+            _undoPoint = null;
+            Restore(point);
+            return true;
+        }
+
+        /// <summary>
+        /// Replaces the three tray pieces with a fresh deal — what the SHUFFLE tool does.
+        ///
+        /// Redeals the tray rather than rearranging the board, because rearranging cannot help: a
+        /// board with no room still has no room whatever order its blocks are in. Only new pieces can.
+        ///
+        /// The deal goes through the ordinary dealer, so the tray guarantee applies and a shuffle
+        /// cannot hand back another dead tray.
+        ///
+        /// This is the mid-run tool, and it refuses to act on a finished run — rescuing a dead board
+        /// is <see cref="Revive"/>, which clears space as well and is capped at once per run. On the
+        /// continue card a shuffle is one of three ways to *pay* for that rescue, not a weaker
+        /// version of it.
+        /// </summary>
+        public bool ShuffleTray()
+        {
+            if (IsGameOver) return false;
+
+            for (int i = 0; i < Tray.Length; i++) Tray[i] = TrayPiece.Empty;
+            DealTray();
+
+            // An undo across a shuffle would restore the pieces the player just paid to be rid of.
+            _undoPoint = null;
+
+            RefreshGameOver();
+            return true;
+        }
+
+        /// <summary>
+        /// Removes a single placed block — what the HAMMER tool does.
+        ///
+        /// It scores nothing and clears no line even if it empties one. A hammer is a way out of a
+        /// mistake, not a way to earn: paying coins for points would make score a function of
+        /// spending, and the combo would break on a move the player did not really make.
+        ///
+        /// Returns false if the cell was already empty, so a misplaced tap does not consume the tool.
+        /// </summary>
+        public bool Hammer(int col, int row)
+        {
+            if (!Board.IsOccupied(col, row)) return false;
+
+            _undoPoint = Snapshot();
+            if (!Board.ClearCell(col, row)) return false;
+
+            // Clearing a cell can only ever open the board up, so a run that was over may not be.
+            IsGameOver = false;
+            RefreshGameOver();
+            return true;
         }
 
         /// <summary>Anchors the given tray piece legally fits at. Used for the drag-time hint overlay.</summary>

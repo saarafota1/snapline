@@ -58,6 +58,26 @@ namespace Snapline.Core
             Array.Clear(_colour, 0, _colour.Length);
         }
 
+        /// <summary>
+        /// Empties one cell, for the hammer.
+        ///
+        /// Deliberately does not check for completed lines. A hammer that could trigger a clear
+        /// would let a player buy a combo, and score is meant to measure play rather than spending.
+        /// Returns false if the cell was already empty, so the caller can decline to charge for it.
+        /// </summary>
+        public bool ClearCell(int col, int row)
+        {
+            if (col < 0 || row < 0 || col >= Width || row >= Height) return false;
+
+            int index = Bits.Index(col, row);
+            ulong bit = 1UL << index;
+            if ((_occupied & bit) == 0UL) return false;
+
+            _occupied &= ~bit;
+            _colour[index] = 0;
+            return true;
+        }
+
         public Board Clone()
         {
             var b = new Board { _occupied = _occupied };

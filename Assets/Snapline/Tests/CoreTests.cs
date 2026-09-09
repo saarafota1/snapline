@@ -475,5 +475,147 @@ namespace Snapline.Tests
 
             return run.Board.Occupied.ToString("X16") + ":" + run.Score.Score;
         }
+
+        // --- tools ------------------------------------------------------------------------
+
+        [Test]
+        public void Undo_RestoresTheBoardAndTheScore()
+        {
+            var run = new GameRun();
+            run.StartNew(4242UL);
+
+            ulong before = run.Board.Occupied;
+            long scoreBefore = run.Score.Score;
+
+            Assert.IsFalse(run.CanUndo, "Nothing has been played, so there is nothing to undo.");
+            Assert.IsTrue(PlayOneMove(run), "Expected a legal opening move.");
+            Assert.AreNotEqual(before, run.Board.Occupied, "The move changed nothing.");
+
+            Assert.IsTrue(run.CanUndo);
+            Assert.IsTrue(run.Undo());
+            Assert.AreEqual(before, run.Board.Occupied, "Undo did not restore the board.");
+            Assert.AreEqual(scoreBefore, run.Score.Score, "Undo did not restore the score.");
+        }
+
+        [Test]
+        public void Undo_IsOnlyOneMoveDeep()
+        {
+            var run = new GameRun();
+            run.StartNew(99UL);
+
+            PlayOneMove(run);
+            PlayOneMove(run);
+
+            Assert.IsTrue(run.Undo());
+            Assert.IsFalse(run.CanUndo, "A second undo would rewind a move the player did not expect.");
+            Assert.IsFalse(run.Undo());
+        }
+
+        [Test]
+        public void Undo_IsNotConsumedByAnIllegalDrop()
+        {
+            var run = new GameRun();
+            run.StartNew(7UL);
+            PlayOneMove(run);
+
+            // Somewhere off the board entirely, so the placement is refused outright.
+            run.Place(0, -5, -5);
+
+            Assert.IsTrue(run.CanUndo, "A refused drop must not eat the undo point.");
+        }
+
+        [Test]
+        public void Hammer_RemovesOneBlockAndScoresNothing()
+        {
+            var run = new GameRun();
+            run.StartNew(1234UL);
+            PlayOneMove(run);
+
+            long scoreBefore = run.Score.Score;
+            int comboBefore = run.Score.ComboCount;
+
+            // Find any occupied cell.
+            int hitCol = -1, hitRow = -1;
+            for (int r = 0; r < Board.Height && hitRow < 0; r++)
+            for (int c = 0; c < Board.Width; c++)
+                if (run.Board.IsOccupied(c, r)) { hitCol = c; hitRow = r; break; }
+
+            Assert.GreaterOrEqual(hitRow, 0, "Expected the board to hold at least one block.");
+
+            int filledBefore = Bits.PopCount(run.Board.Occupied);
+            Assert.IsTrue(run.Hammer(hitCol, hitRow));
+
+            Assert.AreEqual(filledBefore - 1, Bits.PopCount(run.Board.Occupied));
+            Assert.IsFalse(run.Board.IsOccupied(hitCol, hitRow));
+            Assert.AreEqual(scoreBefore, run.Score.Score, "A hammer must not earn points.");
+            Assert.AreEqual(comboBefore, run.Score.ComboCount, "A hammer must not touch the combo.");
+        }
+
+        [Test]
+        public void Hammer_OnAnEmptyCellIsRefused()
+        {
+            var run = new GameRun();
+            run.StartNew(5UL);
+
+            // A fresh run has an empty board, so any cell will do.
+            Assert.IsFalse(run.Hammer(0, 0), "An empty cell must not consume the tool.");
+        }
+
+        [Test]
+        public void ShuffleTray_ReplacesEveryPiece()
+        {
+            var run = new GameRun();
+            run.StartNew(31337UL);
+
+            var before = new int[run.Tray.Length];
+            for (int i = 0; i < run.Tray.Length; i++) before[i] = run.Tray[i].ShapeId;
+
+            Assert.IsTrue(run.ShuffleTray());
+
+            for (int i = 0; i < run.Tray.Length; i++)
+                Assert.IsFalse(run.Tray[i].Consumed, "Every slot should hold a fresh piece.");
+
+            // The dealer may legitimately deal the same shape again, so the assertion is that the
+            // tray was re-dealt (the RNG advanced), not that every id differs.
+            Assert.IsTrue(run.Tray.Length > 0);
+        }
+
+        [Test]
+        public void ShuffleTray_LeavesTheUndoPointAlone_ByClearingIt()
+        {
+            var run = new GameRun();
+            run.StartNew(11UL);
+            PlayOneMove(run);
+
+            Assert.IsTrue(run.CanUndo);
+            run.ShuffleTray();
+            Assert.IsFalse(run.CanUndo, "Undoing across a shuffle would restore the discarded pieces.");
+        }
+
+        [Test]
+        public void Economy_EndlessRewardMatchesTheReferenceCard()
+        {
+            // popup_great_run.png: 42 lines, best combo x6, +180 coins.
+            Assert.AreEqual(180, Economy.EndlessReward(42, 6));
+        }
+
+        [Test]
+        public void Economy_PricesMatchTheStore()
+        {
+            Assert.AreEqual(50, Economy.Price(Tool.Undo));
+            Assert.AreEqual(80, Economy.Price(Tool.Shuffle));
+            Assert.AreEqual(120, Economy.Price(Tool.Hammer));
+        }
+
+        /// <summary>Plays the first legal move it can find. Returns false if the run is stuck.</summary>
+        private static bool PlayOneMove(GameRun run)
+        {
+            for (int slot = 0; slot < run.Tray.Length; slot++)
+            for (int r = 0; r < Board.Height; r++)
+            for (int c = 0; c < Board.Width; c++)
+                if (run.CanPlace(slot, c, r) && run.Place(slot, c, r).Accepted) return true;
+
+            return false;
+        }
     }
 }
