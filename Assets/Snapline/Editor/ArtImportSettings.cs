@@ -33,6 +33,7 @@ namespace Snapline.EditorTools
         private static readonly string[] NineSliced =
         {
             "pill_blue", "pill_red", "pill_purple", "pill_teal", "pill_yellow",
+            "pill_green", "pill_white", "pill_gold",
         };
 
         /// <summary>A cap is a semicircle, so it is half the height — plus a little, so the
