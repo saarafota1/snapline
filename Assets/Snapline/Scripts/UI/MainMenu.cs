@@ -233,16 +233,17 @@ namespace Snapline.UI
                               new Vector2(cell - 5f, cell - 5f));
             }
 
-            // A generated glow along the completed line, not the delivered fx_burst_line sprite.
-            // That file has real alpha and still fails: the checkerboard was composited into its
-            // semi-transparent glow, so every soft pixel carries grey checks that show up as a
-            // visible chequered smear over the board. Generated is clean and costs nothing here.
+            // Generated, not the delivered fx_line_clear. Every effect sprite delivered so far has the
+            // transparency checkerboard blended into its faint halo: the file has real alpha, and at
+            // low alpha the colour washes from gold to grey-tan, which renders as visible checks
+            // across the board. Sampling the bright core says clean and is not enough — only looking
+            // at it rendered catches this.
             Image flare = CandyUI.Icon("ClearFlare", frame, ArtKit.SoftCircle());
             flare.preserveAspect = false;
             flare.color = new Color(1f, 0.86f, 0.30f, 0.55f);
             CandyUI.Place(flare, new Vector2(0f, 1f),
                           new Vector2(size * 0.5f, -(inset + cell * (clearingRow + 0.5f))),
-                          new Vector2(size - inset * 0.4f, cell * 2.2f));
+                          new Vector2(size - inset * 0.5f, cell * 2.4f));
         }
 
         // --- the way into a run ----------------------------------------------------------------
@@ -309,7 +310,7 @@ namespace Snapline.UI
             const float panelW = 950f;
             const float panelH = 258f;
 
-            Button daily = CandyUI.SpriteButton("Daily", _root, ArtKit.Ui("pill_yellow"));
+            Button daily = CandyUI.SpriteButton("Daily", _root, ArtKit.Ui("tile_yellow"), Image.Type.Sliced);
             CandyUI.Place(daily, top, new Vector2(0f, -1494f), new Vector2(panelW, panelH));
             daily.onClick.AddListener(() => Debug.Log("[Snapline] daily challenge: not built yet"));
 
@@ -380,8 +381,7 @@ namespace Snapline.UI
 
             // A disc behind each icon, rather than a bare icon. The reference reads as three buttons
             // because of the discs; without them the icons float and the row stops looking pressable.
-            // PLACEHOLDER: BEST wants a gold disc, which has not been delivered — purple stands in.
-            Button best = MakeDiscButton("Best", "circle_purple", "icon_trophy", "BEST", disc);
+            Button best = MakeDiscButton("Best", "circle_gold", "icon_trophy", "BEST", disc);
             CandyUI.Place(best, top, new Vector2(-286f, y), new Vector2(disc, disc));
             best.onClick.AddListener(() => ScoresRequested?.Invoke());
 

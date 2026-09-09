@@ -12,6 +12,13 @@ namespace ArtSlice;
 ///
 /// `info` reports what is actually in the file — the check that caught the first delivery of these
 /// sheets, which had a checkerboard painted into the pixels and no alpha channel at all.
+///
+/// It deliberately does NOT try to detect a checkerboard *blended into* soft edges — art that has
+/// real alpha and contaminated colour underneath it. Three heuristics were tried and all three
+/// failed: neutral-grey under low alpha misses it because the result is washed out rather than
+/// grey; a spatial alternation test fires on any sparkle or starburst; and saturation-versus-alpha
+/// flags a plain glossy tile, whose edges desaturate for perfectly ordinary reasons. The only
+/// reliable test found so far is to render the sprite and look at it.
 /// </summary>
 public static class Program
 {

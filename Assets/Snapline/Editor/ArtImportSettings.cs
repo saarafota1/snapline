@@ -41,26 +41,29 @@ namespace Snapline.EditorTools
         private const float CapFraction = 0.55f;
 
         /// <summary>
-        /// Sprites bordered on all four sides, because they are frames stretched to a rectangle the
-        /// art was not drawn at. Without this the candy border thickens as the board grows and stops
-        /// matching the blocks inside it.
-        /// </summary>
-        /// <summary>
-        /// Bordered on all four sides. Frames, and the rounded tiles used as wide buttons.
+        /// Rounded tiles used as wide buttons, bordered on all four sides.
         ///
-        /// The tiles matter here: a wide button built by stretching a *pill* keeps its semicircular
-        /// caps, and at button proportions those caps eat most of the width and the result reads as
-        /// squashed. A rounded square nine-sliced on all four sides stretches into a proper rounded
-        /// rectangle at any width, which is what the reference art actually uses.
+        /// A wide button built by stretching a *pill* keeps its semicircular caps, and at button
+        /// proportions those caps eat most of the width and the result reads as squashed. A rounded
+        /// square nine-sliced on all four sides stretches into a proper rounded rectangle at any
+        /// width, which is what the reference art actually uses.
         /// </summary>
-        private static readonly string[] FrameSliced =
+        private static readonly string[] TileSliced =
         {
-            "board_frame",
-            "tile_navy", "tile_green", "tile_purple", "tile_cyan", "tile_pink",
+            "tile_navy", "tile_green", "tile_purple", "tile_cyan", "tile_pink", "tile_yellow",
         };
 
-        /// <summary>Fraction of the shorter side taken by the border, sized to clear the corners.</summary>
-        private const float FrameFraction = 0.22f;
+        /// <summary>Enough to clear a tile's corner radius, so the straight edges are what stretch.</summary>
+        private const float TileFraction = 0.22f;
+
+        /// <summary>
+        /// Frames, whose border is a drawn edge rather than a corner radius — and a much thinner one.
+        /// Slicing a thin frame at a tile's fraction eats deep into the transparent middle and the
+        /// stripes stretch inward across the board.
+        /// </summary>
+        private static readonly string[] FrameSliced = { "board_frame" };
+
+        private const float FrameFraction = 0.14f;
 
         private void OnPreprocessTexture()
         {
@@ -102,6 +105,13 @@ namespace Snapline.EditorTools
             {
                 int cap = Mathf.RoundToInt(texture.height * CapFraction);
                 importer.spriteBorder = new Vector4(cap, 0f, cap, 0f);
+                return;
+            }
+
+            if (System.Array.IndexOf(TileSliced, file) >= 0)
+            {
+                int edge = Mathf.RoundToInt(Mathf.Min(texture.width, texture.height) * TileFraction);
+                importer.spriteBorder = new Vector4(edge, edge, edge, edge);
                 return;
             }
 
