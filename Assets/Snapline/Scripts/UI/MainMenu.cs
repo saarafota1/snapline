@@ -209,7 +209,7 @@ namespace Snapline.UI
                 // The empty-cell sprite is a fully lit blue block, so at full brightness a mostly
                 // empty board reads as a completely full one — every hole looks like a piece. Darkened
                 // until the holes sit behind the blocks the way they do in the reference art.
-                if (!filled) cellImg.color = new Color(0.42f, 0.50f, 0.78f, 1f);
+                if (!filled) cellImg.color = Palette.EmptyCellTint;
 
                 CandyUI.Place(cellImg, new Vector2(0f, 1f),
                               new Vector2(inset + cell * (col + 0.5f), -(inset + cell * (row + 0.5f))),
@@ -286,11 +286,11 @@ namespace Snapline.UI
             CandyUI.Place(CandyUI.Icon("Calendar", daily.transform, ArtKit.Ui("icon_calendar")),
                           new Vector2(0f, 1f), new Vector2(84f, -68f), new Vector2(96f, 96f));
 
-            Text title = CandyUI.Label("Title", daily.transform, "DAILY CHALLENGE", 40, CandyUI.CaptionDark,
+            Text title = CandyUI.Label("Title", daily.transform, "DAILY CHALLENGE", 40, CandyUI.CaptionOnYellow,
                                        TextAnchor.MiddleLeft, outline: false);
             CandyUI.Place(title, new Vector2(0f, 1f), new Vector2(390f, -52f), new Vector2(460f, 50f));
 
-            _dailyDetail = CandyUI.Label("Detail", daily.transform, "Clear 8 lines", 32, CandyUI.CaptionDark,
+            _dailyDetail = CandyUI.Label("Detail", daily.transform, "Clear 8 lines", 32, CandyUI.CaptionOnYellow,
                                          TextAnchor.MiddleLeft, outline: false);
             CandyUI.Place(_dailyDetail, new Vector2(0f, 1f), new Vector2(360f, -100f), new Vector2(400f, 44f));
 
@@ -317,11 +317,11 @@ namespace Snapline.UI
                 float x = first + step * i;
 
                 Image dot = CandyUI.Icon($"Day{i}", daily.transform, ArtKit.Ui("dot_pink"));
-                CandyUI.Place(dot, new Vector2(0.5f, 0f), new Vector2(x, 84f), new Vector2(56f, 56f));
+                CandyUI.Place(dot, new Vector2(0.5f, 0f), new Vector2(x, 92f), new Vector2(56f, 56f));
 
-                CandyUI.Place(CandyUI.Label($"DayName{i}", daily.transform, days[i], 26, CandyUI.CaptionDark,
-                              TextAnchor.MiddleCenter, outline: false),
-                          new Vector2(0.5f, 0f), new Vector2(x, 38f), new Vector2(110f, 34f));
+                CandyUI.Place(CandyUI.Label($"DayName{i}", daily.transform, days[i], 30,
+                                            CandyUI.CaptionOnYellow, TextAnchor.MiddleCenter, outline: false),
+                          new Vector2(0.5f, 0f), new Vector2(x, 36f), new Vector2(110f, 36f));
             }
         }
 

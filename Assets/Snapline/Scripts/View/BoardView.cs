@@ -53,8 +53,10 @@ namespace Snapline.View
             {
                 for (int col = 0; col < Board.Width; col++)
                 {
-                    Image img = UIKit.Image($"cell{col}_{row}", _grid, cellSprite, Color.white,
-                                            Image.Type.Sliced);
+                    // Simple, not Sliced: the authored cell sprite carries no nine-slice border, and
+                    // a sliced draw with a zero border is just a slower simple one.
+                    Image img = UIKit.Image($"cell{col}_{row}", _grid, cellSprite, Palette.EmptyCellTint,
+                                            Image.Type.Simple);
                     RectTransform rt = img.rectTransform;
                     rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
                     rt.pivot = new Vector2(0.5f, 0.5f);

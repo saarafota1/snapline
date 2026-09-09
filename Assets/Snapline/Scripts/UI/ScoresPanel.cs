@@ -43,6 +43,10 @@ namespace Snapline.UI
             bgRect.offsetMin = Vector2.zero;
             bgRect.offsetMax = Vector2.zero;
 
+            // INTERIM: see CandyUI.Scrim. Must come after the background above, not before it.
+            // Remove when this screen is restyled.
+            CandyUI.Scrim(_root);
+
             Text title = UIKit.Label("Title", _root, "BEST SCORES", 72, Palette.TextBright);
             UIKit.Place(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                         new Vector2(0f, -70f), new Vector2(900f, 90f));

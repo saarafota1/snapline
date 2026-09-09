@@ -26,6 +26,15 @@ namespace Snapline.UI
         public static readonly Color CaptionDark = new Color(0.35f, 0.14f, 0.30f, 1f);
 
         /// <summary>
+        /// Small text on the yellow panels.
+        ///
+        /// <see cref="CaptionDark"/> is a maroon, and maroon on saturated yellow is a low-contrast
+        /// pairing that goes muddy below about 30px — the day names were the proof. A warm near-black
+        /// keeps the same warmth and reads at any size.
+        /// </summary>
+        public static readonly Color CaptionOnYellow = new Color(0.28f, 0.13f, 0.02f, 1f);
+
+        /// <summary>
         /// A button whose entire appearance is one sprite.
         ///
         /// The tint stays white: these sprites are drawn with their own lighting, and multiplying a
@@ -93,6 +102,35 @@ namespace Snapline.UI
             }
 
             return label;
+        }
+
+        /// <summary>
+        /// A dark wash across a whole screen, behind its contents.
+        ///
+        /// INTERIM. The screens that have not been restyled yet were drawn for the old near-black
+        /// background — dim panels, low-contrast locked states, white text with no outline. Against
+        /// the candy background those choices stop working; the level grid in particular becomes
+        /// unreadable, because its locked tiles were a slightly lighter dark and are now a slightly
+        /// lighter *photograph*.
+        ///
+        /// This restores the contrast they were designed against until each one is properly
+        /// restyled, at which point its scrim should go. It is not a design; it is scaffolding, and
+        /// leaving it in place permanently would waste the background on every screen but one.
+        /// </summary>
+        public static Image Scrim(Transform parent, float opacity = 0.72f)
+        {
+            Image img = UIKit.Image("Scrim", parent, ProcArt.Solid(), new Color(0.04f, 0.05f, 0.14f, opacity));
+            img.raycastTarget = false;
+            RectTransform rt = img.rectTransform;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+            // Deliberately left at the end of the child list, so it covers whatever has been built
+            // so far and is covered by whatever comes next. These screens paint their own
+            // full-screen background, so a scrim forced to the back would sit behind it and do
+            // nothing at all — which is exactly what happened the first time.
+            return img;
         }
 
         /// <summary>A non-interactive sprite, sized and placed by the caller.</summary>

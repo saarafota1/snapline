@@ -30,6 +30,19 @@ namespace Snapline.Art
         public static readonly Color EmptyCell = Hex("212A57");
         public static readonly Color EmptyCellRim = Hex("2E3970");
 
+        /// <summary>
+        /// Tint applied to the authored empty-cell sprite wherever a board is drawn.
+        ///
+        /// The delivered sprite is a fully lit blue block — the same artwork as a playable piece,
+        /// just in the board's blue. At full brightness a nearly empty board reads as a completely
+        /// full one, because every hole looks exactly like a placed block. Darkened until the holes
+        /// recede behind the pieces, as they do in the reference art.
+        ///
+        /// Applied at the call site rather than baked into the file so the one sprite still serves
+        /// both the board and anywhere a lit blue block is genuinely wanted.
+        /// </summary>
+        public static readonly Color EmptyCellTint = new Color(0.42f, 0.50f, 0.78f, 1f);
+
         public static readonly Color TextBright = Hex("FFFFFF");
         public static readonly Color TextDim = Hex("9AA6E0");
         public static readonly Color Accent = Hex("FFD54A");
