@@ -56,3 +56,6 @@ crashlytics-build.properties
 !/Tools/**/*.csproj
 /Tools/**/bin/
 /Tools/**/obj/
+
+# Sliced art is generated from the delivered sheets by Tools/ArtSlice.
+# The sheets and the tool are the source of truth; regenerate rather than hand-edit.

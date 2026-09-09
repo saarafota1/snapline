@@ -211,6 +211,11 @@ namespace Snapline.App
             }
 
             ShowMenu();
+
+            // The splash goes over a menu that is already built and shown, rather than delaying the
+            // build until the video ends. A player who taps to skip on the first frame then lands on
+            // a finished screen instead of watching one assemble.
+            SplashScreen.TryPlay(canvasRect, null);
         }
 
         private RectTransform _gameRoot;

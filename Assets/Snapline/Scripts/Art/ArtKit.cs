@@ -15,9 +15,46 @@ namespace Snapline.Art
     /// </summary>
     public static class ArtKit
     {
-        /// <summary>A filled play block in the given palette colour.</summary>
+        /// <summary>
+        /// Authored block artwork, in palette order.
+        ///
+        /// Six, not the palette's seven. The candy sheet ships eight squares, but the deep blue one
+        /// is the *empty cell*, not a playable colour — its centre samples at #153CA2 against the
+        /// #284BA0–#355FAF of the unfilled cells in the reference art, while every real block sits
+        /// somewhere vivid like #51F4AB or #FDBD49. Treating it as a seventh colour would have put
+        /// blocks on the board that are almost indistinguishable from the holes between them.
+        ///
+        /// A colour index is only ever a look-up, never anything the engine reasons about, so
+        /// serving seven indices from six sprites changes which colour a given piece is drawn in
+        /// and nothing else.
+        /// </summary>
+        private static readonly string[] BlockArt =
+        {
+            "Blocks/block_pink",    // coral
+            "Blocks/block_orange",  // amber
+            "Blocks/block_yellow",  // sunflower
+            "Blocks/block_green",   // mint
+            "Blocks/block_cyan",    // sky
+            "Blocks/block_purple",  // violet
+        };
+
+        /// <summary>
+        /// A filled play block in the given palette colour.
+        ///
+        /// Authored art first, the generator second. Both have to work for as long as the art is
+        /// still arriving screen by screen, and the fallback is what keeps the game playable in
+        /// between rather than only once every last PNG has landed.
+        /// </summary>
         public static Sprite Block(int colourIndex, int size = 128)
         {
+            if (BlockArt.Length > 0)
+            {
+                int i = colourIndex % BlockArt.Length;
+                if (i < 0) i += BlockArt.Length;
+                Sprite authored = ArtLoader.Sprite(BlockArt[i]);
+                if (authored != null) return authored;
+            }
+
             BlockColour c = Palette.Block(colourIndex);
             return ProcArt.Block($"snapline{colourIndex}", c.Top, c.Bottom, c.Glow, c.Rim, size);
         }
@@ -28,7 +65,12 @@ namespace Snapline.Art
 
         public static Sprite SoftCircle(int size = 64) => ProcArt.SoftCircle(size);
 
+        /// <summary>
+        /// An unfilled board cell — the deep blue square from the candy sheet, which is what the
+        /// reference art uses for the holes rather than for any playable piece.
+        /// </summary>
         public static Sprite EmptyCell() =>
+            ArtLoader.Sprite("Blocks/cell_empty") ??
             ProcArt.RoundedRect("emptycell", Palette.EmptyCell, Palette.EmptyCellRim, 3f);
 
         public static Sprite Panel() =>

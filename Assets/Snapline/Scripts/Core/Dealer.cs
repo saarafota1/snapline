@@ -90,7 +90,14 @@ namespace Snapline.Core
         public int MaxTrayAttempts = 24;
 
         /// <summary>Distinct colour indices the dealer may assign. The renderer maps these to gradients.</summary>
-        public int PaletteSize = 7;
+        /// <summary>
+        /// How many distinct block colours exist. Six, matching the authored candy artwork — the
+        /// seventh square on the art sheet is the empty cell, not a playable colour.
+        ///
+        /// Colour is decorative throughout: the board stores one per cell and the save round-trips
+        /// it, but no rule ever reads it, so this number is free to follow the art.
+        /// </summary>
+        public int PaletteSize = 6;
 
         public int TraySize = 3;
 

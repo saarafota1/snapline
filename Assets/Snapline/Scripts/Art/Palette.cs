@@ -49,7 +49,6 @@ namespace Snapline.Art
             Make("FFE96B", "FFC02E", "FFF3A8"), // sunflower
             Make("6BE59B", "20B978", "A2F2C4"), // mint
             Make("5CD2F0", "1E93D8", "9BE6FA"), // sky
-            Make("7B90FF", "4356E0", "AAB6FF"), // indigo
             Make("C97BFF", "8E3EE0", "E0B0FF"), // violet
         };
 
