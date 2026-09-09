@@ -96,6 +96,19 @@ namespace Snapline.App
             return !string.IsNullOrEmpty(raw);
         }
 
+        /// <summary>
+        /// The score of the run waiting to be resumed, or 0 if there is none.
+        ///
+        /// The menu shows this on its CONTINUE button, so it is worth knowing that a torn or
+        /// unreadable save answers 0 rather than throwing: the button still works, it just says
+        /// less, which is the right failure for a decoration on top of a working action.
+        /// </summary>
+        public static long SavedRunScore()
+        {
+            RunSnapshot snapshot = LoadRun();
+            return snapshot?.Score ?? 0L;
+        }
+
         public static void ClearRun()
         {
             PlayerPrefs.DeleteKey(RunKey);

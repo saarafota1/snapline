@@ -39,6 +39,16 @@ namespace Snapline.EditorTools
         /// stretched middle never eats into the curve itself.</summary>
         private const float CapFraction = 0.55f;
 
+        /// <summary>
+        /// Sprites bordered on all four sides, because they are frames stretched to a rectangle the
+        /// art was not drawn at. Without this the candy border thickens as the board grows and stops
+        /// matching the blocks inside it.
+        /// </summary>
+        private static readonly string[] FrameSliced = { "board_frame" };
+
+        /// <summary>Fraction of the shorter side taken by the border, sized to clear the corners.</summary>
+        private const float FrameFraction = 0.22f;
+
         private void OnPreprocessTexture()
         {
             if (!assetPath.StartsWith(ArtRoot, System.StringComparison.Ordinal)) return;
@@ -73,11 +83,20 @@ namespace Snapline.EditorTools
             if (!assetPath.StartsWith(ArtRoot, System.StringComparison.Ordinal)) return;
 
             string file = System.IO.Path.GetFileNameWithoutExtension(assetPath);
-            if (System.Array.IndexOf(NineSliced, file) < 0) return;
-
             var importer = (TextureImporter)assetImporter;
-            int cap = Mathf.RoundToInt(texture.height * CapFraction);
-            importer.spriteBorder = new Vector4(cap, 0f, cap, 0f);
+
+            if (System.Array.IndexOf(NineSliced, file) >= 0)
+            {
+                int cap = Mathf.RoundToInt(texture.height * CapFraction);
+                importer.spriteBorder = new Vector4(cap, 0f, cap, 0f);
+                return;
+            }
+
+            if (System.Array.IndexOf(FrameSliced, file) >= 0)
+            {
+                int edge = Mathf.RoundToInt(Mathf.Min(texture.width, texture.height) * FrameFraction);
+                importer.spriteBorder = new Vector4(edge, edge, edge, edge);
+            }
         }
 
         /// <summary>

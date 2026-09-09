@@ -82,7 +82,22 @@ namespace Snapline.Art
         public static Sprite Solid() => ProcArt.Solid();
 
         public static Sprite Background() =>
+            ArtLoader.Sprite("UI/candy_background") ??
             ProcArt.VerticalGradient("bg", Palette.BackgroundBottom, Palette.BackgroundTop);
+
+        /// <summary>The wordmark. Null if it has not been delivered, so callers can fall back to text.</summary>
+        public static Sprite Logo() => ArtLoader.Sprite("UI/logo");
+
+        /// <summary>The candy border drawn around the board. Nine-sliced, so it holds its thickness.</summary>
+        public static Sprite BoardFrame() => ArtLoader.Sprite("Blocks/board_frame");
+
+        /// <summary>
+        /// Any authored UI sprite by name, relative to <c>Resources/Snapline/UI/</c>.
+        ///
+        /// Deliberately untyped: the home screen alone uses a dozen one-off icons, and a named
+        /// accessor each would be a wall of near-identical one-liners that says nothing.
+        /// </summary>
+        public static Sprite Ui(string name) => ArtLoader.Sprite("UI/" + name);
 
         public static void ClearCache() => ProcArt.ClearCache();
     }
