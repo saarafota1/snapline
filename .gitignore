@@ -57,5 +57,7 @@ crashlytics-build.properties
 /Tools/**/bin/
 /Tools/**/obj/
 
+# Design references are committed on purpose - they are the spec for the redesign.
+
 # Sliced art is generated from the delivered sheets by Tools/ArtSlice.
 # The sheets and the tool are the source of truth; regenerate rather than hand-edit.
