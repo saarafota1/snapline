@@ -35,6 +35,7 @@ public static class Program
             case "info": return Info(image, path);
             case "slice": return Slice(image, args);
             case "sample": return Sample(image, args);
+            case "key": return Key(image, args);
             default: return Usage();
         }
     }
@@ -181,6 +182,120 @@ public static class Program
         int ar = (int)(r / n), ag = (int)(g / n), ab = (int)(b / n), aa = (int)(a / n);
         Console.WriteLine($"({cx},{cy}) {size}x{size}  rgb({ar,3},{ag,3},{ab,3})  #{ar:X2}{ag:X2}{ab:X2}  alpha {aa}");
         return 0;
+    }
+
+    /// <summary>
+    /// Removes a flat background colour, turning an opaque sheet into a transparent one.
+    ///
+    ///   artslice key &lt;in.png&gt; &lt;out.png&gt; [--tolerance N] [--soft N]
+    ///
+    /// This exists because art keeps arriving on a solid colour instead of on transparency. A flat
+    /// background is recoverable; a checkerboard painted into the pixels is not, because it varies
+    /// per pixel and there is nothing to subtract.
+    ///
+    /// The background colour is read from the image's own corners rather than passed in, so a sheet
+    /// on a slightly different blue than the last one still works.
+    ///
+    /// **It floods inward from the border rather than keying every matching pixel.** That distinction
+    /// is the whole reason this is usable here: these sheets are pale blue buttons on a pale blue
+    /// background, and a global colour test would punch holes straight through the middle of every
+    /// blue element. Only background connected to the edge is removed.
+    /// </summary>
+    private static int Key(Image image, string[] args)
+    {
+        if (args.Length < 3) return Usage();
+        string outPath = args[2];
+
+        int tolerance = IntArg(args, "--tolerance", 26);
+        int soft = IntArg(args, "--soft", 34);
+
+        // The background colour, averaged over all four corners so one stray pixel cannot define it.
+        var corners = new[] { (4, 4), (image.Width - 5, 4), (4, image.Height - 5), (image.Width - 5, image.Height - 5) };
+        int br = 0, bg = 0, bb = 0;
+        foreach ((int x, int y) in corners)
+        {
+            int i = image.Index(x, y);
+            br += image.Pixels[i]; bg += image.Pixels[i + 1]; bb += image.Pixels[i + 2];
+        }
+        br /= 4; bg /= 4; bb /= 4;
+
+        Console.WriteLine($"background  rgb({br},{bg},{bb})  #{br:X2}{bg:X2}{bb:X2}   tolerance {tolerance}, soft {soft}");
+
+        int w = image.Width, h = image.Height;
+        var reached = new bool[w * h];
+        var stack = new Stack<int>();
+
+        void Consider(int x, int y)
+        {
+            if (x < 0 || y < 0 || x >= w || y >= h) return;
+            int p = y * w + x;
+            if (reached[p]) return;
+            if (Distance(image, p, br, bg, bb) > soft) return;
+            reached[p] = true;
+            stack.Push(p);
+        }
+
+        for (int x = 0; x < w; x++) { Consider(x, 0); Consider(x, h - 1); }
+        for (int y = 0; y < h; y++) { Consider(0, y); Consider(w - 1, y); }
+
+        while (stack.Count > 0)
+        {
+            int p = stack.Pop();
+            int px = p % w, py = p / w;
+            Consider(px - 1, py); Consider(px + 1, py);
+            Consider(px, py - 1); Consider(px, py + 1);
+        }
+
+        long cleared = 0, feathered = 0;
+        for (int p = 0; p < w * h; p++)
+        {
+            if (!reached[p]) continue;
+
+            double d = Distance(image, p, br, bg, bb);
+            int i = p * 4;
+
+            if (d <= tolerance)
+            {
+                image.Pixels[i + 3] = 0;
+                cleared++;
+                continue;
+            }
+
+            // Between the two thresholds is the anti-aliased rim, where the pixel is a blend of the
+            // element and the background. Recover both how much of it is element, and what colour the
+            // element was before the background was mixed in — without the unmultiply, every edge
+            // keeps a halo of the colour that was supposed to be removed.
+            double alpha = Math.Clamp((d - tolerance) / (double)Math.Max(1, soft - tolerance), 0.0, 1.0);
+            image.Pixels[i + 3] = (byte)Math.Round(alpha * 255.0);
+            image.Pixels[i] = Unmix(image.Pixels[i], br, alpha);
+            image.Pixels[i + 1] = Unmix(image.Pixels[i + 1], bg, alpha);
+            image.Pixels[i + 2] = Unmix(image.Pixels[i + 2], bb, alpha);
+            feathered++;
+        }
+
+        image.SaveCrop(outPath, 0, 0, w, h);
+
+        long total = (long)w * h;
+        Console.WriteLine($"  cleared   {cleared,12:N0}  {100.0 * cleared / total,6:F2} %");
+        Console.WriteLine($"  feathered {feathered,12:N0}  {100.0 * feathered / total,6:F2} %");
+        Console.WriteLine($"  kept      {total - cleared - feathered,12:N0}");
+        Console.WriteLine($"Wrote {outPath}");
+        return 0;
+    }
+
+    private static double Distance(Image img, int pixel, int br, int bg, int bb)
+    {
+        int i = pixel * 4;
+        int dr = img.Pixels[i] - br, dg = img.Pixels[i + 1] - bg, db = img.Pixels[i + 2] - bb;
+        return Math.Sqrt(dr * dr + dg * dg + db * db);
+    }
+
+    /// <summary>Recovers a straight colour from one composited over a known background.</summary>
+    private static byte Unmix(byte composited, int background, double alpha)
+    {
+        if (alpha <= 0.004) return composited;
+        double v = (composited - (1.0 - alpha) * background) / alpha;
+        return (byte)Math.Clamp(v, 0, 255);
     }
 
     private sealed class Box
