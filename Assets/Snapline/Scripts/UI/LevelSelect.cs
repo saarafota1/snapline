@@ -23,14 +23,19 @@ namespace Snapline.UI
         private RectTransform _root;
         private RectTransform _content;
         private Text _summary;
+        private Image _coinPill;
+        private Text _coinLabel;
 
         private Button[] _buttons;
         private Text[] _numbers;
         private Image[][] _stars;
         private Image[] _panels;
+        private Image[] _locks;
+        private Image[] _play;
 
         public event Action<int> LevelChosen;
         public event Action BackRequested;
+        public event Action ToolsRequested;
 
         public bool IsVisible => _root != null && _root.gameObject.activeSelf;
 
@@ -45,22 +50,43 @@ namespace Snapline.UI
             bgRect.offsetMin = Vector2.zero;
             bgRect.offsetMax = Vector2.zero;
 
-            // INTERIM: see CandyUI.Scrim. Must come after the background above, not before it.
-            // Remove when this screen is restyled.
-            CandyUI.Scrim(_root);
+            var top = new Vector2(0.5f, 1f);
 
-            Text title = UIKit.Label("Title", _root, "LEVELS", 76, Palette.TextBright);
-            UIKit.Place(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                        new Vector2(0f, -70f), new Vector2(700f, 90f));
-
-            _summary = UIKit.Label("Summary", _root, "", 34, Palette.TextDim);
-            UIKit.Place(_summary.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                        new Vector2(0f, -158f), new Vector2(800f, 44f));
-
-            Button back = UIKit.Button("Back", _root, "BACK", new Color(0.30f, 0.36f, 0.62f, 1f), Color.white, 40);
-            UIKit.Place(back.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                        new Vector2(0.5f, 0f), new Vector2(0f, 60f), new Vector2(520f, 110f));
+            Button back = CandyUI.SpriteButton("Back", _root, ArtKit.Ui("circle_pink"));
+            CandyUI.Place(back, top, new Vector2(-438f, -84f), new Vector2(116f, 116f));
+            CandyUI.Place(CandyUI.Icon("Sym", back.transform, ArtKit.Ui("sym_back")),
+                          new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(62f, 62f));
             back.onClick.AddListener(() => BackRequested?.Invoke());
+
+            _coinPill = CandyUI.Icon("CoinPill", _root, ArtKit.Ui("pill_blue"));
+            _coinPill.type = Image.Type.Sliced;
+            _coinPill.preserveAspect = false;
+            CandyUI.Place(_coinPill, top, new Vector2(70f, -84f), new Vector2(300f, 88f));
+            CandyUI.Place(CandyUI.Icon("Coin", _coinPill.transform, ArtKit.Ui("coin")),
+                          new Vector2(0f, 0.5f), new Vector2(46f, 0f), new Vector2(66f, 66f));
+            _coinLabel = CandyUI.Label("Coins", _coinPill.transform, "0", 44, CandyUI.Caption);
+            CandyUI.Place(_coinLabel, new Vector2(0.5f, 0.5f), new Vector2(14f, 0f), new Vector2(190f, 58f));
+
+            Button toolbox = CandyUI.SpriteButton("Toolbox", _root, ArtKit.Ui("icon_toolbox"));
+            CandyUI.Place(toolbox, top, new Vector2(400f, -84f), new Vector2(120f, 120f));
+            toolbox.onClick.AddListener(() => ToolsRequested?.Invoke());
+
+            CandyUI.Place(CandyUI.Label("Title", _root, "LEVELS", 108, CandyUI.Caption),
+                          top, new Vector2(0f, -216f), new Vector2(900f, 124f));
+
+            Image summaryPill = CandyUI.Icon("SummaryPill", _root, ArtKit.Ui("pill_blue"));
+            summaryPill.type = Image.Type.Sliced;
+            summaryPill.preserveAspect = false;
+            CandyUI.Place(summaryPill, top, new Vector2(0f, -332f), new Vector2(760f, 86f));
+            _summary = CandyUI.Label("Summary", summaryPill.transform, "", 36, CandyUI.Caption);
+            CandyUI.Place(_summary, new Vector2(0.5f, 0.5f), new Vector2(0f, 0f), new Vector2(720f, 56f));
+
+            Button backBottom = CandyUI.SpriteButton("BackBottom", _root, ArtKit.Ui("tile_pink"),
+                                                     Image.Type.Sliced);
+            CandyUI.Place(backBottom, new Vector2(0.5f, 0f), new Vector2(0f, 118f), new Vector2(700f, 152f));
+            CandyUI.Place(CandyUI.Label("Caption", backBottom.transform, "BACK", 64, CandyUI.Caption),
+                          new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(600f, 80f));
+            backBottom.onClick.AddListener(() => BackRequested?.Invoke());
 
             BuildScrollingGrid();
 
@@ -77,8 +103,8 @@ namespace Snapline.UI
             scrollRect.anchorMin = new Vector2(0f, 0f);
             scrollRect.anchorMax = new Vector2(1f, 1f);
             scrollRect.pivot = new Vector2(0.5f, 0.5f);
-            scrollRect.offsetMin = new Vector2(30f, 190f);
-            scrollRect.offsetMax = new Vector2(-30f, -200f);
+            scrollRect.offsetMin = new Vector2(30f, 226f);
+            scrollRect.offsetMax = new Vector2(-30f, -392f);
 
             RectTransform viewport = UIKit.Stretch("Viewport", scrollRect);
             viewport.gameObject.AddComponent<RectMask2D>();
@@ -114,6 +140,8 @@ namespace Snapline.UI
             _numbers = new Text[Levels.Count];
             _stars = new Image[Levels.Count][];
             _panels = new Image[Levels.Count];
+            _locks = new Image[Levels.Count];
+            _play = new Image[Levels.Count];
 
             float rowWidth = Columns * CellSize + (Columns - 1) * CellSpacing;
             float startX = -rowWidth * 0.5f + CellSize * 0.5f;
@@ -136,26 +164,40 @@ namespace Snapline.UI
                 var img = go.GetComponent<Image>();
                 img.type = Image.Type.Sliced;
                 _panels[i] = img;
+                go.AddComponent<PressScale>();
 
                 var button = go.GetComponent<Button>();
                 button.targetGraphic = img;
+                // The tiles carry their own lighting, so the usual colour tint muddies them; the
+                // press is a squash instead, as everywhere else in this interface.
+                button.transition = Selectable.Transition.None;
                 int captured = number;
                 button.onClick.AddListener(() => LevelChosen?.Invoke(captured));
                 _buttons[i] = button;
 
-                Text numberLabel = UIKit.Label("N", rt, number.ToString(), 52, Color.white);
-                UIKit.Place(numberLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                            new Vector2(0.5f, 0.5f), new Vector2(0f, 12f), new Vector2(CellSize, 60f));
+                Text numberLabel = CandyUI.Label("N", rt, number.ToString(), 58, CandyUI.Caption);
+                CandyUI.Place(numberLabel, new Vector2(0.5f, 0.5f), new Vector2(0f, 16f),
+                              new Vector2(CellSize, 64f));
                 _numbers[i] = numberLabel;
+
+                // Shown instead of the number on the level the player is up to, and instead of
+                // nothing on the ones they cannot reach yet.
+                _play[i] = CandyUI.Icon("Play", rt, ArtKit.Ui("icon_play"));
+                CandyUI.Place(_play[i], new Vector2(0.5f, 0.5f), new Vector2(0f, 4f), new Vector2(58f, 58f));
+                _play[i].gameObject.SetActive(false);
+
+                _locks[i] = CandyUI.Icon("Lock", rt, ArtKit.Ui("icon_lock"));
+                CandyUI.Place(_locks[i], new Vector2(0.5f, 0f), new Vector2(0f, 42f), new Vector2(48f, 48f));
+                _locks[i].gameObject.SetActive(false);
 
                 // Three small stars under the number. Same sprite as the results card, so they
                 // batch together and mean the same thing in both places.
                 _stars[i] = new Image[3];
                 for (int s = 0; s < 3; s++)
                 {
-                    Image star = UIKit.Image($"Star{s}", rt, ProcArt.Star(), Color.white);
-                    UIKit.Place(star.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                                new Vector2(0.5f, 0f), new Vector2((s - 1) * 36f, 28f), new Vector2(30f, 30f));
+                    Image star = CandyUI.Icon("Star" + s, rt, ArtKit.Ui("icon_star"));
+                    CandyUI.Place(star, new Vector2(0.5f, 0f), new Vector2((s - 1) * 40f, 34f),
+                                  new Vector2(42f, 42f));
                     _stars[i][s] = star;
                 }
             }
@@ -172,38 +214,54 @@ namespace Snapline.UI
             if (_root != null) _root.gameObject.SetActive(false);
         }
 
+        /// <summary>
+        /// Tile colours for cleared levels, cycled by level number.
+        ///
+        /// The reference cycles them rather than colouring by star count, so the grid reads as a
+        /// sweet shop rather than as a report card. How well a level went is already on its tile,
+        /// in stars.
+        /// </summary>
+        private static readonly string[] ClearedTiles = { "tile_green", "tile_cyan", "tile_purple" };
+
         public void Refresh()
         {
-            Sprite unlocked = ArtKit.RoundedRect("lvl_open", new Color(0.30f, 0.38f, 0.68f, 1f),
-                                                 new Color(1f, 1f, 1f, 0.3f), 3f);
-            Sprite cleared = ArtKit.RoundedRect("lvl_done", new Color(0.22f, 0.62f, 0.42f, 1f),
-                                                new Color(1f, 1f, 1f, 0.35f), 3f);
-            Sprite locked = ArtKit.RoundedRect("lvl_lock", new Color(0.17f, 0.20f, 0.34f, 1f),
-                                               new Color(1f, 1f, 1f, 0.08f), 2f);
+            int next = SaveSystem.HighestUnlockedLevel();
 
             for (int i = 0; i < Levels.Count; i++)
             {
                 int number = i + 1;
                 int stars = SaveSystem.StarsForLevel(number);
                 bool open = SaveSystem.IsLevelUnlocked(number);
+                bool cleared = stars > 0;
+                bool current = open && !cleared && number == next;
 
                 _buttons[i].interactable = open;
-                _panels[i].sprite = !open ? locked : stars > 0 ? cleared : unlocked;
 
+                _panels[i].sprite = ArtKit.Ui(
+                    cleared ? ClearedTiles[i % ClearedTiles.Length] :
+                    current ? "tile_pink" : "tile_navy");
+                _panels[i].color = Color.white;
+
+                // The level you are up to shows a play arrow instead of its number, as the reference
+                // does — it is the one tile the player is meant to reach for.
+                _play[i].gameObject.SetActive(current);
+                _numbers[i].gameObject.SetActive(!current);
                 _numbers[i].text = number.ToString();
-                _numbers[i].color = open ? Color.white : new Color(1f, 1f, 1f, 0.30f);
+                _numbers[i].color = CandyUI.Caption;
 
-                // Earned stars are gold; the rest sit as faint outlines so the player can always
-                // see there were three to get, not just how many they got.
+                _locks[i].gameObject.SetActive(!open);
+
+                // Earned stars are shown and the rest hidden, rather than drawn as empty outlines.
+                // A locked tile showing three blank stars reads as a level failed rather than as one
+                // not yet reached.
                 for (int s = 0; s < 3; s++)
-                {
-                    _stars[i][s].gameObject.SetActive(open);
-                    _stars[i][s].color = s < stars ? Palette.Accent : new Color(1f, 1f, 1f, 0.13f);
-                }
+                    _stars[i][s].gameObject.SetActive(cleared && s < stars);
             }
 
-            _summary.text = $"{SaveSystem.LevelsCompleted()} of {Levels.Count} complete    " +
-                            $"{SaveSystem.TotalStars()} / {Levels.Count * 3} stars";
+            _summary.text = SaveSystem.LevelsCompleted() + " / " + Levels.Count + " COMPLETE   \u2022   "
+                          + SaveSystem.TotalStars() + " / " + (Levels.Count * 3) + " STARS";
+
+            if (_coinLabel != null) _coinLabel.text = Hud.Format(App.Wallet.Coins);
         }
 
         /// <summary>Scroll so a given level is in view. Used after finishing one.</summary>

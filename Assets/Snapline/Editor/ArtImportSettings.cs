@@ -61,7 +61,12 @@ namespace Snapline.EditorTools
         /// Slicing a thin frame at a tile's fraction eats deep into the transparent middle and the
         /// stripes stretch inward across the board.
         /// </summary>
-        private static readonly string[] FrameSliced = { "board_frame" };
+        private static readonly string[] FrameSliced =
+        {
+            "board_frame", "card_cream", "card_titled", "panel_board", "panel_blue",
+            "tray_panel", "row_cream", "circle_gold", "circle_pink", "circle_blue",
+            "circle_purple", "circle_green",
+        };
 
         private const float FrameFraction = 0.14f;
 

@@ -96,8 +96,10 @@ namespace Snapline.App
         /// <summary>
         /// Play the rewarded ad. True only if it ran to the end — a player who closed it early
         /// must not be paid, or the reward means nothing and the network eventually notices.
+        ///
+        /// Not revive-specific despite where it started: the store pays coins with the same unit.
         /// </summary>
-        public async Task<bool> ShowReviveAdAsync()
+        public async Task<bool> ShowRewardedAsync()
         {
             if (_busy) return false;
             _busy = true;

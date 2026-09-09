@@ -33,6 +33,8 @@ namespace Snapline.UI
         private Text _endlessDetail;
         private Text _dailyDetail;
         private Image _soundIcon;
+        private Image _toolsBadge;
+        private Text _toolsBadgeLabel;
 
         private Button _continue;
         private Button _privacy;
@@ -49,6 +51,7 @@ namespace Snapline.UI
         public event Action ShareRequested;
         public event Action SoundToggled;
         public event Action PrivacyRequested;
+        public event Action ToolsRequested;
 
         /// <summary>Reopens the consent form. Only ever raised where a form actually exists.</summary>
         public bool IsVisible => _root != null && _root.gameObject.activeSelf;
@@ -118,11 +121,12 @@ namespace Snapline.UI
             CandyUI.Place(tools, top, new Vector2(170f, -76f), new Vector2(120f, 120f));
             tools.onClick.AddListener(OpenTools);
 
-            Image badge = CandyUI.Icon("ToolsBadge", tools.transform, ArtKit.Ui("dot_red"));
-            CandyUI.Place(badge, new Vector2(1f, 1f), new Vector2(-4f, -4f), new Vector2(52f, 52f));
-            CandyUI.Place(CandyUI.Label("BadgeCount", badge.transform, "0", 30, CandyUI.Caption, outline: false),
-                          new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(52f, 40f));
-            badge.gameObject.SetActive(false);
+            _toolsBadge = CandyUI.Icon("ToolsBadge", tools.transform, ArtKit.Ui("dot_red"));
+            CandyUI.Place(_toolsBadge, new Vector2(1f, 1f), new Vector2(-2f, -2f), new Vector2(56f, 56f));
+            _toolsBadgeLabel = CandyUI.Label("BadgeCount", _toolsBadge.transform, "0", 32, CandyUI.Caption,
+                                             outline: false);
+            CandyUI.Place(_toolsBadgeLabel, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(56f, 42f));
+            _toolsBadge.gameObject.SetActive(false);
 
             Button sound = CandyUI.SpriteButton("Sound", _root, ArtKit.Ui("btn_sound"));
             CandyUI.Place(sound, top, new Vector2(438f, -78f), new Vector2(116f, 116f));
@@ -406,8 +410,8 @@ namespace Snapline.UI
             return button;
         }
 
-        /// <summary>PLACEHOLDER: the store does not exist. One place to replace when it does.</summary>
-        private void OpenTools() => Debug.Log("[Snapline] tools store: not built yet");
+        /// <summary>Opens the store. Bootstrap owns the screen; the menu only asks.</summary>
+        private void OpenTools() => ToolsRequested?.Invoke();
 
         // --- decoration ------------------------------------------------------------------------
 
@@ -476,10 +480,15 @@ namespace Snapline.UI
             if (_root != null) _root.gameObject.SetActive(false);
         }
 
-        /// <summary>PLACEHOLDER: no wallet exists, so the balance is always zero.</summary>
+        /// <summary>Coin balance and the tools badge, both straight off the wallet.</summary>
         private void RefreshCoins()
         {
-            if (_coinLabel != null) _coinLabel.text = "0";
+            if (_coinLabel != null) _coinLabel.text = Hud.Format(App.Wallet.Coins);
+
+            if (_toolsBadge == null) return;
+            int tools = App.Wallet.TotalTools;
+            _toolsBadge.gameObject.SetActive(tools > 0);
+            if (_toolsBadgeLabel != null) _toolsBadgeLabel.text = tools.ToString();
         }
 
         /// <summary>

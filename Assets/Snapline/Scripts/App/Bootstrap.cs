@@ -187,11 +187,20 @@ namespace Snapline.App
             _levelSelect.LevelChosen += StartLevel;
             _levelSelect.BackRequested += ShowMenu;
 
+            _toolbox = new GameObject("Toolbox").AddComponent<ToolboxPanel>();
+            _toolbox.transform.SetParent(safeRoot, false);
+            _toolbox.Init(safeRoot);
+            _toolbox.BackRequested += ShowMenu;
+            _toolbox.WatchAdRequested += WatchAdForCoins;
+            _menu.ToolsRequested += ShowToolbox;
+
             _scores = new GameObject("ScoresPanel").AddComponent<ScoresPanel>();
             _scores.transform.SetParent(safeRoot, false);
             _scores.Init(safeRoot);
             _scores.BackRequested += ShowMenu;
             _scores.ShareRequested += () => GameKit.Share.TextWithLink(GameController.ShareMessage(SaveSystem.HighScore));
+            _scores.PlayRequested += StartNewGame;
+            _levelSelect.ToolsRequested += ShowToolbox;
 
             if (StoreShots.StoreShotsRequested())
             {
@@ -224,6 +233,7 @@ namespace Snapline.App
         private LevelSelect _levelSelect;
 
         private ScoresPanel _scores;
+        private ToolboxPanel _toolbox;
         private Sfx _sfx;
 
         internal void ShowMenu()
@@ -232,6 +242,7 @@ namespace Snapline.App
             _controller.HideOverlays();
             _levelSelect.Hide();
             _scores.Hide();
+            if (_toolbox != null) _toolbox.Hide();
             // Re-asked every time the menu opens rather than cached at startup: consent is gathered
             // asynchronously, so at first launch the answer often is not known yet when the menu is
             // first built.
@@ -245,7 +256,37 @@ namespace Snapline.App
             _controller.HideOverlays();
             _menu.Hide();
             _levelSelect.Hide();
+            _toolbox.Hide();
             _scores.Show();
+        }
+
+        internal void ShowToolbox()
+        {
+            _gameRoot.gameObject.SetActive(false);
+            _controller.HideOverlays();
+            _menu.Hide();
+            _levelSelect.Hide();
+            _scores.Hide();
+            _toolbox.Show();
+        }
+
+        /// <summary>
+        /// Pays out for a rewarded ad, and pays nothing if the ad did not actually play.
+        ///
+        /// The kit hands back a result rather than a promise that it worked, because a failed or
+        /// skipped ad must cost the player nothing and give them nothing — silently granting coins
+        /// for an ad that never ran is how an AdMob account gets flagged.
+        /// </summary>
+        private async void WatchAdForCoins()
+        {
+            var ads = GetComponent<AdController>();
+            if (ads == null) return;
+
+            bool watched = await ads.ShowRewardedAsync();
+            if (!watched) return;
+
+            Wallet.Grant(Core.Economy.AdReward);
+            _toolbox.Refresh();
         }
 
 

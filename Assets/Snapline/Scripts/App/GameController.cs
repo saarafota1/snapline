@@ -524,7 +524,7 @@ namespace Snapline.App
             _busy = true;
             _gameOver.SetReviveBusy(true);
 
-            System.Threading.Tasks.Task<bool> watching = _ads.ShowReviveAdAsync();
+            System.Threading.Tasks.Task<bool> watching = _ads.ShowRewardedAsync();
             while (!watching.IsCompleted) yield return null;
 
             bool earned = watching.Result;
