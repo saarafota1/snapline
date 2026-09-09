@@ -92,7 +92,7 @@ namespace Snapline.UI
             var top = new Vector2(0.5f, 1f);
 
             Button gear = CandyUI.SpriteButton("Settings", _root, ArtKit.Ui("btn_gear"));
-            CandyUI.Place(gear, top, new Vector2(-430f, -86f), new Vector2(112f, 112f));
+            CandyUI.Place(gear, top, new Vector2(-438f, -78f), new Vector2(116f, 116f));
             // PLACEHOLDER: there is no settings screen. Sound lives on its own button for now, so
             // this opens nothing until there is something to open.
             gear.onClick.AddListener(() => Debug.Log("[Snapline] settings: not built yet"));
@@ -101,21 +101,21 @@ namespace Snapline.UI
             Image coinPill = CandyUI.Icon("CoinPill", _root, ArtKit.Ui("pill_blue"));
             coinPill.type = Image.Type.Sliced;
             coinPill.preserveAspect = false;
-            CandyUI.Place(coinPill, top, new Vector2(-105f, -82f), new Vector2(330f, 96f));
+            CandyUI.Place(coinPill, top, new Vector2(-78f, -78f), new Vector2(300f, 88f));
 
             CandyUI.Place(CandyUI.Icon("CoinIcon", coinPill.transform, ArtKit.Ui("coin_s")),
-                          new Vector2(0f, 0.5f), new Vector2(52f, 0f), new Vector2(74f, 74f));
+                          new Vector2(0f, 0.5f), new Vector2(46f, 0f), new Vector2(68f, 68f));
 
             _coinLabel = CandyUI.Label("Coins", coinPill.transform, "0", 44, CandyUI.Caption);
             CandyUI.Place(_coinLabel, new Vector2(0.5f, 0.5f), new Vector2(6f, 0f), new Vector2(200f, 60f));
 
             Button plus = CandyUI.SpriteButton("CoinPlus", coinPill.transform, ArtKit.Ui("btn_plus"));
-            CandyUI.Place(plus, new Vector2(1f, 0.5f), new Vector2(-6f, 0f), new Vector2(84f, 84f));
+            CandyUI.Place(plus, new Vector2(1f, 0.5f), new Vector2(-4f, 0f), new Vector2(78f, 78f));
             plus.onClick.AddListener(OpenTools);
 
             // --- tools store. PLACEHOLDER: no store, no inventory, no items. ---
             Button tools = CandyUI.SpriteButton("Tools", _root, ArtKit.Ui("icon_toolbox"));
-            CandyUI.Place(tools, top, new Vector2(160f, -84f), new Vector2(118f, 118f));
+            CandyUI.Place(tools, top, new Vector2(170f, -76f), new Vector2(120f, 120f));
             tools.onClick.AddListener(OpenTools);
 
             Image badge = CandyUI.Icon("ToolsBadge", tools.transform, ArtKit.Ui("dot_red"));
@@ -125,7 +125,7 @@ namespace Snapline.UI
             badge.gameObject.SetActive(false);
 
             Button sound = CandyUI.SpriteButton("Sound", _root, ArtKit.Ui("btn_sound"));
-            CandyUI.Place(sound, top, new Vector2(430f, -86f), new Vector2(112f, 112f));
+            CandyUI.Place(sound, top, new Vector2(438f, -78f), new Vector2(116f, 116f));
             sound.onClick.AddListener(() => SoundToggled?.Invoke());
             _soundIcon = sound.GetComponent<Image>();
         }
@@ -140,8 +140,8 @@ namespace Snapline.UI
                 _logo = img.rectTransform;
                 // Height follows the art's own aspect, so a re-exported wordmark at a different
                 // shape is not stretched to fit a hard-coded box.
-                float height = 900f * (logo.rect.height / Mathf.Max(1f, logo.rect.width));
-                CandyUI.Place(_logo, new Vector2(0.5f, 1f), new Vector2(0f, -260f), new Vector2(900f, height));
+                float height = 860f * (logo.rect.height / Mathf.Max(1f, logo.rect.width));
+                CandyUI.Place(_logo, new Vector2(0.5f, 1f), new Vector2(0f, -242f), new Vector2(860f, height));
                 return;
             }
 
@@ -159,11 +159,20 @@ namespace Snapline.UI
         /// </summary>
         private void BuildBoardPreview()
         {
-            const float size = 660f;
+            const float size = 664f;
             const int grid = 8;
 
             RectTransform frame = UIKit.Rect("BoardPreview", _root);
-            CandyUI.Place(frame, new Vector2(0.5f, 1f), new Vector2(0f, -700f), new Vector2(size, size));
+            CandyUI.Place(frame, new Vector2(0.5f, 1f), new Vector2(0f, -684f), new Vector2(size, size));
+
+            // The frame's centre is transparent, and the empty-cell sprites do not quite meet at
+            // their corners, so without a solid ground behind them the candy background shows
+            // through the grid as pale speckle.
+            Image ground = CandyUI.Icon("Ground", frame, ArtKit.Ui("tile_navy"));
+            ground.type = Image.Type.Sliced;
+            ground.preserveAspect = false;
+            ground.color = new Color(0.40f, 0.46f, 0.76f, 1f);
+            CandyUI.Place(ground, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size - 112f, size - 112f));
 
             Image border = CandyUI.Icon("Frame", frame, ArtKit.BoardFrame());
             // Tiled, not Sliced. Both keep the border at its drawn thickness, but Sliced *stretches*
@@ -181,27 +190,35 @@ namespace Snapline.UI
             // Clear of the candy border, which nine-slicing keeps at its drawn thickness however
             // large the frame gets. An inset narrower than the border puts the outer blocks
             // underneath it.
-            const float inset = 72f;
+            const float inset = 60f;
             float cell = (size - inset * 2f) / grid;
 
             // A fixed arrangement, not a random one: the front screen should look the same every
-            // time it is opened rather than reshuffling behind the player.
+            // time it is opened rather than reshuffling behind the player. Row 6 is deliberately a
+            // complete line — the reference art leads with a clear in progress, and a board that is
+            // one move from scoring says more about the game than an arbitrary scatter.
             const string pattern =
-                "..333..." +
-                "..3.1..." +
-                ".22.1..." +
-                ".22.1..." +
-                "....1..." +
-                "...054.." +
-                "..0554.." +
-                "5555554.";
+                "302....." +
+                "112.4..." +
+                "...1.2.." +
+                "0010...." +
+                "22......" +
+                "22222222" +
+                "05341122" +
+                "........";
+
+            const int clearingRow = 5;
 
             for (int row = 0; row < grid; row++)
             for (int col = 0; col < grid; col++)
             {
                 char c = pattern[row * grid + col];
                 bool filled = c != '.';
-                Sprite sprite = filled ? ArtKit.Block(c - '0') : ArtKit.EmptyCell();
+                bool clearing = row == clearingRow;
+
+                // The clearing row is drawn in the sunflower colour rather than its own, which is
+                // what a line about to pop looks like in play.
+                Sprite sprite = filled ? ArtKit.Block(clearing ? 2 : c - '0') : ArtKit.EmptyCell();
 
                 Image cellImg = CandyUI.Icon($"C{row}_{col}", frame, sprite);
                 cellImg.preserveAspect = false;
@@ -213,39 +230,50 @@ namespace Snapline.UI
 
                 CandyUI.Place(cellImg, new Vector2(0f, 1f),
                               new Vector2(inset + cell * (col + 0.5f), -(inset + cell * (row + 0.5f))),
-                              new Vector2(cell - 4f, cell - 4f));
+                              new Vector2(cell - 5f, cell - 5f));
             }
+
+            // A generated glow along the completed line, not the delivered fx_burst_line sprite.
+            // That file has real alpha and still fails: the checkerboard was composited into its
+            // semi-transparent glow, so every soft pixel carries grey checks that show up as a
+            // visible chequered smear over the board. Generated is clean and costs nothing here.
+            Image flare = CandyUI.Icon("ClearFlare", frame, ArtKit.SoftCircle());
+            flare.preserveAspect = false;
+            flare.color = new Color(1f, 0.86f, 0.30f, 0.55f);
+            CandyUI.Place(flare, new Vector2(0f, 1f),
+                          new Vector2(size * 0.5f, -(inset + cell * (clearingRow + 0.5f))),
+                          new Vector2(size - inset * 0.4f, cell * 2.2f));
         }
 
         // --- the way into a run ----------------------------------------------------------------
 
         private void BuildPrimary()
         {
-            var bottom = new Vector2(0.5f, 0f);
+            var top = new Vector2(0.5f, 1f);
 
-            _continue = CandyUI.SpriteButton("Continue", _root, ArtKit.Ui("pill_red"));
-            CandyUI.Place(_continue, bottom, new Vector2(0f, 838f), new Vector2(760f, 150f));
+            _continue = CandyUI.SpriteButton("Continue", _root, ArtKit.Ui("tile_pink"), Image.Type.Sliced);
+            CandyUI.Place(_continue, top, new Vector2(0f, -1108f), new Vector2(880f, 162f));
             _continue.onClick.AddListener(OnPrimary);
 
-            _continueCaption = CandyUI.Label("Caption", _continue.transform, "PLAY", 66, CandyUI.Caption);
-            CandyUI.Place(_continueCaption, new Vector2(0.5f, 0.5f), new Vector2(0f, 16f), new Vector2(700f, 76f));
+            _continueCaption = CandyUI.Label("Caption", _continue.transform, "PLAY", 68, CandyUI.Caption);
+            CandyUI.Place(_continueCaption, new Vector2(0.5f, 0.5f), new Vector2(0f, 20f), new Vector2(840f, 78f));
 
-            _continueDetail = CandyUI.Label("Detail", _continue.transform, "", 34, CandyUI.CaptionDim);
-            CandyUI.Place(_continueDetail, new Vector2(0.5f, 0.5f), new Vector2(0f, -36f), new Vector2(700f, 46f));
+            _continueDetail = CandyUI.Label("Detail", _continue.transform, "", 36, CandyUI.CaptionDim);
+            CandyUI.Place(_continueDetail, new Vector2(0.5f, 0.5f), new Vector2(0f, -38f), new Vector2(840f, 44f));
         }
 
         private void BuildModes()
         {
-            var bottom = new Vector2(0.5f, 0f);
-            var size = new Vector2(372f, 132f);
+            var top = new Vector2(0.5f, 1f);
+            var size = new Vector2(448f, 148f);
 
-            Button levels = CandyUI.SpriteButton("Levels", _root, ArtKit.Ui("pill_purple"));
-            CandyUI.Place(levels, bottom, new Vector2(-196f, 648f), size);
+            Button levels = CandyUI.SpriteButton("Levels", _root, ArtKit.Ui("tile_purple"), Image.Type.Sliced);
+            CandyUI.Place(levels, top, new Vector2(-232f, -1288f), size);
             levels.onClick.AddListener(() => LevelsRequested?.Invoke());
             BuildModeFace(levels, ArtKit.Ui("icon_levels"), "60 LEVELS", out _levelsDetail);
 
-            Button endless = CandyUI.SpriteButton("Endless", _root, ArtKit.Ui("pill_teal"));
-            CandyUI.Place(endless, bottom, new Vector2(196f, 648f), size);
+            Button endless = CandyUI.SpriteButton("Endless", _root, ArtKit.Ui("tile_cyan"), Image.Type.Sliced);
+            CandyUI.Place(endless, top, new Vector2(232f, -1288f), size);
             // Starts a fresh endless run. When one is already saved, CONTINUE above resumes it and
             // this replaces it — the same pair the old NEW GAME button provided.
             endless.onClick.AddListener(() => NewGameRequested?.Invoke());
@@ -256,16 +284,16 @@ namespace Snapline.UI
         private static void BuildModeFace(Button button, Sprite icon, string title, out Text detail)
         {
             CandyUI.Place(CandyUI.Icon("Icon", button.transform, icon),
-                          new Vector2(0f, 0.5f), new Vector2(48f, 0f), new Vector2(66f, 66f));
+                          new Vector2(0f, 0.5f), new Vector2(60f, 0f), new Vector2(78f, 78f));
 
-            Text label = CandyUI.Label("Title", button.transform, title, 38, CandyUI.Caption, TextAnchor.MiddleLeft);
-            CandyUI.Place(label, new Vector2(0f, 0.5f), new Vector2(240f, 18f), new Vector2(280f, 46f));
+            Text label = CandyUI.Label("Title", button.transform, title, 40, CandyUI.Caption, TextAnchor.MiddleLeft);
+            CandyUI.Place(label, new Vector2(0f, 0.5f), new Vector2(272f, 20f), new Vector2(280f, 52f));
 
-            detail = CandyUI.Label("Detail", button.transform, "", 28, CandyUI.CaptionDim, TextAnchor.MiddleLeft);
-            CandyUI.Place(detail, new Vector2(0f, 0.5f), new Vector2(240f, -22f), new Vector2(280f, 40f));
+            detail = CandyUI.Label("Detail", button.transform, "", 32, CandyUI.CaptionDim, TextAnchor.MiddleLeft);
+            CandyUI.Place(detail, new Vector2(0f, 0.5f), new Vector2(272f, -26f), new Vector2(280f, 42f));
 
             CandyUI.Place(CandyUI.Icon("Chevron", button.transform, ArtKit.Ui("icon_chevron")),
-                          new Vector2(1f, 0.5f), new Vector2(-34f, 0f), new Vector2(34f, 54f));
+                          new Vector2(1f, 0.5f), new Vector2(-40f, 0f), new Vector2(36f, 58f));
         }
 
         /// <summary>
@@ -277,79 +305,108 @@ namespace Snapline.UI
         /// </summary>
         private void BuildDaily()
         {
-            var bottom = new Vector2(0.5f, 0f);
+            var top = new Vector2(0.5f, 1f);
+            const float panelW = 950f;
+            const float panelH = 258f;
 
             Button daily = CandyUI.SpriteButton("Daily", _root, ArtKit.Ui("pill_yellow"));
-            CandyUI.Place(daily, bottom, new Vector2(0f, 418f), new Vector2(940f, 248f));
+            CandyUI.Place(daily, top, new Vector2(0f, -1494f), new Vector2(panelW, panelH));
             daily.onClick.AddListener(() => Debug.Log("[Snapline] daily challenge: not built yet"));
 
+            // The calendar sits in its own column on the left, separated by a rule, so the panel
+            // reads as "this thing, about these days" rather than as four unrelated items in a row.
             CandyUI.Place(CandyUI.Icon("Calendar", daily.transform, ArtKit.Ui("icon_calendar")),
-                          new Vector2(0f, 1f), new Vector2(84f, -68f), new Vector2(96f, 96f));
+                          new Vector2(0f, 0.5f), new Vector2(96f, 0f), new Vector2(118f, 118f));
 
-            Text title = CandyUI.Label("Title", daily.transform, "DAILY CHALLENGE", 40, CandyUI.CaptionOnYellow,
-                                       TextAnchor.MiddleLeft, outline: false);
-            CandyUI.Place(title, new Vector2(0f, 1f), new Vector2(390f, -52f), new Vector2(460f, 50f));
+            Image rule = CandyUI.Icon("Rule", daily.transform, ArtKit.Ui("tile_navy"));
+            rule.type = Image.Type.Sliced;
+            rule.preserveAspect = false;
+            rule.color = new Color(0.55f, 0.36f, 0.10f, 0.28f);
+            CandyUI.Place(rule, new Vector2(0f, 0.5f), new Vector2(172f, 0f), new Vector2(4f, 176f));
 
-            _dailyDetail = CandyUI.Label("Detail", daily.transform, "Clear 8 lines", 32, CandyUI.CaptionOnYellow,
-                                         TextAnchor.MiddleLeft, outline: false);
-            CandyUI.Place(_dailyDetail, new Vector2(0f, 1f), new Vector2(360f, -100f), new Vector2(400f, 44f));
+            const float contentLeft = 200f;
 
-            CandyUI.Place(CandyUI.Icon("Chevron", daily.transform, ArtKit.Ui("icon_chevron")),
-                          new Vector2(1f, 0.5f), new Vector2(-40f, 0f), new Vector2(34f, 54f));
+            Text title = CandyUI.Label("Title", daily.transform, "DAILY CHALLENGE", 44,
+                                       CandyUI.CaptionOnYellow, TextAnchor.MiddleLeft, outline: false);
+            CandyUI.Place(title, new Vector2(0f, 1f), new Vector2(contentLeft + 230f, -40f),
+                          new Vector2(480f, 46f));
 
-            // Reward badge.
-            Image reward = CandyUI.Icon("Reward", daily.transform, ArtKit.Ui("pill_blue"));
+            _dailyDetail = CandyUI.Label("Detail", daily.transform, "Clear 8 lines", 34,
+                                         CandyUI.CaptionOnYellow, TextAnchor.MiddleLeft, outline: false);
+            CandyUI.Place(_dailyDetail, new Vector2(0f, 1f), new Vector2(contentLeft + 168f, -80f),
+                          new Vector2(340f, 38f));
+
+            // Reward badge, top right.
+            Image reward = CandyUI.Icon("Reward", daily.transform, ArtKit.Ui("pill_gold"));
             reward.type = Image.Type.Sliced;
             reward.preserveAspect = false;
-            CandyUI.Place(reward, new Vector2(1f, 1f), new Vector2(-108f, -56f), new Vector2(190f, 74f));
-            CandyUI.Place(CandyUI.Icon("RewardCoin", reward.transform, ArtKit.Ui("coin_s")),
-                          new Vector2(0f, 0.5f), new Vector2(40f, 0f), new Vector2(58f, 58f));
-            CandyUI.Place(CandyUI.Label("RewardValue", reward.transform, "+50", 34, CandyUI.Caption),
-                          new Vector2(0.5f, 0.5f), new Vector2(22f, 0f), new Vector2(120f, 46f));
+            CandyUI.Place(reward, new Vector2(1f, 1f), new Vector2(-118f, -46f), new Vector2(180f, 66f));
+            CandyUI.Place(CandyUI.Icon("RewardCoin", reward.transform, ArtKit.Ui("coin")),
+                          new Vector2(0f, 0.5f), new Vector2(40f, 0f), new Vector2(56f, 56f));
+            CandyUI.Place(CandyUI.Label("RewardValue", reward.transform, "+50", 38, CandyUI.Caption),
+                          new Vector2(0.5f, 0.5f), new Vector2(22f, 0f), new Vector2(118f, 44f));
 
-            // Seven day dots.
+            CandyUI.Place(CandyUI.Icon("Chevron", daily.transform, ArtKit.Ui("icon_chevron")),
+                          new Vector2(1f, 0.5f), new Vector2(-44f, 0f), new Vector2(36f, 58f));
+
+            // The week strip sits under the text, inside the content column, not across the whole
+            // panel — the calendar column and the chevron are not days.
             string[] days = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
-            const float step = 118f;
-            float first = -(days.Length - 1) * step * 0.5f;
+            const float stripLeft = contentLeft + 20f;
+            const float stripRight = panelW - 116f;
+            float step = (stripRight - stripLeft) / (days.Length - 1);
 
             for (int i = 0; i < days.Length; i++)
             {
-                float x = first + step * i;
+                float x = stripLeft + step * i;
+
+                // PLACEHOLDER: no date tracking, so day one is drawn as today and none are claimed.
+                bool today = i == 0;
 
                 Image dot = CandyUI.Icon($"Day{i}", daily.transform, ArtKit.Ui("dot_pink"));
-                CandyUI.Place(dot, new Vector2(0.5f, 0f), new Vector2(x, 92f), new Vector2(56f, 56f));
+                CandyUI.Place(dot, new Vector2(0f, 0f), new Vector2(x, 112f), new Vector2(60f, 60f));
+                if (today) dot.color = new Color(1f, 0.86f, 0.30f, 1f);
 
-                CandyUI.Place(CandyUI.Label($"DayName{i}", daily.transform, days[i], 30,
+                CandyUI.Place(CandyUI.Label($"DayName{i}", daily.transform, days[i], 28,
                                             CandyUI.CaptionOnYellow, TextAnchor.MiddleCenter, outline: false),
-                          new Vector2(0.5f, 0f), new Vector2(x, 36f), new Vector2(110f, 36f));
+                              new Vector2(0f, 0f), new Vector2(x, 64f), new Vector2(110f, 34f));
             }
         }
-
         private void BuildBottomRow()
         {
-            var bottom = new Vector2(0.5f, 0f);
-            const float y = 180f;
-            const float iconSize = 132f;
+            var top = new Vector2(0.5f, 1f);
+            const float y = -1742f;
+            const float disc = 142f;
 
-            Button best = CandyUI.SpriteButton("Best", _root, ArtKit.Ui("icon_trophy"));
-            CandyUI.Place(best, bottom, new Vector2(-280f, y), new Vector2(iconSize, iconSize));
+            // A disc behind each icon, rather than a bare icon. The reference reads as three buttons
+            // because of the discs; without them the icons float and the row stops looking pressable.
+            // PLACEHOLDER: BEST wants a gold disc, which has not been delivered — purple stands in.
+            Button best = MakeDiscButton("Best", "circle_purple", "icon_trophy", "BEST", disc);
+            CandyUI.Place(best, top, new Vector2(-286f, y), new Vector2(disc, disc));
             best.onClick.AddListener(() => ScoresRequested?.Invoke());
-            BottomLabel(best, "BEST");
 
-            Button share = CandyUI.SpriteButton("Share", _root, ArtKit.Ui("btn_share"));
-            CandyUI.Place(share, bottom, new Vector2(0f, y), new Vector2(iconSize, iconSize));
+            Button share = MakeDiscButton("Share", "circle_pink", "icon_share", "SHARE", disc);
+            CandyUI.Place(share, top, new Vector2(0f, y), new Vector2(disc, disc));
             share.onClick.AddListener(() => ShareRequested?.Invoke());
-            BottomLabel(share, "SHARE");
 
-            Button tools = CandyUI.SpriteButton("ToolsBig", _root, ArtKit.Ui("icon_toolbox"));
-            CandyUI.Place(tools, bottom, new Vector2(280f, y), new Vector2(iconSize, iconSize));
+            Button tools = MakeDiscButton("ToolsBig", "circle_blue", "icon_toolbox", "TOOLS", disc);
+            CandyUI.Place(tools, top, new Vector2(286f, y), new Vector2(disc, disc));
             tools.onClick.AddListener(OpenTools);
-            BottomLabel(tools, "TOOLS");
         }
 
-        private static void BottomLabel(Button button, string caption) =>
-            CandyUI.Place(CandyUI.Label("Label", button.transform, caption, 32, CandyUI.Caption),
-                          new Vector2(0.5f, 0f), new Vector2(0f, -34f), new Vector2(240f, 44f));
+        /// <summary>A coloured disc with an icon on it and a caption beneath.</summary>
+        private Button MakeDiscButton(string name, string disc, string icon, string caption, float size)
+        {
+            Button button = CandyUI.SpriteButton(name, _root, ArtKit.Ui(disc));
+
+            CandyUI.Place(CandyUI.Icon("Icon", button.transform, ArtKit.Ui(icon)),
+                          new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size * 0.66f, size * 0.66f));
+
+            CandyUI.Place(CandyUI.Label("Label", button.transform, caption, 34, CandyUI.Caption),
+                          new Vector2(0.5f, 0f), new Vector2(0f, -38f), new Vector2(240f, 46f));
+
+            return button;
+        }
 
         /// <summary>PLACEHOLDER: the store does not exist. One place to replace when it does.</summary>
         private void OpenTools() => Debug.Log("[Snapline] tools store: not built yet");

@@ -45,7 +45,19 @@ namespace Snapline.EditorTools
         /// art was not drawn at. Without this the candy border thickens as the board grows and stops
         /// matching the blocks inside it.
         /// </summary>
-        private static readonly string[] FrameSliced = { "board_frame" };
+        /// <summary>
+        /// Bordered on all four sides. Frames, and the rounded tiles used as wide buttons.
+        ///
+        /// The tiles matter here: a wide button built by stretching a *pill* keeps its semicircular
+        /// caps, and at button proportions those caps eat most of the width and the result reads as
+        /// squashed. A rounded square nine-sliced on all four sides stretches into a proper rounded
+        /// rectangle at any width, which is what the reference art actually uses.
+        /// </summary>
+        private static readonly string[] FrameSliced =
+        {
+            "board_frame",
+            "tile_navy", "tile_green", "tile_purple", "tile_cyan", "tile_pink",
+        };
 
         /// <summary>Fraction of the shorter side taken by the border, sized to clear the corners.</summary>
         private const float FrameFraction = 0.22f;
