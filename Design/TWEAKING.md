@@ -16,7 +16,7 @@ Four kinds of change, and they work differently.
 public const int TitleSize   = 96;   // LEVELS, BEST SCORES, TOOLBOX
 public const int ButtonSize  = 68;   // PLAY, CONTINUE
 public const int BodySize    = 36;   // the line under a button
-public const float PrimaryButtonHeight = 162f;
+public const int  DisplayThreshold = 44;  // at/above this a label uses the heavy weight
 public const float PressScale = 0.94f;   // how far a button squashes when held
 ```
 
@@ -27,16 +27,21 @@ every secondary line at once instead of six of the eight.
 `MainMenu.cs` has:
 
 ```csharp
-public const float StatusY  = 78f;    // gear, coins, toolbox, sound
-public const float LogoY    = 242f;
-public const float BoardY   = 684f;
-public const float PlayY    = 1108f;
-public const float ModesY   = 1288f;
-public const float DailyY   = 1494f;
-public const float BottomRowY = 1742f;
+// measured DOWN from the top
+public const float StatusY    = 78f;    // gear, coins, toolbox, sound
+public const float LogoY      = 242f;
+public const float BoardTop   = 404f;   // top edge of the board area
+public const float BoardSize  = 664f;   // its largest size; it shrinks below this
+
+// measured UP from the bottom, then scaled (see below)
+public const float DesignHeight = 2340f;
+public const float PlayY      = 1140f;  // height 250
+public const float ModesY     = 865f;   // height 250
+public const float DailyY     = 540f;   // height 300
+public const float BottomRowY = 240f;
 ```
 
-**The canvas is always 1080 wide. Its height is whatever the phone.s aspect makes it** — 1920 on an
+**The canvas is always 1080 wide. Its height is whatever the phone's aspect makes it** — 1920 on an
 old 16:9 screen, 2340 on most modern Android hardware. That is why the block is split in two:
 
 - **Measured DOWN from the top:** the status bar, the wordmark, the board. These are attached to the
@@ -117,15 +122,23 @@ when an asset is imported, so existing files keep their old borders until forced
 
 ---
 
-## 4. Fonts — one place, but it needs a font file
+## 4. Fonts — Heebo, in two weights
 
-Everything uses Unity's built-in Arial, chosen through `UIKit.Font` in the shared kit. There is no
-font file in the project.
+`Heebo-Bold.ttf` and `Heebo-Black.ttf` live in `Assets/Snapline/Resources/Snapline/Fonts/` and ship
+inside the build. Which one a label gets is decided by its size:
 
-To change it: drop a `.ttf` into `Assets/Snapline/Resources/Snapline/`, then have the font loaded
-there instead. It is a contained change because every label in the game is created through one
-function — but it does touch the shared kit, so ask before doing it; the same file is used by five
-other games.
+```csharp
+public const int DisplayThreshold = 44;   // at or above this, Black; below it, Bold
+```
+
+Lower it to make more text heavy, raise it for less. Adding a third weight — Medium for small print,
+say — is one more `.ttf` in that folder and one line in `Design.For`.
+
+The font is applied by a sweep over every label at startup rather than at each call site, because the
+HUD, both result cards, `UIKit.Button` and the kit's popup pool all create labels where this game has
+no call site to change. That sweep lives in `Bootstrap.Awake` and **must stay above the two
+screenshot-harness branches**, which return early — below them the font applied in ordinary play and
+in no captured screenshot, including the ones destined for the Play listing.
 
 ---
 
