@@ -41,12 +41,13 @@ namespace Snapline.UI
             // --- measured DOWN from the top of the screen ---
             public const float StatusY = 78f;      // gear, coins, toolbox, sound
             public const float LogoY = 242f;       // centre of the wordmark
-            public const float LogoWidth = 860f;   // height follows the artwork's own aspect
+            public const float LogoWidth = 860f;
+            public const float LogoHeight = 200f;  // the art is letterboxed inside this, never squashed
             /// <summary>Top edge of the board area: clear of the wordmark above it.</summary>
             public const float BoardTop = 404f;
 
-            /// <summary>The board at its designed size. It shrinks below this on a short screen.</summary>
-            public const float BoardSize = 664f;
+            /// <summary>Widest the board is drawn. It shrinks below this on a short screen.</summary>
+            public const float BoardWidth = 720f;
 
             /// <summary>Breathing room between the board and the play button under it.</summary>
             public const float BoardGapBelow = 28f;
@@ -213,8 +214,11 @@ namespace Snapline.UI
                 _logo = img.rectTransform;
                 // Height follows the art's own aspect, so a re-exported wordmark at a different
                 // shape is not stretched to fit a hard-coded box.
-                float height = Layout.LogoWidth * (logo.rect.height / Mathf.Max(1f, logo.rect.width));
-                CandyUI.Place(_logo, new Vector2(0.5f, 1f), new Vector2(0f, -Layout.LogoY), new Vector2(Layout.LogoWidth, height));
+                // Sized by height rather than derived from the width: the wordmark has transparent
+                // padding, so matching its aspect exactly made it taller on screen than it looks.
+                // preserveAspect keeps it centred inside this box rather than stretching it.
+                CandyUI.Place(_logo, new Vector2(0.5f, 1f), new Vector2(0f, -Layout.LogoY),
+                              new Vector2(Layout.LogoWidth, Layout.LogoHeight));
                 return;
             }
 
@@ -224,110 +228,38 @@ namespace Snapline.UI
         }
 
         /// <summary>
-        /// A still board behind the buttons, framed in candy stripes.
+        /// The framed board behind the buttons.
         ///
-        /// Decorative — it is not the real board and never updates. It exists because the reference
-        /// art leads with it, and because a front screen for a block puzzle that shows no blocks
-        /// gives no sense of the game.
+        /// One authored image rather than a frame plus a ground plus sixty-four cells plus a glow.
+        /// It is decorative — not the real board, and it never updates — so building it out of live
+        /// pieces bought nothing and cost about sixty-seven draw calls on the screen the player sees
+        /// first.
+        ///
+        /// It is also the one element on this screen measured from neither edge: everything above it
+        /// hangs from the top and everything below it from the bottom, so it takes whatever is left
+        /// and shrinks on a short phone. That is deliberate — it is the only thing here that can lose
+        /// size without losing meaning.
         /// </summary>
         private void BuildBoardPreview()
         {
-            const int grid = 8;
+            Sprite board = ArtKit.Ui("board_preview");
+            if (board == null) return;
 
-            // The board is the one thing on this screen that can give way, so it is the one thing
-            // measured rather than fixed. Everything above it hangs from the top and everything below
-            // it from the bottom; on a 16:9 phone those two halves meet, and without this the play
-            // button lands on top of the board.
+            float aspect = board.rect.width / Mathf.Max(1f, board.rect.height);
+
             float canvasHeight = Design.CanvasWidth * Screen.height / Mathf.Max(1f, Screen.width);
             float floor = canvasHeight - Layout.PlayY * BottomScale
                         - Layout.PlayHeight * 0.5f - Layout.BoardGapBelow;
-            float size = Mathf.Min(Layout.BoardSize, floor - Layout.BoardTop);
-            float centreY = Layout.BoardTop + size * 0.5f;
+            float available = floor - Layout.BoardTop;
 
-            RectTransform frame = UIKit.Rect("BoardPreview", _root);
-            CandyUI.Place(frame, new Vector2(0.5f, 1f), new Vector2(0f, -centreY), new Vector2(size, size));
+            // Width first, then height from the artwork's own aspect, so a re-exported board at a
+            // different shape is never squashed to fit a hard-coded box.
+            float width = Mathf.Min(Layout.BoardWidth, Mathf.Max(0f, available) * aspect);
+            float height = width / aspect;
 
-            // The frame's centre is transparent, and the empty-cell sprites do not quite meet at
-            // their corners, so without a solid ground behind them the candy background shows
-            // through the grid as pale speckle.
-            Image ground = CandyUI.Icon("Ground", frame, ArtKit.Ui("tile_navy"));
-            ground.type = Image.Type.Sliced;
-            ground.preserveAspect = false;
-            ground.color = new Color(0.40f, 0.46f, 0.76f, 1f);
-            float groundInset = 112f * (size / Layout.BoardSize);
-            CandyUI.Place(ground, new Vector2(0.5f, 0.5f), Vector2.zero,
-                          new Vector2(size - groundInset, size - groundInset));
-
-            Image border = CandyUI.Icon("Frame", frame, ArtKit.BoardFrame());
-            // Tiled, not Sliced. Both keep the border at its drawn thickness, but Sliced *stretches*
-            // the middle of each edge — and this border is diagonal candy stripes, which smear into
-            // flat white when stretched across two-thirds of a side. Tiling repeats them instead, so
-            // the stripe density stays the same however wide the board gets.
-            border.type = Image.Type.Tiled;
-            border.preserveAspect = false;
-            RectTransform brt = border.rectTransform;
-            brt.anchorMin = Vector2.zero;
-            brt.anchorMax = Vector2.one;
-            brt.offsetMin = Vector2.zero;
-            brt.offsetMax = Vector2.zero;
-
-            // Clear of the candy border, which nine-slicing keeps at its drawn thickness however
-            // large the frame gets. An inset narrower than the border puts the outer blocks
-            // underneath it.
-            // The inset scales with the board so a shrunken board keeps its proportions rather than
-            // losing all its playfield to a border drawn for a bigger one.
-            float inset = Layout.BoardInset * (size / Layout.BoardSize);
-            float cell = (size - inset * 2f) / grid;
-
-            // A fixed arrangement, not a random one: the front screen should look the same every
-            // time it is opened rather than reshuffling behind the player. Row 6 is deliberately a
-            // complete line — the reference art leads with a clear in progress, and a board that is
-            // one move from scoring says more about the game than an arbitrary scatter.
-            const string pattern =
-                "302....." +
-                "112.4..." +
-                "...1.2.." +
-                "0010...." +
-                "22......" +
-                "22222222" +
-                "05341122" +
-                "........";
-
-            const int clearingRow = 5;
-
-            for (int row = 0; row < grid; row++)
-            for (int col = 0; col < grid; col++)
-            {
-                char c = pattern[row * grid + col];
-                bool filled = c != '.';
-                bool clearing = row == clearingRow;
-
-                // The clearing row is drawn in the sunflower colour rather than its own, which is
-                // what a line about to pop looks like in play.
-                Sprite sprite = filled ? ArtKit.Block(clearing ? 2 : c - '0') : ArtKit.EmptyCell();
-
-                Image cellImg = CandyUI.Icon($"C{row}_{col}", frame, sprite);
-                cellImg.preserveAspect = false;
-
-                // The empty-cell sprite is a fully lit blue block, so at full brightness a mostly
-                // empty board reads as a completely full one — every hole looks like a piece. Darkened
-                // until the holes sit behind the blocks the way they do in the reference art.
-                if (!filled) cellImg.color = Palette.EmptyCellTint;
-
-                CandyUI.Place(cellImg, new Vector2(0f, 1f),
-                              new Vector2(inset + cell * (col + 0.5f), -(inset + cell * (row + 0.5f))),
-                              new Vector2(cell - 5f, cell - 5f));
-            }
-
-            // The delivered line-clear effect. Earlier versions had the transparency checkerboard
-            // blended into the faint halo, where the colour drifted from gold to grey-tan as the
-            // alpha fell; this one holds a constant saturated #FFAE16 down to alpha 8, which is what
-            // an uncontaminated glow looks like.
-            Image flare = CandyUI.Icon("ClearFlare", frame, ArtLoader.Sprite("FX/fx_line_clear"));
-            flare.preserveAspect = false;
-            CandyUI.Place(flare, new Vector2(0f, 1f),
-                          new Vector2(size * 0.5f, -(inset + cell * (clearingRow + 0.5f))),
-                          new Vector2(size - inset * 0.5f, cell * 2.4f));
+            Image img = CandyUI.Icon("BoardPreview", _root, board);
+            CandyUI.Place(img, new Vector2(0.5f, 1f), new Vector2(0f, -(Layout.BoardTop + height * 0.5f)),
+                          new Vector2(width, height));
         }
 
         // --- the way into a run ----------------------------------------------------------------
