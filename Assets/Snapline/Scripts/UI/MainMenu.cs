@@ -370,14 +370,19 @@ namespace Snapline.UI
                           new Vector2(340f, 42f));
 
             // Reward badge, top right.
+            // The gold pill behind the reward is switched off rather than removed: the coin and the
+            // value are its children and position against it, so it still earns its place as the
+            // rect that holds them together. Disabling the Image and not the GameObject is the
+            // difference between hiding the pill and hiding the reward.
             Image reward = CandyUI.Icon("Reward", daily.transform, ArtKit.Ui("pill_gold"));
             reward.type = Image.Type.Sliced;
             reward.preserveAspect = false;
+            reward.enabled = false;
             CandyUI.Place(reward, new Vector2(1f, 1f), new Vector2(-118f, -58f), new Vector2(190f, 72f));
             CandyUI.Place(CandyUI.Icon("RewardCoin", reward.transform, ArtKit.Ui("coin")),
-                          new Vector2(0f, 0.5f), new Vector2(40f, 0f), new Vector2(56f, 56f));
+                          new Vector2(0f, 0.5f), new Vector2(9f, 0f), new Vector2(56f, 56f));
             CandyUI.Place(CandyUI.Label("RewardValue", reward.transform, "+50", 38, CandyUI.Caption),
-                          new Vector2(0.5f, 0.5f), new Vector2(22f, 0f), new Vector2(118f, 44f));
+                          new Vector2(0.5f, 0.5f), new Vector2(-13f, 0f), new Vector2(118f, 44f));
 
             CandyUI.Place(CandyUI.Icon("Chevron", daily.transform, ArtKit.Ui("icon_chevron")),
                           new Vector2(1f, 0.5f), new Vector2(-44f, 0f), new Vector2(36f, 58f));
