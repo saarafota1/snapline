@@ -40,18 +40,19 @@ namespace Snapline.UI
         {
             // --- measured DOWN from the top of the screen ---
             public const float StatusY = 78f;      // gear, coins, toolbox, sound
-            public const float LogoY = 242f;       // centre of the wordmark
+            public const float LogoY = 213f;       // centre of the wordmark
             public const float LogoWidth = 860f;
             public const float LogoHeight = 200f;  // the art is letterboxed inside this, never squashed
-            /// <summary>Top edge of the board area: clear of the wordmark above it.</summary>
-            public const float BoardTop = 404f;
+            /// <summary>Centre of the board preview.</summary>
+            public const float BoardCentreY = 630f;
 
             /// <summary>Widest the board is drawn. It shrinks below this on a short screen.</summary>
             public const float BoardWidth = 720f;
+            public const float ToolsX = 240f;
+            public const float ToolsY = 75f;
 
             /// <summary>Breathing room between the board and the play button under it.</summary>
             public const float BoardGapBelow = 28f;
-            public const float BoardInset = 60f;   // frame edge to the first block; must clear the border
 
             /// <summary>
             /// The canvas height these bottom-measured values were authored against — a 1080x2340
@@ -64,12 +65,12 @@ namespace Snapline.UI
             public const float DesignHeight = 2340f;
 
             // --- measured UP from the bottom of the screen, before scaling ---
-            public const float PlayY = 1140f;
-            public const float PlayWidth = 880f;
-            public const float PlayHeight = 250f;
-            public const float ModesY = 865f;
+            public const float PlayY = 1045f;
+            public const float PlayWidth = 700f;
+            public const float PlayHeight = 200f;
+            public const float ModesY = 830f;
             public const float ModeWidth = 448f;
-            public const float ModeHeight = 250f;
+            public const float ModeHeight = 200f;
             public const float ModeSplit = 232f;   // how far each mode button sits from the centre
             public const float DailyY = 540f;
             public const float DailyWidth = 950f;
@@ -188,7 +189,7 @@ namespace Snapline.UI
 
             // --- tools store. PLACEHOLDER: no store, no inventory, no items. ---
             Button tools = CandyUI.SpriteButton("Tools", _root, ArtKit.Ui("icon_toolbox"));
-            CandyUI.Place(tools, top, new Vector2(170f, -76f), new Vector2(120f, 120f));
+            CandyUI.Place(tools, top, new Vector2(Layout.ToolsX, -Layout.ToolsY), new Vector2(120f, 120f));
             tools.onClick.AddListener(OpenTools);
 
             _toolsBadge = CandyUI.Icon("ToolsBadge", tools.transform, ArtKit.Ui("dot_red"));
@@ -250,15 +251,19 @@ namespace Snapline.UI
             float canvasHeight = Design.CanvasWidth * Screen.height / Mathf.Max(1f, Screen.width);
             float floor = canvasHeight - Layout.PlayY * BottomScale
                         - Layout.PlayHeight * 0.5f - Layout.BoardGapBelow;
-            float available = floor - Layout.BoardTop;
+
+            // The centre stays put and the board shrinks around it, so on a short phone it pulls in
+            // from both edges rather than sliding up the screen. Half the gap to the play button is
+            // what limits it.
+            float maxHeight = Mathf.Max(0f, floor - Layout.BoardCentreY) * 2f;
 
             // Width first, then height from the artwork's own aspect, so a re-exported board at a
             // different shape is never squashed to fit a hard-coded box.
-            float width = Mathf.Min(Layout.BoardWidth, Mathf.Max(0f, available) * aspect);
+            float width = Mathf.Min(Layout.BoardWidth, maxHeight * aspect);
             float height = width / aspect;
 
             Image img = CandyUI.Icon("BoardPreview", _root, board);
-            CandyUI.Place(img, new Vector2(0.5f, 1f), new Vector2(0f, -(Layout.BoardTop + height * 0.5f)),
+            CandyUI.Place(img, new Vector2(0.5f, 1f), new Vector2(0f, -Layout.BoardCentreY),
                           new Vector2(width, height));
         }
 
@@ -302,13 +307,21 @@ namespace Snapline.UI
         private static void BuildModeFace(Button button, Sprite icon, string title, out Text detail)
         {
             CandyUI.Place(CandyUI.Icon("Icon", button.transform, icon),
-                          new Vector2(0f, 0.5f), new Vector2(74f, 0f), new Vector2(100f, 100f));
+                          new Vector2(0f, 0.5f), new Vector2(90f, 0f), new Vector2(100f, 100f));
 
-            Text label = CandyUI.Label("Title", button.transform, title, 40, CandyUI.Caption, TextAnchor.MiddleLeft);
-            CandyUI.Place(label, new Vector2(0f, 0.5f), new Vector2(292f, 30f), new Vector2(280f, 58f));
+            // Title over detail, both centred in the space the icon and chevron leave. Centring them
+            // on the button itself would put them under the icon, which is what left-aligning was
+            // avoiding before.
+            const float textCentre = 278f;
+            const float textWidth = 250f;
 
-            detail = CandyUI.Label("Detail", button.transform, "", 32, CandyUI.CaptionDim, TextAnchor.MiddleLeft);
-            CandyUI.Place(detail, new Vector2(0f, 0.5f), new Vector2(292f, -36f), new Vector2(280f, 46f));
+            Text label = CandyUI.Label("Title", button.transform, title, 40, CandyUI.Caption);
+            CandyUI.Place(label, new Vector2(0f, 0.5f), new Vector2(textCentre, 26f),
+                          new Vector2(textWidth, 54f));
+
+            detail = CandyUI.Label("Detail", button.transform, "", 32, CandyUI.CaptionDim);
+            CandyUI.Place(detail, new Vector2(0f, 0.5f), new Vector2(textCentre, -30f),
+                          new Vector2(textWidth, 44f));
 
             CandyUI.Place(CandyUI.Icon("Chevron", button.transform, ArtKit.Ui("icon_chevron")),
                           new Vector2(1f, 0.5f), new Vector2(-40f, 0f), new Vector2(36f, 58f));
@@ -344,13 +357,15 @@ namespace Snapline.UI
 
             const float contentLeft = 200f;
 
+            // White on the yellow panel, per the brief. White on saturated yellow is a weak pairing
+            // on its own, so these keep the outline the dark text did not need.
             Text title = CandyUI.Label("Title", daily.transform, "DAILY CHALLENGE", 44,
-                                       CandyUI.CaptionOnYellow, TextAnchor.MiddleLeft, outline: false);
+                                       CandyUI.Caption, TextAnchor.MiddleLeft);
             CandyUI.Place(title, new Vector2(0f, 1f), new Vector2(contentLeft + 230f, -52f),
                           new Vector2(480f, 50f));
 
             _dailyDetail = CandyUI.Label("Detail", daily.transform, "Clear 8 lines", 34,
-                                         CandyUI.CaptionOnYellow, TextAnchor.MiddleLeft, outline: false);
+                                         CandyUI.Caption, TextAnchor.MiddleLeft);
             CandyUI.Place(_dailyDetail, new Vector2(0f, 1f), new Vector2(contentLeft + 168f, -104f),
                           new Vector2(340f, 42f));
 
@@ -386,7 +401,7 @@ namespace Snapline.UI
                 if (today) dot.color = new Color(1f, 0.86f, 0.30f, 1f);
 
                 CandyUI.Place(CandyUI.Label($"DayName{i}", daily.transform, days[i], 28,
-                                            CandyUI.CaptionOnYellow, TextAnchor.MiddleCenter, outline: false),
+                                            CandyUI.Caption, TextAnchor.MiddleCenter),
                               new Vector2(0f, 0f), new Vector2(x, 68f), new Vector2(110f, 36f));
             }
         }
