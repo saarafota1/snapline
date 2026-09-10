@@ -21,6 +21,46 @@ namespace Snapline.UI
     /// </summary>
     public static class Design
     {
+        // --- font ---------------------------------------------------------------------------
+
+        private static Font _body;
+        private static Font _display;
+
+        /// <summary>
+        /// Heebo Bold — the game's text.
+        ///
+        /// Loaded from Resources rather than taken from the operating system: an OS font lookup
+        /// finds nothing on a phone, and the label would silently fall back to a default that looks
+        /// nothing like this. The file ships inside the build.
+        ///
+        /// Falls back to whatever the kit was using if the file is missing, so a bad copy costs the
+        /// look and not the text.
+        /// </summary>
+        public static Font Body =>
+            _body != null ? _body : _body = Resources.Load<Font>("Snapline/Fonts/Heebo-Bold")
+                                            ?? GameKit.Art.UIKit.Font;
+
+        /// <summary>
+        /// Heebo Black, for display text — titles, the big score, a primary button's caption.
+        ///
+        /// A separate file rather than <c>FontStyle.Bold</c> on the regular weight: that synthesises
+        /// a fake bold by smearing the glyphs, which on large text looks exactly like what it is.
+        /// </summary>
+        public static Font Display =>
+            _display != null ? _display : _display = Resources.Load<Font>("Snapline/Fonts/Heebo-Black")
+                                                     ?? Body;
+
+        /// <summary>
+        /// At and above this size a label uses <see cref="Display"/> instead of <see cref="Body"/>.
+        ///
+        /// A size threshold rather than a flag at every call site, because the rule it encodes is
+        /// really about scale: heavy weights read well large and turn into a blur small, and there
+        /// are well over a hundred labels in the game to keep consistent by hand.
+        /// </summary>
+        public const int DisplayThreshold = 44;
+
+        public static Font For(int size) => size >= DisplayThreshold ? Display : Body;
+
         // --- type ---------------------------------------------------------------------------
         //
         // One scale, used everywhere. Raising Body raises every secondary line in the game at once,

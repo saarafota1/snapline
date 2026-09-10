@@ -90,6 +90,7 @@ namespace Snapline.UI
                                  TextAnchor anchor = TextAnchor.MiddleCenter, bool outline = true)
         {
             Text label = UIKit.Label(name, parent, content, size, colour);
+            label.font = Design.For(size);
             label.alignment = anchor;
             label.horizontalOverflow = HorizontalWrapMode.Overflow;
             label.verticalOverflow = VerticalWrapMode.Overflow;
@@ -131,6 +132,34 @@ namespace Snapline.UI
             // full-screen background, so a scrim forced to the back would sit behind it and do
             // nothing at all — which is exactly what happened the first time.
             return img;
+        }
+
+        /// <summary>
+        /// Puts the game's font on every label under <paramref name="root"/>, including inactive ones.
+        ///
+        /// A sweep rather than a change at each call site, because not every label is created here:
+        /// the HUD and both result cards build theirs with <c>UIKit.Label</c> directly, and
+        /// <c>UIKit.Button</c> and the kit's popup pool create labels *inside* the kit where there is
+        /// no call site to change at all. Reaching them any other way would mean editing the kit,
+        /// which five other games share.
+        ///
+        /// Safe to run once at startup: every screen in this game is built during
+        /// <c>Bootstrap.Awake</c>, panels included, so nothing is created after this has run.
+        ///
+        /// Weight follows size, so a sweep produces the same result as building each label by hand.
+        /// </summary>
+        public static void ApplyFont(GameObject root)
+        {
+            if (root == null) return;
+
+            Text[] labels = root.GetComponentsInChildren<Text>(includeInactive: true);
+            foreach (Text label in labels)
+            {
+                if (label == null) continue;
+                label.font = Design.For(label.fontSize);
+            }
+
+            Debug.Log($"[Snapline] font applied to {labels.Length} labels");
         }
 
         /// <summary>A non-interactive sprite, sized and placed by the caller.</summary>

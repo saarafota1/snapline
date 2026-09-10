@@ -202,6 +202,15 @@ namespace Snapline.App
             _scores.PlayRequested += StartNewGame;
             _levelSelect.ToolsRequested += ShowToolbox;
 
+            // Every screen is built by this point, so one pass reaches every label — including the
+            // ones the kit creates inside UIKit.Button and its popup pool, where there is no call
+            // site here to change.
+            //
+            // Must stay ABOVE the screenshot branches below, both of which return. Sitting under
+            // them meant the font was applied in ordinary play and in nothing else — including the
+            // store-screenshot build, which is the one that ends up on the Play listing.
+            CandyUI.ApplyFont(canvasRect.gameObject);
+
             if (StoreShots.StoreShotsRequested())
             {
                 drag.InputEnabled = false;
