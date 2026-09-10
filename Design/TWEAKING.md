@@ -36,13 +36,31 @@ public const float DailyY   = 1494f;
 public const float BottomRowY = 1742f;
 ```
 
-**Every Y is distance down from the top of the screen, on a 1920-tall canvas.** Raise a number to
-move that thing down. They share one budget deliberately — the screen used to anchor its top half to
-the top and its bottom half to the bottom, and the moment a section grew, the two halves collided.
-The numbers currently total about 1850 of 1920, so there is roughly 70 spare before something has to
-shrink to make room.
+**The canvas is always 1080 wide. Its height is whatever the phone.s aspect makes it** — 1920 on an
+old 16:9 screen, 2340 on most modern Android hardware. That is why the block is split in two:
+
+- **Measured DOWN from the top:** the status bar, the wordmark, the board. These are attached to the
+  top of the screen, so that is what they are measured from.
+- **Measured UP from the bottom:** the play button, the modes, the daily strip, the icon row. A value
+  measured from the top would put these off-screen on a short phone and strand them halfway up a
+  tall one.
+
+The bottom-measured values are authored against `DesignHeight = 2340f` and scaled by the real canvas
+height over that, clamped to 0.76-1.12. So on a 2340 phone they are used exactly as written; on a
+16:9 screen the whole lower block compresses by about 18% together, rather than one element
+absorbing the entire 420-unit difference.
+
+**The board takes up the slack.** It is the only thing on the screen measured from neither edge — it
+sits below the wordmark and shrinks until it clears the play button. That is deliberate: it is the
+one element that can lose size without losing meaning.
 
 Widths are in the same units, where 1080 is the full screen width.
+
+### If you are reading values out of Play Mode
+
+Tell me the Game view resolution as well as the numbers. A Y of -2100 is perfectly sensible on a
+1080x2340 view and off the bottom of the screen on 1080x1920, and I cannot tell which you meant from
+the number alone.
 
 ---
 
