@@ -1,0 +1,40 @@
+[
+  {
+    "version": "1.3.0",
+    "date": "2026-09-02",
+    "title": "Rewarded video reliability",
+    "changes": [
+      { "category": "fixed", "text": "Rewarded video and ads could be missing entirely, so the offer to keep a finished run going never appeared." }
+    ]
+  },
+  {
+    "version": "1.2.0",
+    "date": "2026-09-01",
+    "title": "Sharing, and the keep-playing offer",
+    "changes": [
+      { "category": "fixed", "text": "Ads and the offer to keep playing stopped appearing for some players." },
+      { "category": "improved", "text": "Sharing a score now includes a link to the game, so whoever you send it to does not have to search the store." }
+    ]
+  },
+  {
+    "version": "1.1.0",
+    "date": "2026-09-01",
+    "title": "Privacy settings",
+    "changes": [
+      { "category": "new", "text": "A privacy settings option on the main menu, so you can change your ad choices at any time." }
+    ]
+  },
+  {
+    "version": "1.0.0",
+    "date": "2026-08-30",
+    "title": "First release",
+    "changes": [
+      { "category": "new", "text": "Endless mode: drop blocks onto an eight-by-eight grid and fill a row or a column to clear it. No timer, no levels, just your best score." },
+      { "category": "new", "text": "60 levels, each asking you to clear a number of lines inside a move budget, with up to three stars for finishing with moves to spare." },
+      { "category": "new", "text": "Combos that build a points multiplier while you keep clearing, with enough forgiveness that a streak survives one quiet move." },
+      { "category": "new", "text": "A best scores table showing your ten highest runs, alongside lifetime lines cleared and your best combo." },
+      { "category": "new", "text": "A run in progress is saved, so closing the game and coming back picks up exactly where you left off." },
+      { "category": "new", "text": "Plays completely offline, with no account and no sign-in." }
+    ]
+  }
+]
