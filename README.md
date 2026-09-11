@@ -144,6 +144,13 @@ Process lives in `_StudioKit/Documentation~/NEW_GAME.md` and `PLAYBOOK.md`. Buil
 **Studio > Release > Build Android Release...** — never File > Build Settings, which produces test
 ad units and a debug signature.
 
+**Every version that goes to Play gets an entry in `release-notes.json`** at the repo root, in the
+same commit as the release. The Studio Hub dashboard reads it verbatim. The rules and a validation
+one-liner are in `_StudioKit/AGENTS.md` under `release-notes.json`; in short — newest first, never
+rewrite an entry that already shipped, and attribute each change to the version that actually
+carried it. The candy redesign on `feature/candy-redesign` is unreleased and has no entry yet; it
+gets one in whichever version first puts it in front of players.
+
 ### Permanent identifiers
 
 Recorded here because they are painful to dig out later and some of them can never be changed.
