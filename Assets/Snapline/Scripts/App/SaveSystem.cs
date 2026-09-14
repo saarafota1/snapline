@@ -246,7 +246,13 @@ namespace Snapline.App
             return done;
         }
 
-        /// <summary>Wipe everything. Only reachable from the editor menu.</summary>
+        /// <summary>
+        /// Wipe everything. Only reachable from the editor menu and the store-screenshot harness.
+        ///
+        /// The level stars and the score table were once left out, so a "fresh" store capture still
+        /// showed a best score and cleared levels from earlier test runs — numbers the capture never
+        /// earned.
+        /// </summary>
         public static void WipeAll()
         {
             PlayerPrefs.DeleteKey(RunKey);
@@ -254,6 +260,8 @@ namespace Snapline.App
             PlayerPrefs.DeleteKey(GamesKey);
             PlayerPrefs.DeleteKey(TotalLinesKey);
             PlayerPrefs.DeleteKey(BestComboKey);
+            PlayerPrefs.DeleteKey(StarsKey);
+            PlayerPrefs.DeleteKey(TableKey);
             PlayerPrefs.Save();
         }
     }

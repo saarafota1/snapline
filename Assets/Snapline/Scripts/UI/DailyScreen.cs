@@ -64,9 +64,40 @@ namespace Snapline.UI
 
         public bool IsVisible => _root != null && _root.gameObject.activeSelf;
 
+        /// <summary>
+        /// The height the screen's content needs: the week's progress panel ends at 1878. Sized to the
+        /// content rather than to a 1080x2340 phone, so a 16:9 screen is not left with a quarter of its
+        /// height empty under the panel.
+        /// </summary>
+        private const float DesignHeight = 2000f;
+
+        /// <summary>The height the screen's rect is actually given — the design height, or more on a taller phone.</summary>
+        private float _designHeight = DesignHeight;
+
+        /// <summary>
+        /// Lays the screen out on a design-sized rect, shrunk as a whole to fit a shorter screen.
+        ///
+        /// This screen stacks five tall pieces with little slack between them, so on a 16:9 phone —
+        /// 1920 units tall against the 2340 it was drawn for — moving pieces apart was not an option:
+        /// PLAY TODAY landed on top of the week's progress panel. Scaling the whole screen keeps every
+        /// gap in proportion. A taller phone gets the extra height as ordinary room instead, unscaled.
+        /// </summary>
+        private RectTransform FitToDesign(RectTransform rt)
+        {
+            float canvasHeight = Design.CanvasWidth * Screen.height / Mathf.Max(1f, Screen.width);
+            float safeHeight = canvasHeight * Screen.safeArea.height / Mathf.Max(1f, Screen.height);
+
+            _designHeight = Mathf.Max(DesignHeight, safeHeight);
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = Vector2.zero;
+            rt.sizeDelta = new Vector2(Design.CanvasWidth, _designHeight);
+            rt.localScale = Vector3.one * Mathf.Min(1f, safeHeight / DesignHeight);
+            return rt;
+        }
+
         public void Init(RectTransform parent)
         {
-            _root = UIKit.Stretch("Daily", parent);
+            _root = FitToDesign(UIKit.Rect("Daily", parent));
             Vector2 top = W.Top;
 
             Button back = W.Round("Back", _root, "circle_pink", "sym_back", top, new Vector2(-420f, -100f), 124f, 0.5f);
@@ -184,10 +215,8 @@ namespace Snapline.UI
 
         private void BuildProgress()
         {
-            // Right under the puzzle, as the reference has it — but never lower than the bottom margin
-            // on a short screen.
-            float canvasHeight = Design.CanvasWidth * Screen.height / Mathf.Max(1f, Screen.width);
-            float fromTop = Mathf.Min(Layout.ProgressY, canvasHeight - Layout.ProgressFromBottom);
+            // Right under the puzzle, as the reference has it — but never lower than the bottom margin.
+            float fromTop = Mathf.Min(Layout.ProgressY, _designHeight - Layout.ProgressFromBottom);
             Image panel = W.Sliced("Progress", _root, "tile_purple", W.Top,
                                    new Vector2(0f, -fromTop), new Vector2(940f, 176f));
             _progressText = W.Text("Text", panel.transform, "", W.Left, new Vector2(250f, 38f), new Vector2(420f, 60f),

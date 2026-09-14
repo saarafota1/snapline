@@ -21,7 +21,10 @@ namespace Snapline.UI
     {
         private static class Layout
         {
-            public const float TitleY = 180f;
+            /// <summary>Low enough to clear the coin pill above it, which the first version ran into.</summary>
+            public const float TitleY = 204f;
+            public const int TitleSize = 132;
+            public const float CoinY = 66f;
             public const float HeroY = 398f;
             public const float SubY = 548f;
             public const float FirstRowY = 752f;
@@ -75,9 +78,9 @@ namespace Snapline.UI
 
             Button back = W.Round("Back", _root, "circle_pink", "sym_back", top, new Vector2(-420f, -100f), 124f, 0.5f);
             back.onClick.AddListener(() => BackRequested?.Invoke());
-            CoinPill.Create(_root, top, new Vector2(316f, -84f), 330f, 92f);
+            CoinPill.Create(_root, top, new Vector2(316f, -Layout.CoinY), 330f, 92f);
 
-            _title = W.Title("Title", _root, "TOOLBOX", top, new Vector2(0f, -Layout.TitleY), 150);
+            _title = W.Title("Title", _root, "TOOLBOX", top, new Vector2(0f, -Layout.TitleY), Layout.TitleSize);
 
             W.Starburst(_root, top, new Vector2(0f, -Layout.HeroY), 480f, 18f);
             Image hero = W.Img("Hero", _root, "reward_toolbox_open", top, new Vector2(0f, -Layout.HeroY), new Vector2(360f, 330f));

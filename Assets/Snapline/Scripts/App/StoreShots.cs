@@ -6,7 +6,7 @@ using Snapline.Art;
 using GameKit.Art;
 using Snapline.Core;
 using Snapline.Core.Sim;
-using Snapline.View;
+using Snapline.UI;
 
 namespace Snapline.App
 {
@@ -14,12 +14,13 @@ namespace Snapline.App
     /// Produces the Play listing artwork that has to come from the running game.
     ///
     /// Screenshots are captured from genuine play: the harness wipes progress, then actually beats
-    /// levels and plays an endless run, and captures what happens. Play's listing policy requires
-    /// screenshots to be real gameplay from a non-development build, and mocked-up images are a
-    /// rejection reason — so nothing here is staged beyond choosing *when* to press the shutter.
+    /// levels, plays an endless run and a special-block level, and captures what happens. Nothing is
+    /// staged beyond choosing when to press the shutter — the one exception is the big-clear
+    /// celebration, which is fired by hand only if the run never produced a real 3-line clear, and
+    /// the log says so.
     ///
-    ///   Game.exe -snapline-store -screen-width 1080 -screen-height 1920 -screen-fullscreen 0
-    ///   Game.exe -snapline-feature -screen-width 1024 -screen-height 500 -screen-fullscreen 0
+    ///   Game.exe -snapline-store -snapline-store-dir StoreAssets/shots -screen-width 540 -screen-height 960 -screen-fullscreen 0
+    ///   Game.exe -snapline-feature -snapline-store-dir StoreAssets/shots -screen-width 1024 -screen-height 500 -screen-fullscreen 0
     /// </summary>
     public sealed class StoreShots : MonoBehaviour
     {
@@ -30,23 +31,26 @@ namespace Snapline.App
         private Bootstrap _app;
         private GameController _controller;
         private string _outputDir;
+        private bool _bigClearCaptured;
 
         public static bool StoreShotsRequested() => HasFlag(StoreFlag);
         public static bool FeatureGraphicRequested() => HasFlag(FeatureFlag);
 
         private static bool HasFlag(string flag)
         {
-            string[] args = System.Environment.GetCommandLineArgs();
-            for (int i = 0; i < args.Length; i++)
-                if (args[i] == flag) return true;
+            foreach (string arg in System.Environment.GetCommandLineArgs())
+                if (arg == flag) return true;
             return false;
         }
 
         public static string ResolveOutputDir()
         {
             string[] args = System.Environment.GetCommandLineArgs();
+            // Made absolute against the directory the player was launched from. A relative path goes
+            // to ScreenCapture as-is, and a Windows player resolves it under its own _Data folder,
+            // where the directory does not exist — every capture failed while the log said captured.
             for (int i = 0; i < args.Length - 1; i++)
-                if (args[i] == OutputFlag) return args[i + 1];
+                if (args[i] == OutputFlag) return Path.GetFullPath(args[i + 1]);
             return Path.Combine(Application.persistentDataPath, "store");
         }
 
@@ -65,101 +69,198 @@ namespace Snapline.App
 
         private IEnumerator Run()
         {
-            // Start from nothing so everything the listing shows was earned during this capture run.
+            // Start from nothing, so every number on screen was earned during this capture.
             SaveSystem.WipeAll();
+            Wallet.Reset();
+            DailyProgress.Reset();
+            NewBlockPopup.ResetSeen();
 
-            yield return new WaitForSeconds(0.6f);
+            yield return new WaitForSeconds(0.8f);
 
-            // --- earn some level progress for real ---------------------------------------
+            // --- levels 1 to 8, for real, capturing the last win card ----------------------------
             for (int level = 1; level <= 8; level++)
             {
-                Debug.Log($"[Snapline] phase: level {level} start");
-                _app.StartLevel(level);
-                yield return new WaitForSeconds(0.5f);
-                yield return PlayOut(fast: true, captureClears: 0);
+                for (int attempt = 0; attempt < 3; attempt++)
+                {
+                    _app.StartLevel(level);
+                    yield return new WaitForSeconds(0.6f);
+                    yield return PlayOut(0.05f, 600);
 
-                GameRun r = _controller.Run;
-                Debug.Log($"[Snapline] phase: level {level} end complete={r.LevelComplete} " +
-                          $"failed={r.LevelFailed} moves={r.MovesUsed} stars={SaveSystem.StarsForLevel(level)}");
+                    float waited = 0f;
+                    while (!_controller.LevelEndPopup.IsVisible && waited < 6f)
+                    {
+                        waited += Time.deltaTime;
+                        yield return null;
+                    }
 
-                yield return new WaitForSeconds(1.6f);
+                    GameRun r = _controller.Run;
+                    Debug.Log($"[Snapline] store: level {level} attempt {attempt + 1} complete={r.LevelComplete} " +
+                              $"stars={SaveSystem.StarsForLevel(level)}");
+
+                    if (r.LevelComplete)
+                    {
+                        if (level == 8)
+                        {
+                            // Late enough that the three-star confetti has fallen past the ribbon and the
+                            // coins have landed; earlier, confetti covered LEVEL COMPLETE! and drifted
+                            // on into the next screen's capture.
+                            yield return new WaitForSeconds(5.8f);
+                            yield return Capture("06_level_complete");
+                        }
+                        break;
+                    }
+
+                    yield return new WaitForSeconds(0.4f);
+                }
             }
 
-            yield return Capture("05_level_complete");
-
-            Debug.Log("[Snapline] phase: level select");
             _app.ShowLevelSelect();
-            yield return new WaitForSeconds(0.9f);
+            yield return new WaitForSeconds(1.6f);
             yield return Capture("04_levels");
 
-            // --- an endless run, capturing the good moments -------------------------------
-            Debug.Log("[Snapline] phase: endless run");
+            // --- an endless run: a clear, and a big clear if one comes --------------------------
             _app.StartNewGame();
-            yield return new WaitForSeconds(1.0f);
-            yield return PlayOut(fast: false, captureClears: 3);
+            yield return new WaitForSeconds(1.2f);
+            yield return PlayEndless();
 
-            Debug.Log("[Snapline] phase: endless finished");
-            yield return new WaitForSeconds(1.0f);
+            if (!_bigClearCaptured)
+            {
+                Debug.Log("[Snapline] store: no 3-line clear happened in the run; firing the celebration by hand");
+                _app.StartNewGame();
+                yield return new WaitForSeconds(1.0f);
+                yield return PlayOut(0.2f, 22);
+                _controller.DebugCelebrate(3);
+                yield return new WaitForSeconds(0.55f);
+                yield return Capture("03_big_clear");
+            }
 
-            Debug.Log("[Snapline] phase: scores");
-            _app.ShowScores();
-            yield return new WaitForSeconds(0.8f);
-            yield return Capture("06_scores");
+            // --- the special blocks --------------------------------------------------------------
+            _app.StartLevel(Puzzles.BombsFrom + 4);
+            yield return new WaitForSeconds(1.8f);
+            for (int i = 0; i < 3; i++)
+            {
+                _controller.DismissIntroForHarness();
+                yield return new WaitForSeconds(1.0f);
+            }
+            yield return PlaySpecial();
 
-            Debug.Log("[Snapline] phase: menu");
+            // --- the other screens ---------------------------------------------------------------
+            _app.ShowDaily();
+            yield return new WaitForSeconds(1.8f);
+            yield return Capture("07_daily_challenge");
+
+            _app.ShowToolbox();
+            yield return new WaitForSeconds(1.6f);
+            yield return Capture("08_toolbox");
+
             _app.ShowMenu();
-            yield return new WaitForSeconds(1.0f);
-            yield return Capture("01_menu");
+            yield return new WaitForSeconds(2.2f);
+            yield return Capture("01_home");
 
-            Debug.Log($"[Snapline] StoreShots done. best={SaveSystem.HighScore} " +
-                      $"levels={SaveSystem.LevelsCompleted()} stars={SaveSystem.TotalStars()}");
+            Debug.Log($"[Snapline] StoreShots done. best={SaveSystem.HighScore} levels={SaveSystem.LevelsCompleted()} " +
+                      $"stars={SaveSystem.TotalStars()} coins={Wallet.Coins}");
 
             yield return new WaitForSeconds(0.4f);
             Application.Quit(0);
         }
 
-        /// <summary>
-        /// Play the current run to its end. When capturing, it waits on the frames right after a
-        /// multi-line clear, which is when the board is busiest and the effects are at full strength.
-        /// </summary>
-        private IEnumerator PlayOut(bool fast, int captureClears)
+        private IEnumerator PlayOut(float pause, int maxMoves)
         {
             GameRun run = _controller.Run;
             var rng = new Rng(20260828UL);
             var player = new AutoPlayer(PlayerSkill.Heuristic);
 
-            int captured = 0;
-            int moves = 0;
-
-            while (!run.IsGameOver && moves < 600)
+            for (int moves = 0; moves < maxMoves && !run.IsGameOver; moves++)
             {
                 while (_controller.IsBusy) yield return null;
                 if (run.IsGameOver) break;
-
                 if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
-
-                int before = run.Score.TotalLinesCleared;
                 _controller.PlaceProgrammatically(slot, col, row);
-                moves++;
-
-                yield return new WaitForSeconds(fast ? 0.06f : 0.18f);
-
-                int cleared = run.Score.TotalLinesCleared - before;
-
-                if (captured < captureClears && cleared >= 2 && run.Board.FilledCells > 14)
-                {
-                    // A beat after the clear starts: debris in the air, popups up, score rolling.
-                    yield return new WaitForSeconds(0.16f);
-                    yield return Capture($"0{2 + captured}_gameplay");
-                    captured++;
-                }
+                yield return new WaitForSeconds(pause);
             }
         }
 
         /// <summary>
-        /// Multiplies the capture resolution, so the window can stay small enough to actually fit on
-        /// the desktop while the PNG comes out at listing size. Running the window itself at
-        /// 1080x1920 is taller than most monitors and the player never draws a frame.
+        /// Plays an endless run, capturing an ordinary clear on a busy board and — if the run produces
+        /// one — a real 3-line clear at the moment its celebration lands.
+        /// </summary>
+        private IEnumerator PlayEndless()
+        {
+            GameRun run = _controller.Run;
+            var rng = new Rng(777001UL);
+            var player = new AutoPlayer(PlayerSkill.Heuristic);
+            bool clearCaptured = false;
+            int lastClear = -10;
+
+            for (int moves = 0; moves < 500 && !run.IsGameOver; moves++)
+            {
+                while (_controller.IsBusy) yield return null;
+                if (run.IsGameOver) break;
+                if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+
+                int before = run.Score.TotalLinesCleared;
+                _controller.PlaceProgrammatically(slot, col, row);
+                yield return new WaitForSeconds(0.14f);
+                int cleared = run.Score.TotalLinesCleared - before;
+
+                if (cleared >= 3 && !_bigClearCaptured)
+                {
+                    _bigClearCaptured = true;
+                    yield return new WaitForSeconds(0.36f);
+                    yield return Capture("03_big_clear");
+                    Debug.Log($"[Snapline] store: real {cleared}-line clear captured at move {moves}");
+                }
+                // Only a clear with nothing cleared on the moves just before it: the previous clear's
+                // shouts live for about a second, and two NICE!s stacked on top of each other look broken.
+                else if (!clearCaptured && cleared > 0 && moves - lastClear >= 4 && moves > 12 && run.Board.FilledCells > 16)
+                {
+                    clearCaptured = true;
+                    yield return new WaitForSeconds(0.04f);
+                    yield return Capture("02_gameplay");
+                }
+
+                if (cleared > 0) lastClear = moves;
+
+                if (clearCaptured && _bigClearCaptured) break;
+            }
+
+            if (!clearCaptured) yield return Capture("02_gameplay");
+            yield return new WaitForSeconds(0.8f);
+        }
+
+        /// <summary>Plays the special-block level until a stone cracks or a bomb goes off, and captures it.</summary>
+        private IEnumerator PlaySpecial()
+        {
+            GameRun run = _controller.Run;
+            var rng = new Rng(2024UL);
+            var player = new AutoPlayer(PlayerSkill.Heuristic);
+
+            for (int moves = 0; moves < 40 && !run.IsGameOver; moves++)
+            {
+                while (_controller.IsBusy) yield return null;
+                if (run.IsGameOver) break;
+                if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+
+                ulong specials = run.Board.SpecialMask;
+                ulong stones = run.Board.StickyMask;
+                _controller.PlaceProgrammatically(slot, col, row);
+
+                if (run.Board.SpecialMask != specials || run.Board.StickyMask != stones)
+                {
+                    yield return new WaitForSeconds(0.3f);
+                    yield return Capture("05_special_blocks");
+                    yield break;
+                }
+
+                yield return new WaitForSeconds(0.28f);
+            }
+
+            yield return Capture("05_special_blocks");
+        }
+
+        /// <summary>
+        /// Multiplies the capture resolution, so the window fits on a desktop while the PNG comes out
+        /// at listing size: a 540x960 window captures at 1080x1920.
         /// </summary>
         private const int SuperSize = 2;
 
@@ -168,17 +269,19 @@ namespace Snapline.App
             string path = Path.Combine(_outputDir, $"{name}.png");
             ScreenCapture.CaptureScreenshot(path, SuperSize);
             for (int i = 0; i < 8; i++) yield return new WaitForEndOfFrame();
-            Debug.Log($"[Snapline] captured {path} at {Screen.width * SuperSize}x{Screen.height * SuperSize}");
+
+            // Checked rather than assumed: CaptureScreenshot reports failure only in its own log line.
+            if (File.Exists(path))
+                Debug.Log($"[Snapline] captured {path} at {Screen.width * SuperSize}x{Screen.height * SuperSize}");
+            else
+                Debug.LogError($"[Snapline] capture FAILED, no file at {path}");
         }
 
         // --- feature graphic --------------------------------------------------------------
 
         /// <summary>
-        /// Build the 1024x500 feature graphic and capture it.
-        ///
-        /// Rendered by the game rather than drawn offline so the title uses the same font and the
-        /// blocks the same generator as everything the player sees — the banner and the game cannot
-        /// drift apart.
+        /// Builds the 1024x500 feature graphic and captures it: the wordmark and a tagline on the left,
+        /// the candy board on the right, over the game's own background.
         /// </summary>
         public static IEnumerator BuildAndCaptureFeatureGraphic(RectTransform canvasRect)
         {
@@ -190,51 +293,46 @@ namespace Snapline.App
             bgRect.anchorMax = Vector2.one;
             bgRect.offsetMin = Vector2.zero;
             bgRect.offsetMax = Vector2.zero;
+            bg.preserveAspect = false;
 
-            // Blocks live in the outer bands only. The first pass scattered them across the middle
-            // and the title lost all its contrast — on a feature graphic the words have to win.
-            const float textSafeHalfWidth = 330f;
             var rng = new System.Random(90210);
-
-            for (int i = 0; i < 14; i++)
+            for (int i = 0; i < 12; i++)
             {
-                Image block = UIKit.Image($"B{i}", root, ArtKit.Block(i % Palette.Count), Color.white);
-                RectTransform rt = block.rectTransform;
+                Image s = UIKit.Image("Sprinkle", root, Fx.CapsuleSprite(), Fx.CandyColours[i % Fx.CandyColours.Length]);
+                RectTransform rt = s.rectTransform;
                 rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-                rt.pivot = new Vector2(0.5f, 0.5f);
-
-                float size = 58f + (float)rng.NextDouble() * 84f;
-                rt.sizeDelta = new Vector2(size, size);
-
-                float side = (i % 2 == 0) ? -1f : 1f;
-                float x = side * Mathf.Lerp(textSafeHalfWidth + size * 0.3f, 500f, (float)rng.NextDouble());
-                float y = ((float)rng.NextDouble() - 0.5f) * 430f;
-
-                rt.anchoredPosition = new Vector2(x, y);
-                rt.localRotation = Quaternion.Euler(0f, 0f, (float)rng.NextDouble() * 40f - 20f);
-
-                Color c = block.color;
-                c.a = 0.55f + (float)rng.NextDouble() * 0.4f;
-                block.color = c;
+                rt.sizeDelta = new Vector2(46f, 19f);
+                rt.anchoredPosition = new Vector2((float)(rng.NextDouble() - 0.5) * 1040f, (float)(rng.NextDouble() - 0.5) * 500f);
+                rt.localRotation = Quaternion.Euler(0f, 0f, (float)rng.NextDouble() * 180f);
             }
 
-            Text title = UIKit.Label("Title", root, "SNAPLINE", 132, Palette.TextBright);
-            UIKit.Place(title.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                        new Vector2(0.5f, 0.5f), new Vector2(0f, 46f), new Vector2(1000f, 150f));
+            Sprite board = ArtKit.Ui("board_preview");
+            if (board != null)
+            {
+                Image b = CandyUI.Icon("Board", root, board);
+                CandyUI.Place(b, new Vector2(0.5f, 0.5f), new Vector2(285f, -6f), new Vector2(500f, 450f));
+            }
 
-            Text sub = UIKit.Label("Sub", root, "BLOCK PUZZLE", 52, Palette.Accent);
-            UIKit.Place(sub.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                        new Vector2(0.5f, 0.5f), new Vector2(0f, -44f), new Vector2(1000f, 64f));
+            Sprite logo = ArtKit.Logo();
+            if (logo != null)
+            {
+                Image l = CandyUI.Icon("Logo", root, logo);
+                CandyUI.Place(l, new Vector2(0.5f, 0.5f), new Vector2(-250f, 58f), new Vector2(560f, 220f));
+            }
+            else
+            {
+                W.Title("Title", root, "SNAPLINE", new Vector2(0.5f, 0.5f), new Vector2(-250f, 58f), 120, CandyStyle.White, false);
+            }
 
-            Text tag = UIKit.Label("Tag", root, $"ENDLESS  ·  {Levels.Count} LEVELS", 34, Palette.TextDim);
-            UIKit.Place(tag.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                        new Vector2(0.5f, 0.5f), new Vector2(0f, -110f), new Vector2(1000f, 46f));
+            Text tag = W.Text("Tag", root, $"{Levels.Count} LEVELS  •  DAILY PUZZLES", new Vector2(0.5f, 0.5f),
+                              new Vector2(-250f, -118f), new Vector2(600f, 70f), 46, CandyStyle.Cyan, Color.white);
+            tag.font = Design.Display;
 
             string dir = ResolveOutputDir();
             Directory.CreateDirectory(dir);
             string path = Path.Combine(dir, "feature-graphic-1024x500.png");
 
-            yield return new WaitForSeconds(0.5f);
+            yield return new WaitForSeconds(0.6f);
             ScreenCapture.CaptureScreenshot(path);
             for (int i = 0; i < 8; i++) yield return new WaitForEndOfFrame();
 

@@ -250,11 +250,12 @@ namespace Snapline.UI
             wobble.WiggleEvery = 4.2f;
             wobble.Click = false;
 
-            const float textCentre = 278f;
+            // Sized for "260 LEVELS", which at the old 44 ran into the chevron.
+            const float textCentre = 268f;
             const float textWidth = 250f;
 
             Text label = W.Text("Title", button.transform, title, new Vector2(0f, 0.5f), new Vector2(textCentre, 26f),
-                                new Vector2(textWidth, 58f), 44, style, Color.white);
+                                new Vector2(textWidth, 58f), 40, style, Color.white);
             label.font = Design.Display;
 
             detail = W.Text("Detail", button.transform, "", new Vector2(0f, 0.5f), new Vector2(textCentre, -30f),
@@ -405,6 +406,9 @@ namespace Snapline.UI
 
             int completed = SaveSystem.LevelsCompleted();
             _levelsDetail.text = $"{completed} / {Levels.Count}";
+            // The saved best is only written when a run ends, so a run still in progress can already be
+            // past it. Showing the lower number under CONTINUE's higher one reads as a bug.
+            if (hasSavedRun) best = System.Math.Max(best, SaveSystem.SavedRunScore());
             _endlessDetail.text = best > 0 ? $"BEST {Hud.Format(best)}" : "no best yet";
 
             RefreshDaily();

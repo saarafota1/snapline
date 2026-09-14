@@ -263,12 +263,17 @@ namespace Snapline.View
                 }
             }
 
+            // One CRACK! per move, however many stones it hits: two stones in a cleared row put two
+            // labels on top of each other and on top of the clear's own shout.
+            bool labelled = false;
             ulong k = result.CrackedMask;
             while (k != 0UL)
             {
                 int idx = Bits.TrailingZeroCount(k);
                 k &= k - 1;
-                if (_blocks[idx] != null) StartCoroutine(Crack(idx));
+                if (_blocks[idx] == null) continue;
+                StartCoroutine(Crack(idx, !labelled));
+                labelled = true;
             }
 
             int n = 0;
@@ -295,7 +300,7 @@ namespace Snapline.View
         }
 
         /// <summary>A stone takes its first hit: it shudders, cracks, and chips fly.</summary>
-        private IEnumerator Crack(int idx)
+        private IEnumerator Crack(int idx, bool label)
         {
             Image block = _blocks[idx];
             _blockSpecial[idx] = Special.CrackedStone;
@@ -307,7 +312,9 @@ namespace Snapline.View
             block.sprite = SpecialArt.CrackedStone();
             Fx.Instance?.Shards(world, SpecialArt.Stone(), 6, _cellSize * 9f, _cellSize * 0.9f);
             Fx.Instance?.Glow(world, new Color(0.85f, 0.88f, 1f, 0.7f), _cellSize * 2.2f, 0.3f);
-            Fx.Instance?.Text(world, "CRACK!", CandyStyle.White, 60f, 0.7f, 120f);
+            if (label)
+                Fx.Instance?.Text(world + (_grid.TransformVector(new Vector3(0f, _cellSize * 1.1f, 0f))),
+                                  "CRACK!", CandyStyle.White, 60f, 0.7f, 120f);
 
             RectTransform rt = block.rectTransform;
             const float duration = 0.3f;
