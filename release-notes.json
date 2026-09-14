@@ -1,9 +1,14 @@
 [
   {
     "version": "1.4.0",
-    "date": "2026-09-14",
-    "title": "Ads through more networks, and privacy choices that stick",
+    "date": "2026-09-15",
+    "title": "A sweet new look, 200 new levels and a daily puzzle",
     "changes": [
+      { "category": "new", "text": "A brand-new candy look on every screen, with new effects, sounds, music and vibration." },
+      { "category": "new", "text": "200 new puzzle levels, for 260 in all, with stone, bomb and gift blocks to master along the way." },
+      { "category": "new", "text": "A daily puzzle with a reward every day and a treasure chest for playing all week." },
+      { "category": "new", "text": "Power-ups: undo a move, shuffle your pieces, or smash a block with the hammer." },
+      { "category": "new", "text": "Clear three or more lines at once for a big celebration." },
       { "category": "improved", "text": "Ads now come through ironSource, which can fill the offer to keep a finished run going from more than one ad network." },
       { "category": "fixed", "text": "Choosing not to consent in the privacy prompt now also stops gameplay measurement, and a changed choice in Privacy Settings takes effect straight away instead of at the next launch." }
     ]
