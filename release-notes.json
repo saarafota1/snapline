@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.4.0",
+    "date": "2026-09-14",
+    "title": "Ads through more networks, and privacy choices that stick",
+    "changes": [
+      { "category": "improved", "text": "Ads now come through ironSource, which can fill the offer to keep a finished run going from more than one ad network." },
+      { "category": "fixed", "text": "Choosing not to consent in the privacy prompt now also stops gameplay measurement, and a changed choice in Privacy Settings takes effect straight away instead of at the next launch." }
+    ]
+  },
+  {
     "version": "1.3.0",
     "date": "2026-09-02",
     "title": "Rewarded video reliability",
