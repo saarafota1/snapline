@@ -31,6 +31,12 @@ namespace Snapline.App
 
         private bool _busy;
         private bool _hammerArmed;
+
+        /// <summary>
+        /// True while a result card is closing and a possible interstitial is running, so a second tap
+        /// on the card during its close cannot start a second level or a second ad.
+        /// </summary>
+        private bool _leaving;
         private LevelDef _level;
         private bool _daily;
 
@@ -94,15 +100,17 @@ namespace Snapline.App
             };
 
             // The interstitial runs as the player leaves the results card, never on top of it.
-            _greatRun.PlayAgainRequested += () => StartCoroutine(LeaveResults(StartNewRun));
-            _greatRun.HomeRequested += () => StartCoroutine(LeaveResults(() => MenuRequested?.Invoke()));
-            _greatRun.ScoresRequested += () => StartCoroutine(LeaveResults(() => ScoresRequested?.Invoke()));
+            _greatRun.PlayAgainRequested += () => StartCoroutine(LeaveCard(_greatRun, StartNewRun));
+            _greatRun.HomeRequested += () => StartCoroutine(LeaveCard(_greatRun, () => MenuRequested?.Invoke()));
+            _greatRun.ScoresRequested += () => StartCoroutine(LeaveCard(_greatRun, () => ScoresRequested?.Invoke()));
             _greatRun.ShareRequested += ShareScore;
 
-            _levelEnd.NextRequested += () => StartLevel(_run.LevelNumber + 1);
-            _levelEnd.RetryRequested += Restart;
-            _levelEnd.LevelsRequested += () => (_daily ? DailyRequested : LevelsRequested)?.Invoke();
-            _levelEnd.HomeRequested += () => MenuRequested?.Invoke();
+            // Between levels, the same way: the interstitial runs as the player leaves the result
+            // card, on the shared pacing, never over the stars.
+            _levelEnd.NextRequested += () => StartCoroutine(LeaveCard(_levelEnd, () => StartLevel(_run.LevelNumber + 1)));
+            _levelEnd.RetryRequested += () => StartCoroutine(LeaveCard(_levelEnd, Restart));
+            _levelEnd.LevelsRequested += () => StartCoroutine(LeaveCard(_levelEnd, () => (_daily ? DailyRequested : LevelsRequested)?.Invoke()));
+            _levelEnd.HomeRequested += () => StartCoroutine(LeaveCard(_levelEnd, () => MenuRequested?.Invoke()));
         }
 
         /// <summary>Dismisses every card and puts the tools away, for a screen change.</summary>
@@ -425,6 +433,10 @@ namespace Snapline.App
         {
             int lines = _run.Score.TotalLinesCleared;
 
+            // A finished level or daily, won or lost, counts toward the interstitial pacing exactly as
+            // a finished endless run does, so the first-ad grace and the gap between ads span both.
+            _ads?.RecordGameFinished();
+
             if (move.LevelComplete)
             {
                 Sound.Win();
@@ -658,10 +670,13 @@ namespace Snapline.App
         /// Close the results card, run the paced interstitial, then do what the player asked. The
         /// action always happens; gating navigation on an ad strands players when a network hangs.
         /// </summary>
-        private IEnumerator LeaveResults(Action then)
+        private IEnumerator LeaveCard(CandyPopup card, Action then)
         {
+            if (_leaving) yield break;
+            _leaving = true;
+
             bool closed = false;
-            _greatRun.Close(() => closed = true);
+            card.Close(() => closed = true);
             while (!closed) yield return null;
 
             if (_ads != null)
@@ -670,6 +685,7 @@ namespace Snapline.App
                 while (!showing.IsCompleted) yield return null;
             }
 
+            _leaving = false;
             then?.Invoke();
         }
 
