@@ -1,0 +1,18 @@
+{
+    "name": "Snapline.Services",
+    "rootNamespace": "Snapline.Services",
+    "references": [
+        "StudioKit",
+        "StudioKit.Ads.LevelPlay",
+        "Unity.LevelPlay"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

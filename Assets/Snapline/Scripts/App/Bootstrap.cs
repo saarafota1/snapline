@@ -151,7 +151,10 @@ namespace Snapline.App
 
             // Services come up in the background. Nothing waits on them: with no SDK installed the
             // kit hands back offline implementations and the game plays exactly the same.
-            if (_gameKitConfig != null) _ = GameKit.GameKitRuntime.InitializeAsync(_gameKitConfig);
+            //
+            // Through AnalyticsConsent rather than straight into the kit, so a player who declines
+            // consent - at launch or later from PRIVACY SETTINGS - actually stops being measured.
+            if (_gameKitConfig != null) _ = AnalyticsConsent.InitializeAsync(_gameKitConfig);
 
             // Attribution networks measure retention in sessions; Android gives them no warm-start resume.
 
@@ -350,10 +353,15 @@ namespace Snapline.App
         /// <summary>
         /// Reopens the consent form so the player can change their answer. Fire and forget: the
         /// form is a native overlay, and the menu underneath needs no state change either way.
+        ///
+        /// Through GameKitRuntime rather than GameKitRuntime.Consent: only the runtime's version
+        /// raises ConsentChanged afterwards, which is how LevelPlay's GDPR flag and analytics
+        /// collection hear a changed answer. Calling the consent service directly changes the form
+        /// and nothing that acts on it.
         /// </summary>
         private async void ShowPrivacyOptions()
         {
-            await GameKit.GameKitRuntime.Consent.ShowPrivacyOptionsAsync();
+            await GameKit.GameKitRuntime.ShowPrivacyOptionsAsync();
 
             // Withdrawing consent can remove the entry point, so re-read rather than assuming it
             // still applies.

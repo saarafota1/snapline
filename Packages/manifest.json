@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "com.sciboxstudios.studiokit": "file:../../_StudioKit",
+    "com.unity.services.levelplay": "9.5.1",
     "com.unity.ugui": "2.0.0",
     "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.test-framework": "1.4.6",

@@ -10,6 +10,8 @@
 <linker>
   <assembly fullname="StudioKit" preserve="all"/>
   <assembly fullname="StudioKit.Ads.AdMob"        preserve="all" ignoreIfMissing="1"/>
+  <assembly fullname="StudioKit.Ads.LevelPlay"    preserve="all" ignoreIfMissing="1"/>
+  <assembly fullname="StudioKit.Consent.Ump"      preserve="all" ignoreIfMissing="1"/>
   <assembly fullname="StudioKit.Analytics.Meta"   preserve="all" ignoreIfMissing="1"/>
   <assembly fullname="StudioKit.Analytics.TikTok" preserve="all" ignoreIfMissing="1"/>
 </linker>

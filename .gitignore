@@ -61,3 +61,7 @@ crashlytics-build.properties
 
 # Sliced art is generated from the delivered sheets by Tools/ArtSlice.
 # The sheets and the tool are the source of truth; regenerate rather than hand-edit.
+
+# EDM4U resolver output: exploded .aar files, regenerated on every resolve
+/Assets/GeneratedLocalRepo/
+/Assets/GeneratedLocalRepo.meta
