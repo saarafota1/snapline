@@ -142,8 +142,31 @@ namespace Snapline.Art
                 Play("pop", 0.55f, Scale[Mathf.Min(step + i * 2, Scale.Length - 1)], i * 0.07f);
 
             if (lines >= 2) Play("star", 0.45f, 1f + 0.08f * Mathf.Min(lines, 5), 0.05f);
-            if (lines >= 3) Play("takeover_good_" + (1 + Rng.Next(3)), 0.6f, 1f, 0.02f);
         }
+
+        /// <summary>
+        /// The celebration for a huge clear. Plays a recorded voice line if one has been shipped —
+        /// `voice_huge_play`, `voice_mega_play`, `voice_unnatural` in Resources/Snapline/Sound — over
+        /// the fanfare, and the fanfare alone until then.
+        /// </summary>
+        public static void BigPlay(int tier)
+        {
+            string voice = tier >= 3 ? "voice_unnatural" : tier == 2 ? "voice_mega_play" : "voice_huge_play";
+            if (Clips.ContainsKey(voice)) Play(voice, 1f, 1f, 0.2f);
+
+            if (tier >= 2) Play("takeover_huge", 0.8f);
+            else Play("takeover_good_" + (1 + Rng.Next(3)), 0.7f);
+            if (tier >= 3) Play("prize_" + (1 + Rng.Next(3)), 0.6f, 1f, 0.35f);
+        }
+
+        /// <summary>The impact under a slammed-down word, or a bomb going off.</summary>
+        public static void Blast() => Play("bomb", 0.55f, Vary(0.05f));
+
+        /// <summary>A stone takes its first hit.</summary>
+        public static void Crack() => Play("drop", 0.55f, 0.72f);
+
+        /// <summary>A gift block unwraps its extra moves.</summary>
+        public static void Gift() => Play("purchase", 0.65f, 1.2f);
 
         /// <summary>A combo that deserves its own sting on top of the clear.</summary>
         public static void Combo(int combo)

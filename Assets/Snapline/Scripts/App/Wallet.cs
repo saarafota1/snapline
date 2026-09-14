@@ -20,14 +20,33 @@ namespace Snapline.App
         private const string CoinsKey = "snapline.coins";
         private const string ToolKeyPrefix = "snapline.tool.";
 
-        /// <summary>
-        /// What a new player starts with.
-        ///
-        /// Enough for one undo and change, so the store is not a wall of things they cannot afford
-        /// before their first run has paid out — but not enough to buy the hammer, which is the
-        /// reward for playing rather than for installing.
-        /// </summary>
-        private const int StartingCoins = 60;
+        /// <summary>What a new player starts with. The number lives with the rest of the economy.</summary>
+        private const int StartingCoins = Economy.StartingCoins;
+
+        private const string AdDayKey = "snapline.adcoins.day";
+        private const string AdCountKey = "snapline.adcoins.count";
+
+        /// <summary>Store videos that will still pay today.</summary>
+        public static int AdRewardsLeftToday
+        {
+            get
+            {
+                int today = (int)(DateTime.Now.Date - new DateTime(2020, 1, 1)).TotalDays;
+                int used = PlayerPrefs.GetInt(AdDayKey, -1) == today ? PlayerPrefs.GetInt(AdCountKey, 0) : 0;
+                return Math.Max(0, Economy.AdRewardsPerDay - used);
+            }
+        }
+
+        /// <summary>Counts one paid store video against today's cap.</summary>
+        public static void RecordAdReward()
+        {
+            int today = (int)(DateTime.Now.Date - new DateTime(2020, 1, 1)).TotalDays;
+            int used = PlayerPrefs.GetInt(AdDayKey, -1) == today ? PlayerPrefs.GetInt(AdCountKey, 0) : 0;
+            PlayerPrefs.SetInt(AdDayKey, today);
+            PlayerPrefs.SetInt(AdCountKey, used + 1);
+            PlayerPrefs.Save();
+            Changed?.Invoke();
+        }
 
         private const string SeededKey = "snapline.wallet.seeded";
 

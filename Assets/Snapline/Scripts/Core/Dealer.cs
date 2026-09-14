@@ -167,6 +167,12 @@ namespace Snapline.Core
         public DealerStats Stats { get; } = new DealerStats();
         public DealerConfig Config => _config;
 
+        /// <summary>
+        /// Cells that survive a clear — uncracked stones — on the board being dealt for. Set by the run
+        /// before each deal, so the survivability search does not count on room a stone still holds.
+        /// </summary>
+        public ulong StickyMask;
+
         public Dealer(DealerConfig config)
         {
             _config = config ?? DealerConfig.Default();
@@ -356,7 +362,7 @@ namespace Snapline.Core
                     if ((occupied & pm) != 0UL) continue;
 
                     Stats.SurvivabilityNodes++;
-                    ulong next = Board.Simulate(occupied, pm);
+                    ulong next = Board.Simulate(occupied, pm, StickyMask);
 
                     // Two different placements can leave the board in the same state, especially
                     // after a clear. Key on the state together with which pieces remain, or a

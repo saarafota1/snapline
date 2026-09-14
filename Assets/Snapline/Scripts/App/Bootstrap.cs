@@ -175,6 +175,8 @@ namespace Snapline.App
             greatRun.Init(safeRoot);
             var levelEnd = Make<LevelEndPopup>("LevelEndPopup", safeRoot);
             levelEnd.Init(safeRoot);
+            var newBlock = Make<NewBlockPopup>("NewBlockPopup", safeRoot);
+            newBlock.Init(safeRoot);
 
             _toolbox = Make<ToolboxPanel>("Toolbox", safeRoot);
             _toolbox.Init(safeRoot);
@@ -192,7 +194,7 @@ namespace Snapline.App
             ads.Init(_gameKitConfig);
 
             _controller = gameObject.AddComponent<GameController>();
-            _controller.Init(boardView, _tray, _drag, hud, _tools, ads, _pause, noMoves, greatRun, levelEnd);
+            _controller.Init(boardView, _tray, _drag, hud, _tools, ads, _pause, noMoves, greatRun, levelEnd, newBlock);
             _controller.LayoutRequested += ApplyLayout;
             _controller.MenuRequested += ShowMenu;
             _controller.LevelsRequested += ShowLevelSelect;
@@ -389,6 +391,17 @@ namespace Snapline.App
             var ads = GetComponent<AdController>();
             if (ads == null) return;
 
+            if (Wallet.AdRewardsLeftToday <= 0)
+            {
+                Sound.Deny();
+                if (_toolbox.WatchButton != null)
+                {
+                    Tween.Shake((RectTransform)_toolbox.WatchButton, 16f, 0.4f);
+                    Fx.Instance?.Text(_toolbox.WatchButton.position, "MORE VIDEOS TOMORROW", CandyStyle.White, 50f, 1.3f, 180f);
+                }
+                return;
+            }
+
             bool watched = await ads.ShowRewardedAsync();
             if (!watched)
             {
@@ -397,6 +410,7 @@ namespace Snapline.App
             }
 
             CoinPill.HoldRoll(1.2f);
+            Wallet.RecordAdReward();
             Wallet.Grant(Economy.AdReward);
             _toolbox.Refresh();
 

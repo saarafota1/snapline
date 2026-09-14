@@ -412,6 +412,150 @@ namespace Snapline.UI
             yield break;
         }
 
+        // --- big moments --------------------------------------------------------------------
+
+        private RectTransform _moment;
+        private Image _momentBurst;
+        private Image _momentBurst2;
+        private Text _momentWord;
+        private CandyText _momentWordCandy;
+        private Text _momentSub;
+        private Coroutine _momentRoutine;
+
+        /// <summary>
+        /// The celebration for a huge clear: a word slammed onto the screen over spinning starbursts,
+        /// with a flash, a shake, confetti and a voice. 3 lines is BOOM! / HUGE PLAY!, 4 is MEGA! /
+        /// MEGA PLAY!, 5 or more is UNNATURAL!!!
+        /// </summary>
+        public void Celebrate(Vector3 world, int lines)
+        {
+            int tier = lines >= 5 ? 3 : lines == 4 ? 2 : 1;
+            if (_moment == null) BuildMoment();
+
+            if (_momentRoutine != null) StopCoroutine(_momentRoutine);
+            _momentRoutine = StartCoroutine(Moment(world, tier));
+        }
+
+        private void BuildMoment()
+        {
+            _moment = UIKit.Rect("Moment", _layer);
+            _moment.anchorMin = _moment.anchorMax = new Vector2(0.5f, 0.5f);
+            _moment.sizeDelta = new Vector2(1080f, 600f);
+
+            _momentBurst = UIKit.Image("Burst", _moment, ArtLoader.Sprite("UI/reward_starburst"), Color.white);
+            _momentBurst.raycastTarget = false;
+            _momentBurst.rectTransform.sizeDelta = new Vector2(900f, 900f);
+
+            _momentBurst2 = UIKit.Image("Burst2", _moment, ArtLoader.Sprite("UI/reward_starburst"), new Color(1f, 0.55f, 0.85f, 1f));
+            _momentBurst2.raycastTarget = false;
+            _momentBurst2.rectTransform.sizeDelta = new Vector2(1100f, 1100f);
+
+            _momentWord = UIKit.Label("Word", _moment, "BOOM!", 200, Color.white);
+            _momentWord.font = Design.Display;
+            _momentWord.alignment = TextAnchor.MiddleCenter;
+            _momentWord.horizontalOverflow = HorizontalWrapMode.Overflow;
+            _momentWord.verticalOverflow = VerticalWrapMode.Overflow;
+            _momentWord.raycastTarget = false;
+            _momentWord.rectTransform.sizeDelta = new Vector2(1080f, 260f);
+            _momentWordCandy = CandyText.Apply(_momentWord, CandyStyle.Gold);
+            _momentWord.gameObject.AddComponent<CandyShine>().Period = 0.9f;
+
+            _momentSub = UIKit.Label("Sub", _moment, "HUGE PLAY!", 96, Color.white);
+            _momentSub.font = Design.Display;
+            _momentSub.alignment = TextAnchor.MiddleCenter;
+            _momentSub.horizontalOverflow = HorizontalWrapMode.Overflow;
+            _momentSub.verticalOverflow = VerticalWrapMode.Overflow;
+            _momentSub.raycastTarget = false;
+            _momentSub.rectTransform.sizeDelta = new Vector2(1080f, 140f);
+            CandyText.Apply(_momentSub, CandyStyle.White);
+
+            _moment.gameObject.SetActive(false);
+        }
+
+        private IEnumerator Moment(Vector3 world, int tier)
+        {
+            string word = tier == 3 ? "UNNATURAL!!!" : tier == 2 ? "MEGA!" : "BOOM!";
+            string sub = tier == 3 ? "LEGENDARY CLEAR!" : tier == 2 ? "MEGA PLAY!" : "HUGE PLAY!";
+
+            _momentWord.text = word;
+            _momentWord.fontSize = tier == 3 ? 136 : tier == 2 ? 190 : 210;
+            _momentWordCandy.Set(tier == 3 ? CandyStyle.White : tier == 2 ? CandyStyle.Cyan : CandyStyle.Gold);
+            _momentWordCandy.Arc = _momentWord.fontSize * 0.12f;
+            _momentWordCandy.Refresh();
+            _momentSub.text = sub;
+            _momentSub.fontSize = tier == 3 ? 84 : 96;
+
+            Vector2 at = Local(world);
+            at.x = 0f;
+            _moment.anchoredPosition = at;
+            _moment.SetAsLastSibling();
+            _moment.gameObject.SetActive(true);
+            _momentBurst2.gameObject.SetActive(tier >= 2);
+
+            _momentWord.rectTransform.anchoredPosition = new Vector2(0f, 40f);
+            _momentSub.rectTransform.anchoredPosition = new Vector2(0f, -110f);
+            _momentSub.color = new Color(1f, 1f, 1f, 0f);
+
+            float hold = 1.05f + 0.25f * tier;
+            float total = hold + 0.35f;
+            bool impact = false;
+            bool subShown = false;
+            float t = 0f;
+
+            while (t < total)
+            {
+                t += Mathf.Min(Time.unscaledDeltaTime, 0.05f);
+
+                // The word slams down from huge, and the rest hits when it lands.
+                const float slam = 0.24f;
+                float wordScale = t < slam ? Mathf.Lerp(3.4f, 1f, Ease.InCubic(t / slam)) : 1f + 0.08f * Mathf.Exp(-(t - slam) * 9f) * Mathf.Sin((t - slam) * 40f);
+                float fadeOut = t > hold ? 1f - (t - hold) / 0.35f : 1f;
+                _momentWord.rectTransform.localScale = Vector3.one * wordScale * Mathf.Lerp(0.8f, 1f, fadeOut);
+                _momentWord.color = new Color(1f, 1f, 1f, Mathf.Clamp01(t / 0.08f) * fadeOut);
+
+                if (!impact && t >= slam)
+                {
+                    impact = true;
+                    Shake(0.45f + 0.18f * tier);
+                    ScreenFlash(0.22f + 0.14f * tier);
+                    Confetti(35 * tier + 15);
+                    Ring(_moment.position, new Color(1f, 0.9f, 0.45f, 0.95f), 700f + 250f * tier, 0.6f);
+                    Sparkles(_moment.position, 12 + 6 * tier, 420f, 100f);
+                    if (tier == 3) Ring(_moment.position, new Color(1f, 0.5f, 0.9f, 0.9f), 1400f, 0.8f);
+                    Sound.Blast();
+                }
+
+                if (!subShown && t >= slam + 0.12f)
+                {
+                    subShown = true;
+                    Tween.PopIn(_momentSub.transform, 0f, 0.4f, 0.2f);
+                }
+                if (subShown) _momentSub.color = new Color(1f, 1f, 1f, fadeOut);
+
+                float burstIn = Ease.OutBack(Mathf.Clamp01(t / 0.35f), 1.4f);
+                _momentBurst.rectTransform.localScale = Vector3.one * burstIn * (1f + 0.15f * tier);
+                _momentBurst.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -t * 70f);
+                _momentBurst.color = new Color(1f, 1f, 1f, 0.9f * fadeOut);
+                _momentBurst2.rectTransform.localScale = Vector3.one * burstIn;
+                _momentBurst2.rectTransform.localRotation = Quaternion.Euler(0f, 0f, t * 50f);
+                _momentBurst2.color = new Color(1f, 0.55f, 0.85f, 0.7f * fadeOut);
+
+                if (tier == 3)
+                {
+                    // UNNATURAL cycles through the candy colours while it is up.
+                    float h = (t * 0.6f) % 1f;
+                    _momentWordCandy.FaceBottom = Color.HSVToRGB(h, 0.55f, 1f);
+                    _momentWordCandy.Depth = Color.HSVToRGB((h + 0.08f) % 1f, 0.8f, 0.85f);
+                    _momentWordCandy.Refresh();
+                }
+
+                yield return null;
+            }
+
+            _moment.gameObject.SetActive(false);
+            _momentRoutine = null;
+        }
+
         // --- shake ---------------------------------------------------------------------------
 
         /// <summary>Adds screen shake. Trauma accumulates and decays; the offset follows its square.</summary>

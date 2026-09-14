@@ -69,6 +69,7 @@ namespace Snapline.Core.Sim
             row = 0;
 
             ulong occupied = run.Board.Occupied;
+            ulong sticky = run.Board.StickyMask;
             double bestScore = double.NegativeInfinity;
             int candidateCount = 0;
 
@@ -87,7 +88,7 @@ namespace Snapline.Core.Sim
                     if ((occupied & pm) != 0UL) continue;
 
                     candidateCount++;
-                    double score = Evaluate(occupied, pm, ref rng);
+                    double score = Evaluate(occupied, pm, sticky, ref rng);
 
                     // Reservoir-style tie-breaking, so a run of equal-scoring moves does not always
                     // resolve to the lowest board index and bias the measurement.
@@ -108,7 +109,7 @@ namespace Snapline.Core.Sim
             return traySlot >= 0;
         }
 
-        private double Evaluate(ulong occupied, ulong pieceMask, ref Rng rng)
+        private double Evaluate(ulong occupied, ulong pieceMask, ulong sticky, ref Rng rng)
         {
             if (_skill == PlayerSkill.Random) return rng.NextDouble();
 
@@ -118,7 +119,9 @@ namespace Snapline.Core.Sim
             if (_skill == PlayerSkill.Greedy)
                 return lines * 100.0 + rng.NextDouble();
 
-            ulong after = Board.Simulate(occupied, pieceMask);
+            // Stones survive their first clear; judging a move as if they vanished would steer the
+            // player toward room that is not really there.
+            ulong after = Board.Simulate(occupied, pieceMask, sticky);
 
             double score = 0.0;
             score += _w.LinesCleared * lines;

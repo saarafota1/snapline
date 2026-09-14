@@ -56,9 +56,34 @@ namespace Snapline.View
             return img;
         }
 
+        /// <summary>
+        /// The icon layer on a block — a bomb or a gift — created the first time it is asked for.
+        /// A child of the block, so it moves, scales and fades with every block animation for free.
+        /// </summary>
+        public static Image Overlay(Image block)
+        {
+            Transform existing = block.transform.Find("Special");
+            if (existing != null) return existing.GetComponent<Image>();
+
+            var go = new GameObject("Special", typeof(RectTransform), typeof(Image));
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(block.transform, false);
+            rt.anchorMin = new Vector2(0.08f, 0.08f);
+            rt.anchorMax = new Vector2(0.92f, 0.92f);
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+            var img = go.GetComponent<Image>();
+            img.raycastTarget = false;
+            img.preserveAspect = true;
+            go.SetActive(false);
+            return img;
+        }
+
         public void Return(Image img)
         {
             if (img == null) return;
+            Transform overlay = img.transform.Find("Special");
+            if (overlay != null) overlay.gameObject.SetActive(false);
             img.gameObject.SetActive(false);
             img.rectTransform.localScale = Vector3.one;
             img.rectTransform.localRotation = Quaternion.identity;

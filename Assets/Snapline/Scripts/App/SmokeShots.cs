@@ -4,6 +4,7 @@ using UnityEngine;
 using Snapline.Art;
 using Snapline.Core;
 using Snapline.Core.Sim;
+using Snapline.UI;
 using Snapline.View;
 
 namespace Snapline.App
@@ -91,6 +92,7 @@ namespace Snapline.App
             yield return EndlessPhase();
             yield return PausePhase();
             yield return LevelPhase();
+            yield return SpecialPhase();
             yield return StorePhase();
             yield return DailyPhase();
 
@@ -282,6 +284,69 @@ namespace Snapline.App
             _app.ShowScores();
             yield return new WaitForSeconds(1.2f);
             yield return Capture("10_scores");
+        }
+
+        /// <summary>
+        /// A puzzle level with every kind of special block: the NEW BLOCK! cards, the board, a clear
+        /// that cracks a stone or sets a bomb off, and the big-clear celebrations.
+        /// </summary>
+        private IEnumerator SpecialPhase()
+        {
+            NewBlockPopup.ResetSeen();
+            _app.StartLevel(Puzzles.BombsFrom + 4);
+            yield return new WaitForSeconds(1.8f);
+            yield return Capture("17_new_block");
+
+            for (int i = 0; i < 3; i++)
+            {
+                _controller.DismissIntroForHarness();
+                yield return new WaitForSeconds(1.0f);
+            }
+            yield return Capture("18_special_level");
+
+            GameRun run = _controller.Run;
+            var rng = new Rng(2024UL);
+            var player = new AutoPlayer(PlayerSkill.Heuristic);
+            bool captured = false;
+            int guard = 0;
+
+            while (!run.IsGameOver && guard++ < 40)
+            {
+                while (_controller.IsBusy) yield return null;
+                if (run.IsGameOver) break;
+                if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+
+                ulong specialsBefore = run.Board.SpecialMask;
+                ulong stonesBefore = run.Board.StickyMask;
+                _drag.SimulateDragTo(slot, col, row);
+
+                if (!captured && (run.Board.SpecialMask != specialsBefore || run.Board.StickyMask != stonesBefore))
+                {
+                    captured = true;
+                    yield return new WaitForSeconds(0.2f);
+                    yield return Capture("18b_special_clear");
+                    Debug.Log($"[Snapline] special clear seen after {guard} moves:\n{run.Board}");
+                }
+
+                yield return new WaitForSeconds(0.26f);
+            }
+
+            Debug.Log($"[Snapline] special level {run.LevelNumber}: complete={run.LevelComplete} lines={run.Score.TotalLinesCleared} " +
+                      $"moves left={run.MovesRemaining} bonus={run.BonusMoves} special clear captured={captured}");
+
+            yield return new WaitForSeconds(3.5f);
+            _app.StartNewGame();
+            yield return new WaitForSeconds(1.0f);
+
+            _controller.DebugCelebrate(3);
+            yield return new WaitForSeconds(0.5f);
+            yield return Capture("19_boom_huge_play");
+            yield return new WaitForSeconds(2.2f);
+
+            _controller.DebugCelebrate(5);
+            yield return new WaitForSeconds(0.55f);
+            yield return Capture("20_unnatural");
+            yield return new WaitForSeconds(2.4f);
         }
 
         private IEnumerator StorePhase()

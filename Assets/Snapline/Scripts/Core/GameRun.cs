@@ -63,6 +63,15 @@ namespace Snapline.Core
         /// by SaveCodec, because only endless runs are saved and they have no move count.
         /// </summary>
         public int MovesUsed;
+
+        /// <summary>Level gift moves at the moment of the snapshot. Undo only; not saved.</summary>
+        public int BonusMoves;
+
+        /// <summary>
+        /// Special blocks at the moment of the snapshot. Undo only; not saved, because only endless
+        /// runs are saved and endless has no special blocks. Null restores a board without any.
+        /// </summary>
+        public byte[] Specials;
     }
 
     /// <summary>
@@ -114,7 +123,13 @@ namespace Snapline.Core
         public int MovesUsed { get; private set; }
 
         public int MovesRemaining =>
-            Objective == null ? int.MaxValue : Math.Max(0, Objective.MoveBudget - MovesUsed);
+            Objective == null ? int.MaxValue : Math.Max(0, Objective.MoveBudget + BonusMoves - MovesUsed);
+
+        /// <summary>Extra moves earned in this level, from gift blocks.</summary>
+        public int BonusMoves { get; private set; }
+
+        /// <summary>Moves a single gift block is worth.</summary>
+        public const int GiftMoves = 3;
 
         public bool LevelComplete { get; private set; }
         public bool LevelFailed { get; private set; }
@@ -139,14 +154,16 @@ namespace Snapline.Core
             Mode = GameMode.Level;
             Objective = level.ToObjective();
             LevelNumber = level.Number;
-            ResetRun(level.Seed, level.StartOccupied, level.StartColours);
+            ResetRun(level.Seed, level.StartOccupied, level.StartColours, level.StartSpecials);
         }
 
-        private void ResetRun(ulong seed, ulong startOccupied = 0UL, byte[] startColours = null)
+        private void ResetRun(ulong seed, ulong startOccupied = 0UL, byte[] startColours = null,
+                              byte[] startSpecials = null)
         {
             Board.Clear();
-            if (startOccupied != 0UL) Board.Restore(startOccupied, startColours);
+            if (startOccupied != 0UL) Board.Restore(startOccupied, startColours, startSpecials);
             _undoPoint = null;
+            BonusMoves = 0;
             Score.Reset();
             _rng = new Rng(seed);
             IsGameOver = false;
@@ -199,6 +216,8 @@ namespace Snapline.Core
             Tray[traySlot].ShapeId = -1;
 
             if (Objective != null) MovesUsed++;
+            if (Objective != null && move.Placement.GiftsCollected > 0)
+                BonusMoves += GiftMoves * move.Placement.GiftsCollected;
 
             if (TrayIsEmpty())
             {
@@ -238,7 +257,7 @@ namespace Snapline.Core
                 return;
             }
 
-            if (MovesUsed >= Objective.MoveBudget || IsGameOver)
+            if (MovesRemaining <= 0 || IsGameOver)
             {
                 LevelFailed = true;
                 IsGameOver = true;
@@ -335,7 +354,11 @@ namespace Snapline.Core
 
             // A level's move count is not part of the save format, so Restore leaves it alone. An
             // undo that took the piece back but kept the move spent would read as a bug.
-            if (Objective != null) MovesUsed = point.MovesUsed;
+            if (Objective != null)
+            {
+                MovesUsed = point.MovesUsed;
+                BonusMoves = point.BonusMoves;
+            }
             return true;
         }
 
@@ -400,6 +423,7 @@ namespace Snapline.Core
 
         private void DealTray()
         {
+            Dealer.StickyMask = Board.StickyMask;
             Dealer.Deal(Board.Occupied, Tray, ref _rng);
             TrayDealt?.Invoke();
         }
@@ -442,6 +466,8 @@ namespace Snapline.Core
                 GameOver = IsGameOver,
                 DryMovesSinceClear = Score.DryMovesSinceClear,
                 MovesUsed = MovesUsed,
+                BonusMoves = BonusMoves,
+                Specials = Board.CopySpecials(),
             };
         }
 
@@ -453,7 +479,7 @@ namespace Snapline.Core
         {
             if (snap == null) throw new ArgumentNullException(nameof(snap));
 
-            Board.Restore(snap.Occupied, snap.Colours);
+            Board.Restore(snap.Occupied, snap.Colours, snap.Specials);
 
             for (int i = 0; i < Tray.Length; i++)
             {

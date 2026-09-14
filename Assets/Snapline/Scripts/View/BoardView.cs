@@ -27,6 +27,7 @@ namespace Snapline.View
 
         private readonly Image[] _blocks = new Image[Board.CellCount];
         private readonly int[] _blockColour = new int[Board.CellCount];
+        private readonly Special[] _blockSpecial = new Special[Board.CellCount];
         private readonly Image[] _cells = new Image[Board.CellCount];
         private Image[] _ghost;
 
@@ -109,6 +110,8 @@ namespace Snapline.View
 
         public Vector3 CellToWorld(int col, int row) => _grid.TransformPoint(CellToLocal(col, row));
 
+        private Vector3 IndexToWorld(int idx) => CellToWorld(Bits.ColOf(idx), Bits.RowOf(idx));
+
         /// <summary>The middle of the board, in world space.</summary>
         public Vector3 CentreWorld => _grid.TransformPoint(new Vector2(GridExtent * 0.5f, -GridExtent * 0.5f));
 
@@ -127,6 +130,7 @@ namespace Snapline.View
                 if (_blocks[i] == null) continue;
                 _pool.Return(_blocks[i]);
                 _blocks[i] = null;
+                _blockSpecial[i] = Special.None;
             }
 
             for (int row = 0; row < Board.Height; row++)
@@ -134,27 +138,50 @@ namespace Snapline.View
                 for (int col = 0; col < Board.Width; col++)
                 {
                     if (!board.IsOccupied(col, row)) continue;
-                    SetBlock(col, row, board.ColourAt(col, row));
+                    SetBlock(col, row, board.ColourAt(col, row), board.SpecialAt(col, row));
                     if (cascade)
                         Tween.PopIn(_blocks[Bits.Index(col, row)].rectTransform, 0.05f + row * 0.04f + col * 0.015f, 0.35f, 0f);
                 }
             }
         }
 
-        public void SetBlock(int col, int row, int colourIndex)
+        public void SetBlock(int col, int row, int colourIndex, Special special = Special.None)
         {
             int idx = Bits.Index(col, row);
             if (_blocks[idx] != null) _pool.Return(_blocks[idx]);
             _blocks[idx] = _pool.Take(colourIndex, _cellSize, CellToLocal(col, row));
             _blockColour[idx] = colourIndex;
+            _blockSpecial[idx] = special;
+            Dress(idx);
+        }
+
+        private Sprite BaseSprite(int idx) => _blockSpecial[idx] switch
+        {
+            Special.Stone => SpecialArt.Stone(),
+            Special.CrackedStone => SpecialArt.CrackedStone(),
+            _ => ArtKit.Block(_blockColour[idx]),
+        };
+
+        /// <summary>Gives a block the look of whatever special it holds: a stone face, or a bomb or gift icon on top.</summary>
+        private void Dress(int idx)
+        {
+            Image block = _blocks[idx];
+            if (block == null) return;
+
+            block.sprite = BaseSprite(idx);
+            Special s = _blockSpecial[idx];
+            bool icon = s == Special.Bomb || s == Special.Gift;
+
+            Image overlay = BlockPool.Overlay(block);
+            overlay.gameObject.SetActive(icon);
+            if (!icon) return;
+            overlay.sprite = s == Special.Bomb ? SpecialArt.Bomb() : SpecialArt.Gift();
+            overlay.rectTransform.localScale = Vector3.one;
         }
 
         // --- placement and clears -----------------------------------------------------------
 
-        /// <summary>
-        /// A piece lands: each cell drops in with a squash, staggered so the shape reads as landing,
-        /// and a puff of sparkle marks where it went down.
-        /// </summary>
+        /// <summary>A piece lands: each cell drops in with a squash, and a puff of sparkle marks where.</summary>
         public void AnimatePlacement(ulong pieceMask, int colourIndex, ulong clearedMask)
         {
             ClearPreview();
@@ -192,13 +219,15 @@ namespace Snapline.View
         }
 
         /// <summary>
-        /// Blow up every cleared cell. Each line gets a golden sweep along its length, and each block
-        /// bursts into shards of its own candy, a glow and a few sprinkles — staggered outward from
-        /// where the piece landed, so the clear travels rather than popping all at once.
+        /// Blow up every cleared cell, crack every stone that was hit, and set the bombs off.
+        ///
+        /// Each line gets a golden sweep, each removed block charges gold and bursts into shards of
+        /// its own candy — staggered outward from where the piece landed, and a beat later again for
+        /// blocks caught only in a blast, so the explosion visibly travels out from the bomb.
         /// </summary>
         public void AnimateClear(in PlaceResult result, int originCol, int originRow)
         {
-            if (result.ClearedMask == 0UL) return;
+            if (result.ClearedMask == 0UL && result.CrackedMask == 0UL) return;
             ClearPreview();
 
             Fx fx = Fx.Instance;
@@ -219,6 +248,27 @@ namespace Snapline.View
                     fx.LineSweep(_grid.TransformPoint(CellToLocal(c, 0) + new Vector2(0f, half)),
                                  _grid.TransformPoint(CellToLocal(c, Board.Height - 1) - new Vector2(0f, half)), _cellSize);
                 }
+
+                ulong bombs = result.BombMask;
+                while (bombs != 0UL)
+                {
+                    int idx = Bits.TrailingZeroCount(bombs);
+                    bombs &= bombs - 1;
+                    Vector3 world = IndexToWorld(idx);
+                    fx.Ring(world, new Color(1f, 0.6f, 0.2f, 0.95f), _cellSize * 6.5f, 0.55f);
+                    fx.Glow(world, new Color(1f, 0.75f, 0.3f, 0.95f), _cellSize * 5f, 0.45f);
+                    fx.Sprinkles(world, 12, _cellSize * 15f, _cellSize * 0.42f);
+                    fx.Sparkles(world, 10, _cellSize * 1.6f, _cellSize * 0.9f);
+                    fx.Text(world, "KABOOM!", CandyStyle.Gold, 96f, 0.9f, 180f);
+                }
+            }
+
+            ulong k = result.CrackedMask;
+            while (k != 0UL)
+            {
+                int idx = Bits.TrailingZeroCount(k);
+                k &= k - 1;
+                if (_blocks[idx] != null) StartCoroutine(Crack(idx));
             }
 
             int n = 0;
@@ -235,12 +285,51 @@ namespace Snapline.View
                 _blocks[idx] = null;
                 if (block == null) continue;
 
+                bool gift = _blockSpecial[idx] == Special.Gift;
+                _blockSpecial[idx] = Special.None;
+
                 float dist = Vector2.Distance(new Vector2(col, row), new Vector2(originCol, originRow));
-                StartCoroutine(Burst(block, _blockColour[idx], CellToWorld(col, row), dist * 0.028f, n++ % 3 == 0));
+                float delay = dist * 0.028f + ((result.BlastMask & (1UL << idx)) != 0UL ? 0.14f : 0f);
+                StartCoroutine(Burst(block, _blockColour[idx], CellToWorld(col, row), delay, n++ % 3 == 0, gift));
             }
         }
 
-        private IEnumerator Burst(Image block, int colour, Vector3 world, float delay, bool sprinkles)
+        /// <summary>A stone takes its first hit: it shudders, cracks, and chips fly.</summary>
+        private IEnumerator Crack(int idx)
+        {
+            Image block = _blocks[idx];
+            _blockSpecial[idx] = Special.CrackedStone;
+            Vector3 world = IndexToWorld(idx);
+
+            yield return new WaitForSeconds(0.06f);
+            if (block == null || _blocks[idx] != block) yield break;
+
+            block.sprite = SpecialArt.CrackedStone();
+            Fx.Instance?.Shards(world, SpecialArt.Stone(), 6, _cellSize * 9f, _cellSize * 0.9f);
+            Fx.Instance?.Glow(world, new Color(0.85f, 0.88f, 1f, 0.7f), _cellSize * 2.2f, 0.3f);
+            Fx.Instance?.Text(world, "CRACK!", CandyStyle.White, 60f, 0.7f, 120f);
+
+            RectTransform rt = block.rectTransform;
+            const float duration = 0.3f;
+            float t = 0f;
+            while (t < duration)
+            {
+                t += Time.deltaTime;
+                if (block == null || _blocks[idx] != block) yield break;
+                float s = 1f - t / duration;
+                rt.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(t * 70f) * 10f * s);
+                rt.localScale = Vector3.one * (1f + 0.1f * s);
+                yield return null;
+            }
+
+            if (block != null && _blocks[idx] == block)
+            {
+                rt.localRotation = Quaternion.identity;
+                rt.localScale = Vector3.one;
+            }
+        }
+
+        private IEnumerator Burst(Image block, int colour, Vector3 world, float delay, bool sprinkles, bool gift = false)
         {
             if (delay > 0f) yield return new WaitForSeconds(delay);
             if (block == null) yield break;
@@ -248,16 +337,17 @@ namespace Snapline.View
             // The cleared line turns to glowing gold and swells for a beat before it bursts, as the
             // reference's clear does — the moment of "that line is done" is what the eye catches.
             Sprite original = block.sprite;
+            BlockPool.Overlay(block).gameObject.SetActive(false);
             block.sprite = ArtKit.Block(2);
-            RectTransform glowing = block.rectTransform;
-            glowing.SetAsLastSibling();
+            RectTransform rt = block.rectTransform;
+            rt.SetAsLastSibling();
             const float charge = 0.08f;
             float c = 0f;
             while (c < charge)
             {
                 c += Time.deltaTime;
                 if (block == null) yield break;
-                glowing.localScale = Vector3.one * Mathf.Lerp(1f, 1.12f, Ease.OutCubic(c / charge));
+                rt.localScale = Vector3.one * Mathf.Lerp(1f, 1.12f, Ease.OutCubic(c / charge));
                 yield return null;
             }
             if (block == null) yield break;
@@ -266,13 +356,18 @@ namespace Snapline.View
             if (fx != null)
             {
                 BlockColour bc = Palette.Block(colour);
-                fx.Shards(world, block.sprite, 3, _cellSize * 10f, _cellSize);
+                fx.Shards(world, original, 3, _cellSize * 10f, _cellSize);
                 fx.Glow(world, new Color(bc.Glow.r, bc.Glow.g, bc.Glow.b, 0.8f), _cellSize * 1.9f, 0.32f);
                 if (sprinkles) fx.Sprinkles(world, 2, _cellSize * 11f, _cellSize * 0.34f);
+
+                if (gift)
+                {
+                    fx.Text(world, $"+{GameRun.GiftMoves} MOVES", CandyStyle.Gold, 78f, 1.3f, 240f);
+                    fx.Sparkles(world, 14, _cellSize * 1.5f, _cellSize);
+                    fx.Ring(world, new Color(1f, 0.5f, 0.85f, 0.9f), _cellSize * 4f, 0.5f);
+                }
             }
 
-            RectTransform rt = block.rectTransform;
-            rt.SetAsLastSibling();
             const float duration = 0.2f;
             float t = 0f;
             while (t < duration)
@@ -294,7 +389,7 @@ namespace Snapline.View
         /// <summary>
         /// Show where a dragged piece would land — in its own colour, half transparent — and turn
         /// every block in a line that drop would complete into the piece's colour, so the player
-        /// sees the clear before they commit to it.
+        /// sees the clear before they commit to it. Stones that would only crack keep their face.
         /// </summary>
         public void ShowGhost(ShapeDef shape, int col, int row, bool valid, int colourIndex = 0)
         {
@@ -331,7 +426,7 @@ namespace Snapline.View
             if (!valid || !inside || _model == null) return;
 
             ulong occupied = _model.Occupied;
-            ulong cleared = (occupied | mask) & ~Board.Simulate(occupied, mask);
+            ulong cleared = (occupied | mask) & ~Board.Simulate(occupied, mask, _model.StickyMask);
             _previewMask = cleared & occupied;
 
             ulong m = _previewMask;
@@ -363,7 +458,7 @@ namespace Snapline.View
                 int idx = Bits.TrailingZeroCount(m);
                 m &= m - 1;
                 if (_blocks[idx] == null) continue;
-                _blocks[idx].sprite = ArtKit.Block(_blockColour[idx]);
+                _blocks[idx].sprite = BaseSprite(idx);
                 _blocks[idx].rectTransform.localScale = Vector3.one;
             }
         }
@@ -462,6 +557,7 @@ namespace Snapline.View
             {
                 Image block = _blocks[idx];
                 _blocks[idx] = null;
+                _blockSpecial[idx] = Special.None;
                 StartCoroutine(Burst(block, _blockColour[idx], world, 0f, false));
             }
 
@@ -489,17 +585,27 @@ namespace Snapline.View
 
         private void Update()
         {
+            float time = Time.unscaledTime;
+
             if (_hammerArmed)
             {
-                float t = Time.unscaledTime;
                 for (int i = 0; i < _blocks.Length; i++)
                     if (_blocks[i] != null)
-                        _blocks[i].rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(t * 22f + i * 1.7f) * 4f);
+                        _blocks[i].rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(time * 22f + i * 1.7f) * 4f);
+            }
+
+            // Bombs tick: the icon throbs, so the eye finds them on a busy board.
+            for (int i = 0; i < _blocks.Length; i++)
+            {
+                if (_blocks[i] == null || _blockSpecial[i] != Special.Bomb) continue;
+                Image overlay = BlockPool.Overlay(_blocks[i]);
+                if (!overlay.gameObject.activeSelf) continue;
+                overlay.rectTransform.localScale = Vector3.one * (1f + 0.09f * Mathf.Max(0f, Mathf.Sin(time * 7f + i)));
             }
 
             if (_previewMask != 0UL)
             {
-                float s = 1f + 0.06f * (Mathf.Sin(Time.unscaledTime * 14f) + 1f) * 0.5f;
+                float s = 1f + 0.06f * (Mathf.Sin(time * 14f) + 1f) * 0.5f;
                 ulong m = _previewMask;
                 while (m != 0UL)
                 {

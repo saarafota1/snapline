@@ -593,18 +593,178 @@ namespace Snapline.Tests
         }
 
         [Test]
-        public void Economy_EndlessRewardMatchesTheReferenceCard()
+        public void Economy_EndlessRewardIsACoinALinePlusTheCombo()
         {
-            // popup_great_run.png: 42 lines, best combo x6, +180 coins.
-            Assert.AreEqual(180, Economy.EndlessReward(42, 6));
+            Assert.AreEqual(38, Economy.EndlessReward(30, 4));
+            Assert.AreEqual(0, Economy.EndlessReward(-5, -1));
         }
 
         [Test]
         public void Economy_PricesMatchTheStore()
         {
-            Assert.AreEqual(50, Economy.Price(Tool.Undo));
-            Assert.AreEqual(80, Economy.Price(Tool.Shuffle));
-            Assert.AreEqual(120, Economy.Price(Tool.Hammer));
+            Assert.AreEqual(100, Economy.Price(Tool.Undo));
+            Assert.AreEqual(150, Economy.Price(Tool.Shuffle));
+            Assert.AreEqual(250, Economy.Price(Tool.Hammer));
+        }
+
+        [Test]
+        public void Economy_LevelRewardPaysOnlyForNewStars()
+        {
+            Assert.AreEqual(20, Economy.LevelReward(0, 2));
+            Assert.AreEqual(10, Economy.LevelReward(2, 3));
+            Assert.AreEqual(0, Economy.LevelReward(3, 2), "Replaying without improving must pay nothing.");
+        }
+
+        // --- special blocks ---------------------------------------------------------------
+
+        /// <summary>Row 7, columns 0 to 6 filled, with the given specials; column 7 left open.</summary>
+        private static Board AlmostFullBottomRow(params (int Col, Special Kind)[] specials)
+        {
+            ulong occupied = 0UL;
+            var colours = new byte[Board.CellCount];
+            var kinds = new byte[Board.CellCount];
+            for (int c = 0; c < 7; c++)
+            {
+                int i = Bits.Index(c, 7);
+                occupied |= 1UL << i;
+                colours[i] = 1;
+            }
+            foreach ((int col, Special kind) in specials) kinds[Bits.Index(col, 7)] = (byte)kind;
+
+            var board = new Board();
+            board.Restore(occupied, colours, kinds);
+            return board;
+        }
+
+        [Test]
+        public void Stone_CracksOnTheFirstClearAndBreaksOnTheSecond()
+        {
+            ShapeDef dot = Shapes.Get(0);
+            Board board = AlmostFullBottomRow((3, Special.Stone));
+
+            PlaceResult first = board.Place(dot, 7, 7, 2);
+            Assert.AreEqual(1, first.RowsCleared, "A line with a stone in it still counts as cleared.");
+            Assert.AreEqual(1UL << Bits.Index(3, 7), first.CrackedMask);
+            Assert.AreEqual(Special.CrackedStone, board.SpecialAt(3, 7));
+            Assert.AreEqual(1, board.FilledCells, "Only the stone survives the first clear.");
+
+            for (int c = 0; c < 7; c++)
+                if (c != 3) Assert.IsTrue(board.Place(dot, c, 7, 1).Placed);
+
+            PlaceResult second = board.Place(dot, 7, 7, 1);
+            Assert.AreEqual(1, second.RowsCleared);
+            Assert.AreEqual(0UL, second.CrackedMask);
+            Assert.IsTrue(board.IsEmpty, "A cracked stone breaks on its second clear.");
+        }
+
+        [Test]
+        public void Bomb_BlastsItsNeighboursAndChains()
+        {
+            Board board = AlmostFullBottomRow((3, Special.Bomb));
+            ulong occupied = board.Occupied | 1UL << Bits.Index(3, 6) | 1UL << Bits.Index(2, 6)
+                           | 1UL << Bits.Index(1, 5) | 1UL << Bits.Index(4, 4);
+            byte[] specials = board.CopySpecials();
+            specials[Bits.Index(2, 6)] = (byte)Special.Bomb;
+            board.Restore(occupied, board.CopyColours(), specials);
+
+            PlaceResult r = board.Place(Shapes.Get(0), 7, 7, 1);
+
+            Assert.AreEqual(1, r.RowsCleared);
+            Assert.AreEqual((1UL << Bits.Index(3, 7)) | (1UL << Bits.Index(2, 6)), r.BombMask, "The second bomb is set off by the first.");
+            Assert.IsFalse(board.IsOccupied(3, 6), "In the first bomb's blast.");
+            Assert.IsFalse(board.IsOccupied(1, 5), "Only in the chained bomb's blast.");
+            Assert.IsTrue(board.IsOccupied(4, 4), "Outside both blasts.");
+            Assert.AreEqual(1, board.FilledCells);
+            Assert.AreNotEqual(0UL, r.BlastMask & (1UL << Bits.Index(1, 5)));
+        }
+
+        [Test]
+        public void Gift_IsCountedWhenCleared()
+        {
+            Board board = AlmostFullBottomRow((0, Special.Gift));
+            Assert.AreEqual(1, board.Place(Shapes.Get(0), 7, 7, 1).GiftsCollected);
+        }
+
+        [Test]
+        public void Simulate_KeepsStickyCellsThroughAClear()
+        {
+            ulong row = Bits.RowMask[7];
+            ulong last = 1UL << Bits.Index(7, 7);
+            ulong stone = 1UL << Bits.Index(3, 7);
+            Assert.AreEqual(0UL, Board.Simulate(row & ~last, last));
+            Assert.AreEqual(stone, Board.Simulate(row & ~last, last, stone));
+        }
+
+        /// <summary>
+        /// Plays, in a level opening on <paramref name="board"/>, the first move whose clear satisfies
+        /// <paramref name="wanted"/>. The tray is dealt, so a few seeds are tried. False if none offered one.
+        /// </summary>
+        private static bool PlayMoveThat(Board board, System.Func<PlaceResult, bool> wanted, out GameRun run)
+        {
+            for (ulong seed = 1; seed < 60; seed++)
+            {
+                run = new GameRun();
+                run.StartLevel(new LevelDef(9999, 30, 10, seed, board.Occupied, board.CopyColours(), board.CopySpecials()));
+
+                for (int slot = 0; slot < run.Tray.Length; slot++)
+                for (int r = 0; r < Board.Height; r++)
+                for (int c = 0; c < Board.Width; c++)
+                {
+                    if (!run.CanPlace(slot, c, r)) continue;
+                    PlaceResult probe = run.Board.Clone().Place(run.Tray[slot].Shape, c, r, 1);
+                    if (!wanted(probe)) continue;
+                    run.Place(slot, c, r);
+                    return true;
+                }
+            }
+
+            run = null;
+            return false;
+        }
+
+        [Test]
+        public void GiftInALevel_AddsMoves()
+        {
+            if (!PlayMoveThat(AlmostFullBottomRow((0, Special.Gift)), p => p.GiftsCollected > 0, out GameRun run))
+                Assert.Inconclusive("No dealt tray could clear the gift's row.");
+
+            Assert.AreEqual(10 - 1 + GameRun.GiftMoves, run.MovesRemaining);
+        }
+
+        [Test]
+        public void Undo_PutsACrackedStoneBack()
+        {
+            if (!PlayMoveThat(AlmostFullBottomRow((3, Special.Stone)), p => p.CrackedMask != 0UL, out GameRun run))
+                Assert.Inconclusive("No dealt tray could clear the stone's row.");
+
+            Assert.AreEqual(Special.CrackedStone, run.Board.SpecialAt(3, 7));
+            Assert.IsTrue(run.Undo());
+            Assert.AreEqual(Special.Stone, run.Board.SpecialAt(3, 7));
+            Assert.AreEqual(10, run.MovesRemaining);
+        }
+
+        [Test]
+        public void PuzzleLevels_OpenFairWithEachBlockOnlyOnceIntroduced()
+        {
+            for (int n = Puzzles.First; n <= Puzzles.Last; n++)
+            {
+                LevelDef level = Levels.Get(n);
+                Assert.AreEqual(n, level.Number);
+                Assert.Greater(level.MoveBudget, level.LineTarget);
+
+                for (int r = 0; r < Board.Height; r++)
+                    Assert.AreNotEqual(Bits.RowMask[r], level.StartOccupied & Bits.RowMask[r], $"Level {n} opens with row {r} complete.");
+                for (int c = 0; c < Board.Width; c++)
+                    Assert.AreNotEqual(Bits.ColMask[c], level.StartOccupied & Bits.ColMask[c], $"Level {n} opens with column {c} complete.");
+
+                for (int i = 0; i < Board.CellCount; i++)
+                    if (level.StartSpecials[i] != 0)
+                        Assert.AreNotEqual(0UL, level.StartOccupied & (1UL << i), $"Level {n} has a special block on an empty cell.");
+
+                Assert.AreEqual(n >= Puzzles.StonesFrom, level.Has(Special.Stone), $"Level {n} stones");
+                Assert.AreEqual(n >= Puzzles.GiftsFrom, level.Has(Special.Gift), $"Level {n} gifts");
+                Assert.AreEqual(n >= Puzzles.BombsFrom, level.Has(Special.Bomb), $"Level {n} bombs");
+            }
         }
 
         /// <summary>Plays the first legal move it can find. Returns false if the run is stuck.</summary>

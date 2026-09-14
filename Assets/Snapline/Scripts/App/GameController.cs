@@ -28,6 +28,10 @@ namespace Snapline.App
         private NoMovesPopup _noMoves;
         private GreatRunPopup _greatRun;
         private LevelEndPopup _levelEnd;
+        private NewBlockPopup _newBlock;
+
+        /// <summary>Special blocks in this level the player has not met yet, explained one at a time before play.</summary>
+        private readonly System.Collections.Generic.Queue<Special> _intros = new System.Collections.Generic.Queue<Special>();
 
         private bool _busy;
         private bool _hammerArmed;
@@ -61,8 +65,10 @@ namespace Snapline.App
 
         public void Init(BoardView board, TrayView tray, DragController drag, Hud hud, ToolsBar tools,
                          AdController ads, PausePopup pause, NoMovesPopup noMoves, GreatRunPopup greatRun,
-                         LevelEndPopup levelEnd)
+                         LevelEndPopup levelEnd, NewBlockPopup newBlock)
         {
+            _newBlock = newBlock;
+            _newBlock.Done += NextIntro;
             _board = board;
             _tray = tray;
             _drag = drag;
@@ -120,6 +126,8 @@ namespace Snapline.App
             _noMoves.HideNow();
             _greatRun.HideNow();
             _levelEnd.HideNow();
+            _newBlock.HideNow();
+            _intros.Clear();
             Disarm();
         }
 
@@ -171,6 +179,43 @@ namespace Snapline.App
             _hud.ResetForNewRun(SaveSystem.HighScore);
             PushObjective();
             AfterReset();
+
+            foreach (Special kind in new[] { Special.Stone, Special.Gift, Special.Bomb })
+                if (level.Has(kind) && !NewBlockPopup.HasSeen(kind)) _intros.Enqueue(kind);
+
+            if (_intros.Count > 0)
+            {
+                // Held until the board has cascaded in, so the card explains blocks the player can see.
+                _drag.InputEnabled = false;
+                Tween.Delay(0.7f, NextIntro);
+            }
+        }
+
+        /// <summary>Shows the next unexplained block, or hands the board back once there are none left.</summary>
+        private void NextIntro()
+        {
+            if (_hud == null || !_hud.Root.gameObject.activeInHierarchy) return;
+
+            if (_intros.Count > 0)
+            {
+                _newBlock.Show(_intros.Dequeue());
+                return;
+            }
+
+            if (!_run.IsGameOver && !_pause.IsVisible && !_hammerArmed && !_busy) _drag.InputEnabled = true;
+        }
+
+        /// <summary>Closes the block explainer as if GOT IT were tapped. The smoke harness uses it.</summary>
+        public void DismissIntroForHarness()
+        {
+            if (_newBlock.IsVisible) _newBlock.Dismiss();
+        }
+
+        /// <summary>Fires the big-clear celebration for a number of lines. The smoke harness uses it.</summary>
+        public void DebugCelebrate(int lines)
+        {
+            Fx.Instance?.Celebrate(_board.CentreWorld, lines);
+            Sound.BigPlay(lines >= 5 ? 3 : lines == 4 ? 2 : 1);
         }
 
         private void AfterReset()
@@ -283,6 +328,15 @@ namespace Snapline.App
                 fx?.Shake(ShakeFor(lines, combo));
                 Sound.Clear(lines, combo);
                 Sound.Combo(combo);
+
+                if (move.Placement.BombMask != 0UL)
+                {
+                    Sound.Blast();
+                    Haptics.Heavy();
+                    fx?.Shake(0.75f);
+                }
+                if (move.Placement.CrackedMask != 0UL) Sound.Crack();
+                if (move.Placement.GiftsCollected > 0) Sound.Gift();
                 if (lines >= 2 || combo >= 3) Haptics.Heavy();
                 else Haptics.Medium();
 
@@ -381,11 +435,22 @@ namespace Snapline.App
                 _ => "INCREDIBLE!",
             };
 
-            CandyStyle style = lines >= 3 ? CandyStyle.Gold : lines == 2 ? CandyStyle.Cyan : CandyStyle.White;
-            fx.Text(At(40f), headline, style, 96f + 12f * Mathf.Min(lines, 4), 1.05f, 200f);
+            // Three lines or more is a moment, not a shout: BOOM! HUGE PLAY!, MEGA!, UNNATURAL!!!
+            bool celebrating = lines >= 3;
+            if (celebrating)
+            {
+                fx.Celebrate(_board.CentreWorld, lines);
+                Sound.BigPlay(lines >= 5 ? 3 : lines == 4 ? 2 : 1);
+            }
+            else
+            {
+                CandyStyle style = lines == 2 ? CandyStyle.Cyan : CandyStyle.White;
+                fx.Text(At(40f), headline, style, 96f + 12f * Mathf.Min(lines, 4), 1.05f, 200f);
+            }
+
             fx.Text(At(-70f), $"+{Hud.Format(move.Score.Total)}", CandyStyle.White, 64f, 0.95f, 160f, 0.08f);
 
-            if (combo >= 2)
+            if (combo >= 2 && !celebrating)
                 fx.Text(At(150f), $"COMBO x{combo}", CandyStyle.Gold, 70f + 4f * Mathf.Min(combo, 8), 1.1f, 180f, 0.14f);
 
             if (move.PerfectClear)
@@ -461,7 +526,7 @@ namespace Snapline.App
                 SaveSystem.SubmitScore(_run.Score.Score);
                 Telemetry.LevelCompleted();
 
-                int coins = previous == 0 || stars > previous ? Economy.LevelReward : Economy.LevelReplayReward;
+                int coins = Economy.LevelReward(previous, stars);
                 int before = Wallet.Coins;
                 CoinPill.HoldRoll(3f);
                 Wallet.Grant(coins);
@@ -693,7 +758,7 @@ namespace Snapline.App
 
         public void OpenPause()
         {
-            if (_busy || _run.IsGameOver || _pause.IsVisible) return;
+            if (_busy || _run.IsGameOver || _pause.IsVisible || _newBlock.IsVisible) return;
 
             Disarm();
             _drag.InputEnabled = false;
@@ -731,7 +796,7 @@ namespace Snapline.App
 
         private void OnTool(Tool tool)
         {
-            if (_busy || _run.IsGameOver || _pause.IsVisible) return;
+            if (_busy || _run.IsGameOver || _pause.IsVisible || _newBlock.IsVisible) return;
 
             if (_hammerArmed)
             {

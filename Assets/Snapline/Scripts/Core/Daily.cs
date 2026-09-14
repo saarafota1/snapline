@@ -161,10 +161,13 @@ namespace Snapline.Core
         /// dead), and at least one row within two blocks of complete, so there is a first line to
         /// go for.
         /// </summary>
-        public static bool LooksFair(ulong occupied)
+        public static bool LooksFair(ulong occupied) => LooksFair(occupied, 14, 24);
+
+        /// <summary>The same rules with a different allowed block count, for the puzzle levels' fuller boards.</summary>
+        public static bool LooksFair(ulong occupied, int minBlocks, int maxBlocks)
         {
             int count = Bits.PopCount(occupied);
-            if (count < 14 || count > 24) return false;
+            if (count < minBlocks || count > maxBlocks) return false;
 
             bool nearLine = false;
             for (int row = 0; row < Board.Height; row++)
@@ -193,7 +196,7 @@ namespace Snapline.Core
             col < 0 || row < 0 || col >= Board.Width || row >= Board.Height ||
             (occupied & (1UL << Bits.Index(col, row))) != 0UL;
 
-        private static ulong BreakFullLines(ulong occupied, byte[] colours)
+        internal static ulong BreakFullLines(ulong occupied, byte[] colours)
         {
             for (int row = 0; row < Board.Height; row++)
             {

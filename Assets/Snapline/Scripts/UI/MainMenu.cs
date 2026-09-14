@@ -233,7 +233,7 @@ namespace Snapline.UI
             _levels = CandyUI.SpriteButton("Levels", _root, ArtKit.Ui("tile_purple"), Image.Type.Sliced);
             CandyUI.Place(_levels, bottom, new Vector2(-Layout.ModeSplit, Layout.ModesY * BottomScale), size);
             _levels.onClick.AddListener(() => LevelsRequested?.Invoke());
-            BuildModeFace(_levels, ArtKit.Ui("icon_levels"), "60 LEVELS", CandyStyle.OnPurple, out _levelsDetail);
+            BuildModeFace(_levels, ArtKit.Ui("icon_levels"), $"{Levels.Count} LEVELS", CandyStyle.OnPurple, out _levelsDetail);
 
             _endless = CandyUI.SpriteButton("Endless", _root, ArtKit.Ui("tile_cyan"), Image.Type.Sliced);
             CandyUI.Place(_endless, bottom, new Vector2(Layout.ModeSplit, Layout.ModesY * BottomScale), size);

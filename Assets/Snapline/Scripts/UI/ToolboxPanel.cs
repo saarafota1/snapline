@@ -158,7 +158,14 @@ namespace Snapline.UI
                             new Vector2(110f, -46f), new Vector2(580f, 118f), 58, CandyStyle.OnGreen, "sym_ad", 86f,
                             shine: true, pulse: 0.025f);
             _watch.onClick.AddListener(() => WatchAdRequested?.Invoke());
+
+            // How many paying videos are left today, as a badge on the button.
+            _adsLeft = W.Badge(_watch.transform, "5", new Vector2(1f, 1f), new Vector2(-18f, -14f), 62f);
+            _adsLeftText = _adsLeft.GetComponentInChildren<Text>();
         }
+
+        private Image _adsLeft;
+        private Text _adsLeftText;
 
         private void Buy(int index)
         {
@@ -204,6 +211,13 @@ namespace Snapline.UI
 
         public void Refresh()
         {
+            int left = Wallet.AdRewardsLeftToday;
+            if (_adsLeftText != null) _adsLeftText.text = left.ToString();
+            if (_adsLeft != null) _adsLeft.gameObject.SetActive(left > 0);
+            Text watch = W.Caption(_watch);
+            if (watch != null) watch.text = left > 0 ? $"WATCH +{Economy.AdReward}" : "BACK TOMORROW";
+            _watch.GetComponent<Image>().color = left > 0 ? Color.white : new Color(0.72f, 0.74f, 0.8f, 1f);
+
             for (int i = 0; i < Order.Length; i++)
             {
                 _owned[i].text = Wallet.Count(Order[i]).ToString();

@@ -12,39 +12,44 @@ namespace Snapline.Core
 
     /// <summary>
     /// Coin prices and payouts, in one place and with no Unity in sight so they can be balanced in
-    /// the console harness against real simulated play rather than guessed at.
+    /// the console harness against simulated play rather than guessed at: `dotnet run -- economy`.
     ///
-    /// Everything here is read off `Design/references/toolbox.png` and the result cards. Where a
-    /// number was not in the references it is derived and labelled as such — the difference matters,
-    /// because a fitted number is a guess with arithmetic on top.
+    /// Rebalanced on 14 Sep 2026. The first numbers were read straight off the mock-ups, and in play
+    /// they made tools nearly free: an ordinary endless run paid 100-200 coins, a hammer every run,
+    /// and the store's video paid 50 coins with no limit, so coins were unlimited for anyone willing
+    /// to tap. The aim now is a tool every few runs, with a video worth about a third of a hammer and
+    /// capped per day, so tools stay a treat and coins keep a value.
     /// </summary>
     public static class Economy
     {
-        // --- prices, all straight off toolbox.png -------------------------------------------
+        // --- prices --------------------------------------------------------------------------
 
-        public const int UndoPrice = 50;
-        public const int ShufflePrice = 80;
-        public const int HammerPrice = 120;
+        public const int UndoPrice = 100;
+        public const int ShufflePrice = 150;
+        public const int HammerPrice = 250;
 
-        /// <summary>Buying your way past a dead board, from popup_no_more_moves.png.</summary>
-        public const int ContinuePrice = 80;
+        /// <summary>Buying your way past a dead board on the NO MORE MOVES card.</summary>
+        public const int ContinuePrice = 150;
 
         // --- payouts -------------------------------------------------------------------------
 
-        /// <summary>A finished level, from popup_level_complete.png.</summary>
-        public const int LevelReward = 50;
+        /// <summary>Coins per star, paid once per star: a first 2-star clear pays 20, raising it to 3 pays 10 more.</summary>
+        public const int LevelRewardPerStar = 10;
+
+        /// <summary>A finished daily challenge, on top of that weekday's reward.</summary>
+        public const int DailyReward = 50;
+
+        /// <summary>One rewarded video in the store.</summary>
+        public const int AdReward = 40;
 
         /// <summary>
-        /// Replaying a level already beaten, without improving its stars. Not zero, so a replay still
-        /// feels like something — but nowhere near the full reward, or level 1 becomes a coin farm.
+        /// Store videos that pay, per calendar day. Without a cap a video button is an unlimited coin
+        /// tap, which empties the economy and trains players to farm ads rather than play.
         /// </summary>
-        public const int LevelReplayReward = 10;
+        public const int AdRewardsPerDay = 5;
 
-        /// <summary>A finished daily challenge, from daily_challenge.png.</summary>
-        public const int DailyReward = 100;
-
-        /// <summary>One rewarded ad, from toolbox.png.</summary>
-        public const int AdReward = 50;
+        /// <summary>What a brand-new player starts with: enough for one undo, not a hammer.</summary>
+        public const int StartingCoins = 120;
 
         public static int Price(Tool tool) => tool switch
         {
@@ -55,24 +60,17 @@ namespace Snapline.Core
         };
 
         /// <summary>
-        /// What an endless run pays out.
-        ///
-        /// FITTED, not given. The references contain exactly one data point — popup_great_run.png
-        /// shows 42 lines and a best combo of x6 paying 180 coins — and this is the simplest formula
-        /// through it: 42*4 + 6*2 = 180. Any number of curves pass through one point, so treat this
-        /// as a starting position to be measured, not as a designed economy.
-        ///
-        /// Lines carry it rather than score, because score already scales with the combo multiplier
-        /// and paying on both would compound the same achievement twice.
+        /// What finishing a level pays: only for stars not earned before. Replaying a level without
+        /// improving it pays nothing, so level 1 cannot be farmed.
         /// </summary>
-        public static int EndlessReward(int linesCleared, int bestCombo) =>
-            Math.Max(0, linesCleared) * 4 + Math.Max(0, bestCombo) * 2;
+        public static int LevelReward(int previousStars, int stars) =>
+            Math.Max(0, stars - Math.Max(0, previousStars)) * LevelRewardPerStar;
 
         /// <summary>
-        /// How long a run's worth of coins takes to buy each tool, for sanity rather than for the
-        /// game. A median run of ~40 lines pays about 172, which buys three undos, two shuffles or
-        /// one hammer — the ordering the reference prices imply.
+        /// What an endless run pays: a coin a line, and two per step of the best combo, which rewards
+        /// skill over sheer length. A 30-line run with a x4 combo pays 38.
         /// </summary>
-        public static int ToolsAffordable(int coins, Tool tool) => coins / Price(tool);
+        public static int EndlessReward(int linesCleared, int bestCombo) =>
+            Math.Max(0, linesCleared) + Math.Max(0, bestCombo) * 2;
     }
 }

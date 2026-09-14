@@ -28,6 +28,8 @@ namespace Snapline.Bench
             if (mode == "combo" || mode == "all") Combos();
             if (mode == "levels" || mode == "all") LevelLadder();
             if (mode == "daily" || mode == "all") DailyChallenges();
+            if (mode == "economy" || mode == "all") EconomyReport();
+            if (mode == "levels-gen") GenerateLevelTable(args.Length > 1 ? args[1] : "Assets/Snapline/Scripts/Core/LevelTable.cs");
 
             if (_failures > 0)
             {
@@ -406,10 +408,184 @@ namespace Snapline.Bench
             }
         }
 
+        /// <summary>Fraction of attempts the heuristic autoplayer beats a level in.</summary>
+        private static double BeatRate(LevelDef level, int attempts, ulong salt)
+        {
+            int wins = 0;
+            for (int a = 0; a < attempts; a++)
+            {
+                var run = new GameRun(DealerConfig.Default(), new ScoreRules());
+                var player = new AutoPlayer(PlayerSkill.Heuristic);
+                var rng = new Rng(unchecked((ulong)(a + 1) * 0x2545F4914F6CDD1DUL ^ salt));
+
+                run.StartLevel(level);
+                while (!run.IsGameOver)
+                {
+                    if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+                    if (!run.Place(slot, col, row).Accepted) break;
+                }
+
+                if (run.LevelComplete) wins++;
+            }
+            return wins / (double)attempts;
+        }
+
+        /// <summary>
+        /// Chooses, for every puzzle level, the candidate board and move budget whose played beat rate
+        /// sits closest to a smooth curve — 90% at level 61 easing to 60% at level 260 — and writes the
+        /// choices out as LevelTable.cs.
+        ///
+        /// Played, not estimated: the special blocks make a board's difficulty impossible to read off
+        /// its block count, and a generated level nobody can beat is a bug that ships silently.
+        /// </summary>
+        private static void GenerateLevelTable(string outputPath)
+        {
+            Console.WriteLine("=== puzzle level generation ===");
+            const int attempts = 10;
+            const int fairVariantsTried = 4;
+            // Tightest first: the first budget that reaches the curve is the closest one to it.
+            int[] adjusts = { -10, -8, -6, -4, -2, 0, 2, 4, 7, 10 };
+
+            var data = new List<sbyte>();
+            double blockSum = 0;
+            int blockCount = 0, impossible = 0;
+
+            for (int n = Puzzles.First; n <= Puzzles.Last; n++)
+            {
+                double t = (n - Puzzles.First) / (double)(Puzzles.Count - 1);
+                double target = 0.90 - 0.30 * t;
+
+                int bestVariant = 0, bestAdjust = 10;
+                double bestRate = -1, bestScore = double.MaxValue;
+                int fair = 0;
+
+                for (int v = 0; v < 60 && fair < fairVariantsTried; v++)
+                {
+                    if (!Puzzles.IsFair(Puzzles.Build(n, v, 0))) continue;
+                    fair++;
+
+                    foreach (int adj in adjusts)
+                    {
+                        double rate = BeatRate(Puzzles.Build(n, v, adj), attempts, (ulong)(n * 131 + v));
+                        double score = Math.Abs(rate - target) + 0.004 * Math.Abs(adj) + (rate < 0.3 ? 1.0 : 0.0);
+                        if (score < bestScore)
+                        {
+                            bestScore = score;
+                            bestVariant = v;
+                            bestAdjust = adj;
+                            bestRate = rate;
+                        }
+
+                        // More moves only make it easier; once at or past the curve, stop adding.
+                        if (rate >= target) break;
+                    }
+                }
+
+                if (bestRate <= 0) impossible++;
+                data.Add((sbyte)bestVariant);
+                data.Add((sbyte)bestAdjust);
+
+                blockSum += bestRate;
+                blockCount++;
+                if ((n - Puzzles.First + 1) % 20 == 0)
+                {
+                    LevelDef shown = Puzzles.Build(n, bestVariant, bestAdjust);
+                    Console.WriteLine($"  levels {n - 19,3}-{n,3}: mean beat {blockSum / blockCount,5:P0} " +
+                                      $"(target {target,4:P0}); level {n}: {shown.LineTarget} lines in {shown.MoveBudget} moves, " +
+                                      $"stones {Puzzles.StoneCount(n)} gifts {Puzzles.GiftCount(n)} bombs {Puzzles.BombCount(n)}");
+                    blockSum = 0;
+                    blockCount = 0;
+                }
+            }
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("namespace Snapline.Core");
+            sb.AppendLine("{");
+            sb.AppendLine("    /// <summary>");
+            sb.AppendLine("    /// Which candidate board, and how many moves more or fewer than the base budget, each puzzle level");
+            sb.AppendLine("    /// uses. WRITTEN BY `dotnet run -- levels-gen` from played measurements — do not edit by hand.");
+            sb.AppendLine("    /// </summary>");
+            sb.AppendLine("    internal static class LevelTable");
+            sb.AppendLine("    {");
+            sb.AppendLine("        /// <summary>Pairs of (variant, move adjustment), one pair per level from <see cref=\"Puzzles.First\"/>.</summary>");
+            sb.AppendLine("        private static readonly sbyte[] Data =");
+            sb.AppendLine("        {");
+            for (int i = 0; i < data.Count; i += 20)
+            {
+                sb.Append("            ");
+                for (int j = i; j < Math.Min(i + 20, data.Count); j++) sb.Append(data[j]).Append(", ");
+                sb.AppendLine();
+            }
+            sb.AppendLine("        };");
+            sb.AppendLine();
+            sb.AppendLine("        public static bool TryLookup(int number, out int variant, out int adjust)");
+            sb.AppendLine("        {");
+            sb.AppendLine("            int i = (number - Puzzles.First) * 2;");
+            sb.AppendLine("            if (i < 0 || i + 1 >= Data.Length)");
+            sb.AppendLine("            {");
+            sb.AppendLine("                variant = 0;");
+            sb.AppendLine("                adjust = 0;");
+            sb.AppendLine("                return false;");
+            sb.AppendLine("            }");
+            sb.AppendLine();
+            sb.AppendLine("            variant = Data[i];");
+            sb.AppendLine("            adjust = Data[i + 1];");
+            sb.AppendLine("            return true;");
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+            sb.AppendLine("}");
+
+            System.IO.File.WriteAllText(outputPath, sb.ToString().Replace("\r\n", "\n"));
+            Console.WriteLine($"  wrote {data.Count / 2} levels to {outputPath}; never beaten at the chosen setting: {impossible}");
+            if (impossible > 0) _failures++;
+        }
+
+        /// <summary>
+        /// What the economy pays against what it charges, for endless runs at three skill levels —
+        /// the check behind the prices in Economy.cs.
+        /// </summary>
+        private static void EconomyReport()
+        {
+            Console.WriteLine("=== economy ===");
+            const int runs = 150;
+
+            foreach (PlayerSkill skill in new[] { PlayerSkill.Random, PlayerSkill.Greedy, PlayerSkill.Heuristic })
+            {
+                var coins = new int[runs];
+                for (int i = 0; i < runs; i++)
+                {
+                    var run = new GameRun(DealerConfig.Default(), new ScoreRules());
+                    var player = new AutoPlayer(skill);
+                    var rng = new Rng(unchecked((ulong)(i + 1) * 0x9E3779B97F4A7C15UL));
+                    run.StartNew((ulong)(i * 7919 + 13));
+
+                    int moves = 0;
+                    while (!run.IsGameOver && moves++ < 700)
+                    {
+                        if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+                        if (!run.Place(slot, col, row).Accepted) break;
+                    }
+
+                    coins[i] = Economy.EndlessReward(run.Score.TotalLinesCleared, run.Score.BestCombo);
+                }
+
+                Array.Sort(coins);
+                int median = coins[runs / 2];
+                Console.WriteLine($"  {skill,-9} endless run pays median {median,4} (10th pct {coins[runs / 10],4}, " +
+                                  $"90th {coins[runs * 9 / 10],4}); runs per undo {Economy.UndoPrice / (double)Math.Max(1, median):F1}, " +
+                                  $"shuffle {Economy.ShufflePrice / (double)Math.Max(1, median):F1}, " +
+                                  $"hammer {Economy.HammerPrice / (double)Math.Max(1, median):F1}");
+            }
+
+            Console.WriteLine($"  a store video pays {Economy.AdReward} ({Economy.AdRewardsPerDay} a day): " +
+                              $"{Economy.HammerPrice / (double)Economy.AdReward:F1} videos per hammer; " +
+                              $"a first 3-star level pays {Economy.LevelReward(0, 3)}; a daily pays {Economy.DailyReward} + the weekday reward");
+        }
+
         /// <summary>A board holding a level's opening position, for printing.</summary>
         private static Board Also(this Board board, LevelDef level)
         {
-            board.Restore(level.StartOccupied, level.StartColours);
+            board.Restore(level.StartOccupied, level.StartColours, level.StartSpecials);
             return board;
         }
 

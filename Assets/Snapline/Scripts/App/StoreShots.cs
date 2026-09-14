@@ -226,7 +226,7 @@ namespace Snapline.App
             UIKit.Place(sub.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                         new Vector2(0.5f, 0.5f), new Vector2(0f, -44f), new Vector2(1000f, 64f));
 
-            Text tag = UIKit.Label("Tag", root, "ENDLESS  ·  60 LEVELS", 34, Palette.TextDim);
+            Text tag = UIKit.Label("Tag", root, $"ENDLESS  ·  {Levels.Count} LEVELS", 34, Palette.TextDim);
             UIKit.Place(tag.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                         new Vector2(0.5f, 0.5f), new Vector2(0f, -110f), new Vector2(1000f, 46f));
 
