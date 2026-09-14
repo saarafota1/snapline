@@ -129,6 +129,11 @@ namespace Snapline.App
                 _app.StartNewGame();
                 yield return new WaitForSeconds(1.0f);
                 yield return PlayOut(0.2f, 22);
+
+                // Let the last real clear's shouts fade first; fired straight away, its GREAT! and COMBO
+                // showed through the celebration as ghosted text.
+                while (_controller.IsBusy) yield return null;
+                yield return new WaitForSeconds(1.6f);
                 _controller.DebugCelebrate(3);
                 yield return new WaitForSeconds(0.55f);
                 yield return Capture("03_big_clear");

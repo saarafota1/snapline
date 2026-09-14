@@ -73,6 +73,7 @@ namespace Snapline.UI
         private Button _daily;
         private Button _privacy;
         private RectTransform _logo;
+        private RectTransform _bottomBlock;
         private RectTransform _board;
         private readonly Button[] _bottom = new Button[3];
 
@@ -105,7 +106,9 @@ namespace Snapline.UI
             get
             {
                 float canvasHeight = Design.CanvasWidth * Screen.height / Mathf.Max(1f, Screen.width);
-                return Mathf.Clamp(canvasHeight / Layout.DesignHeight, 0.76f, 1.12f);
+                // Never above 1: the block is scaled as a whole now, sizes included, and grown past the
+                // design size the daily panel would run off the sides.
+                return Mathf.Clamp(canvasHeight / Layout.DesignHeight, 0.76f, 1f);
             }
         }
 
@@ -117,6 +120,16 @@ namespace Snapline.UI
             BuildStatusBar();
             BuildLogo();
             BuildBoardPreview();
+
+            // Everything from CONTINUE down lives in one block, scaled as a whole on a shorter screen.
+            // Scaling only the positions — the first version — squeezed the gaps below the 200-tall
+            // buttons on a 16:9 phone, and CONTINUE, the modes and the daily panel overlapped.
+            _bottomBlock = UIKit.Rect("BottomBlock", _root);
+            _bottomBlock.anchorMin = _bottomBlock.anchorMax = _bottomBlock.pivot = new Vector2(0.5f, 0f);
+            _bottomBlock.anchoredPosition = Vector2.zero;
+            _bottomBlock.sizeDelta = new Vector2(Design.CanvasWidth, Layout.DesignHeight);
+            _bottomBlock.localScale = Vector3.one * BottomScale;
+
             BuildPrimary();
             BuildModes();
             BuildDaily();
@@ -188,7 +201,7 @@ namespace Snapline.UI
 
             float aspect = board.rect.width / Mathf.Max(1f, board.rect.height);
             float canvasHeight = Design.CanvasWidth * Screen.height / Mathf.Max(1f, Screen.width);
-            float floor = canvasHeight - Layout.PlayY * BottomScale - Layout.PlayHeight * 0.5f - Layout.BoardGapBelow;
+            float floor = canvasHeight - (Layout.PlayY + Layout.PlayHeight * 0.5f) * BottomScale - Layout.BoardGapBelow;
             float maxHeight = Mathf.Max(0f, floor - Layout.BoardCentreY) * 2f;
             float width = Mathf.Min(Layout.BoardWidth, maxHeight * aspect);
             float height = width / aspect;
@@ -207,8 +220,8 @@ namespace Snapline.UI
         {
             var bottom = new Vector2(0.5f, 0f);
 
-            _continue = CandyUI.SpriteButton("Continue", _root, ArtKit.Ui("tile_pink"), Image.Type.Sliced);
-            CandyUI.Place(_continue, bottom, new Vector2(0f, Layout.PlayY * BottomScale),
+            _continue = CandyUI.SpriteButton("Continue", _bottomBlock, ArtKit.Ui("tile_pink"), Image.Type.Sliced);
+            CandyUI.Place(_continue, bottom, new Vector2(0f, Layout.PlayY),
                           new Vector2(Layout.PlayWidth, Layout.PlayHeight));
             _continue.onClick.AddListener(OnPrimary);
 
@@ -230,13 +243,13 @@ namespace Snapline.UI
             var bottom = new Vector2(0.5f, 0f);
             var size = new Vector2(Layout.ModeWidth, Layout.ModeHeight);
 
-            _levels = CandyUI.SpriteButton("Levels", _root, ArtKit.Ui("tile_purple"), Image.Type.Sliced);
-            CandyUI.Place(_levels, bottom, new Vector2(-Layout.ModeSplit, Layout.ModesY * BottomScale), size);
+            _levels = CandyUI.SpriteButton("Levels", _bottomBlock, ArtKit.Ui("tile_purple"), Image.Type.Sliced);
+            CandyUI.Place(_levels, bottom, new Vector2(-Layout.ModeSplit, Layout.ModesY), size);
             _levels.onClick.AddListener(() => LevelsRequested?.Invoke());
             BuildModeFace(_levels, ArtKit.Ui("icon_levels"), $"{Levels.Count} LEVELS", CandyStyle.OnPurple, out _levelsDetail);
 
-            _endless = CandyUI.SpriteButton("Endless", _root, ArtKit.Ui("tile_cyan"), Image.Type.Sliced);
-            CandyUI.Place(_endless, bottom, new Vector2(Layout.ModeSplit, Layout.ModesY * BottomScale), size);
+            _endless = CandyUI.SpriteButton("Endless", _bottomBlock, ArtKit.Ui("tile_cyan"), Image.Type.Sliced);
+            CandyUI.Place(_endless, bottom, new Vector2(Layout.ModeSplit, Layout.ModesY), size);
             _endless.onClick.AddListener(() => NewGameRequested?.Invoke());
             BuildModeFace(_endless, ArtKit.Ui("icon_infinity"), "ENDLESS", CandyStyle.OnBlue, out _endlessDetail);
         }
@@ -272,8 +285,8 @@ namespace Snapline.UI
             const float panelW = Layout.DailyWidth;
             const float panelH = Layout.DailyHeight;
 
-            _daily = CandyUI.SpriteButton("Daily", _root, ArtKit.Ui("tile_yellow"), Image.Type.Sliced);
-            CandyUI.Place(_daily, bottom, new Vector2(0f, Layout.DailyY * BottomScale), new Vector2(panelW, panelH));
+            _daily = CandyUI.SpriteButton("Daily", _bottomBlock, ArtKit.Ui("tile_yellow"), Image.Type.Sliced);
+            CandyUI.Place(_daily, bottom, new Vector2(0f, Layout.DailyY), new Vector2(panelW, panelH));
             _daily.onClick.AddListener(() => DailyRequested?.Invoke());
 
             Image calendar = CandyUI.Icon("Calendar", _daily.transform, ArtKit.Ui("icon_calendar"));
@@ -330,7 +343,7 @@ namespace Snapline.UI
         private void BuildBottomRow()
         {
             var bottom = new Vector2(0.5f, 0f);
-            float y = Layout.BottomRowY * BottomScale;
+            float y = Layout.BottomRowY;
             const float disc = Design.DiscButtonSize;
 
             _bottom[0] = MakeDiscButton("Best", "circle_gold", "icon_trophy", "BEST", disc);
@@ -348,7 +361,7 @@ namespace Snapline.UI
 
         private Button MakeDiscButton(string name, string disc, string icon, string caption, float size)
         {
-            Button button = CandyUI.SpriteButton(name, _root, ArtKit.Ui(disc));
+            Button button = CandyUI.SpriteButton(name, _bottomBlock, ArtKit.Ui(disc));
             button.GetComponent<Image>().preserveAspect = true;
 
             CandyUI.Place(CandyUI.Icon("Icon", button.transform, ArtKit.Ui(icon)),
