@@ -175,11 +175,9 @@ namespace Snapline.UI
             _play = W.Pill("Play", _puzzle, "pill_red", "PLAY TODAY", W.Bottom, new Vector2(0f, -20f),
                            new Vector2(760f, 164f), 88, CandyStyle.OnPink, sprinkles: true, shine: true, pulse: 0.025f);
             _playCaption = W.Caption(_play);
-            _play.onClick.AddListener(() =>
-            {
-                Fx.Instance?.Sparkles(_play.transform.position, 12, 260f, 80f);
-                PlayRequested?.Invoke();
-            });
+            _countdown = W.Text("Countdown", _play.transform, "", W.Centre, new Vector2(0f, -46f),
+                                new Vector2(720f, 46f), 36, CandyStyle.OnBlue, Color.white);
+            _play.onClick.AddListener(OnPlay);
 
             _done = W.Img("Done", _puzzle, "badge_check", W.Centre, new Vector2(-70f, 150f), new Vector2(110f, 110f));
         }
@@ -299,7 +297,7 @@ namespace Snapline.UI
             _dayRewardText.text = todays.Kind == Daily.RewardKind.Tool ? "+1" : "+" + todays.Amount;
 
             bool todayDone = DailyProgress.TodayDone;
-            _playCaption.text = todayDone ? "PLAY AGAIN" : "PLAY TODAY";
+            SetLocked(todayDone);
             _done.gameObject.SetActive(todayDone);
             _objective.rectTransform.anchoredPosition = new Vector2(todayDone ? 240f : 200f, 150f);
 
@@ -307,6 +305,75 @@ namespace Snapline.UI
             _progressText.text = $"{complete} / 7 COMPLETE";
             for (int i = 0; i < 7; i++)
                 _segments[i].color = DailyProgress.IsDone(weekStart + i) ? Color.white : new Color(0.62f, 0.62f, 0.78f, 1f);
+        }
+
+        // --- locking once done ------------------------------------------------------------------
+
+        private Text _countdown;
+        private bool _locked;
+        private int _lockedDay;
+        private float _nextTick;
+
+        /// <summary>
+        /// One puzzle a day, and once it is done it is done: the button greys out, says COMPLETED, and
+        /// counts down to the next puzzle. It unlocks by itself at midnight, even with the screen open.
+        /// </summary>
+        private void SetLocked(bool locked)
+        {
+            _locked = locked;
+            _lockedDay = DailyProgress.Today;
+
+            _playCaption.text = locked ? "COMPLETED!" : "PLAY TODAY";
+            _playCaption.fontSize = locked ? 72 : 88;
+            _playCaption.rectTransform.anchoredPosition = new Vector2(0f, locked ? 22f : 5f);
+            _countdown.gameObject.SetActive(locked);
+
+            _play.GetComponent<Image>().color = locked ? new Color(0.7f, 0.7f, 0.78f, 1f) : Color.white;
+            if (_play.TryGetComponent(out CandyPress press)) press.Pulse = locked ? 0f : 0.025f;
+            if (_play.TryGetComponent(out ShineSweep shine)) shine.enabled = !locked;
+
+            _nextTick = 0f;
+            UpdateCountdown();
+        }
+
+        private void OnPlay()
+        {
+            if (_locked)
+            {
+                Sound.Deny();
+                Tween.Shake((RectTransform)_play.transform, 16f, 0.4f);
+                Fx.Instance?.Text(_play.transform.position, "COME BACK TOMORROW!", CandyStyle.White, 54f, 1.3f, 200f);
+                return;
+            }
+
+            Fx.Instance?.Sparkles(_play.transform.position, 12, 260f, 80f);
+            PlayRequested?.Invoke();
+        }
+
+        private void Update()
+        {
+            if (!_locked || !IsVisible || Time.unscaledTime < _nextTick) return;
+            _nextTick = Time.unscaledTime + 0.5f;
+
+            // Midnight passed while the screen was open: a new puzzle is out.
+            if (DailyProgress.Today != _lockedDay)
+            {
+                Refresh();
+                if (!_locked) Tween.PopIn(_play.transform, 0f, 0.5f, 0.6f);
+                return;
+            }
+
+            UpdateCountdown();
+        }
+
+        private void UpdateCountdown()
+        {
+            if (!_locked) return;
+            TimeSpan left = DateTime.Today.AddDays(1) - DateTime.Now;
+            if (left < TimeSpan.Zero) left = TimeSpan.Zero;
+            _countdown.text = left.TotalHours >= 1
+                ? $"NEXT PUZZLE IN {(int)left.TotalHours}h {left.Minutes:00}m"
+                : $"NEXT PUZZLE IN {left.Minutes}m {left.Seconds:00}s";
         }
 
         public static string ToolIcon(Tool tool) => tool switch

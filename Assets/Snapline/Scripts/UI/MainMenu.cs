@@ -428,7 +428,8 @@ namespace Snapline.UI
             LevelDef puzzle = Daily.ForDay(today);
             bool done = DailyProgress.TodayDone;
             _dailyDetail.text = done ? "Done today! Back tomorrow" : $"Clear {puzzle.LineTarget} lines";
-            _dailyReward.text = done ? "✓" : $"+{Daily.CompletionCoins}";
+            // A word, not a tick glyph: Heebo may not carry U+2713, and a missing glyph is an empty box.
+            _dailyReward.text = done ? "DONE" : $"+{Daily.CompletionCoins}";
 
             for (int i = 0; i < 7; i++)
             {
