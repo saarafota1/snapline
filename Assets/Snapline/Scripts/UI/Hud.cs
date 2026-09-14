@@ -92,7 +92,8 @@ namespace Snapline.UI
         private CandyText _movesCandy;
         private CandyBar _starBar;
         private readonly Image[] _stars = new Image[3];
-        private int _starsLit = 3;
+        private readonly bool[] _starLit = new bool[3];
+        private readonly bool[] _starPossible = { true, true, true };
         private int _lastLines = -1;
         private int _lastMoves = -1;
 
@@ -247,31 +248,44 @@ namespace Snapline.UI
 
             if (level == null) return;
 
-            int stars = level.StarsFor(movesLeft);
-            _starBar.Set(StarMeter(level, movesLeft), animate: true);
+            // The bar fills with progress toward the goal, and each star lights as the bar reaches
+            // it. The first version drained a bar of "stars still possible", which started every
+            // level full — it read as three stars handed out before a single move.
+            //
+            // A star lights only while it can still be earned, so a star the move budget has already
+            // ruled out stays silver even when the bar passes it. At the finish the bar is full and
+            // the gold stars are exactly the ones awarded.
+            float progress = target <= 0 ? 0f : shown / (float)target;
+            _starBar.Set(progress, animate: true);
+
+            int possible = level.StarsFor(movesLeft);
 
             for (int i = 0; i < 3; i++)
-                _stars[i].sprite = ArtKit.Ui(stars >= i + 1 ? "reward_star_gold" : "reward_star_silver");
-
-            if (stars < _starsLit)
             {
-                Image lost = _stars[Mathf.Clamp(stars, 0, 2)];
-                Tween.Shake(lost.rectTransform, 14f, 0.4f);
-                Sound.StarLost();
-                if (Fx.Instance != null) Fx.Instance.Sparkles(lost.rectTransform.position, 6, 50f, 44f, new Color(0.85f, 0.88f, 1f));
+                bool reached = progress >= (i + 1) / 3f - 0.001f;
+                bool canEarn = possible >= i + 1;
+                bool lit = reached && canEarn;
+
+                _stars[i].sprite = ArtKit.Ui(lit ? "reward_star_gold" : "reward_star_silver");
+                _stars[i].color = lit || !canEarn ? Color.white : new Color(1f, 1f, 1f, 0.55f);
+
+                if (lit && !_starLit[i])
+                {
+                    Tween.PopIn(_stars[i].transform, 0f, 0.45f, 1.8f);
+                    Sound.Star(i + 1);
+                    if (Fx.Instance != null) Fx.Instance.Sparkles(_stars[i].rectTransform.position, 8, 60f, 56f);
+                }
+
+                if (!canEarn && _starPossible[i])
+                {
+                    Tween.Shake(_stars[i].rectTransform, 14f, 0.4f);
+                    Sound.StarLost();
+                    if (Fx.Instance != null) Fx.Instance.Sparkles(_stars[i].rectTransform.position, 6, 50f, 44f, new Color(0.85f, 0.88f, 1f));
+                }
+
+                _starLit[i] = lit;
+                _starPossible[i] = canEarn;
             }
-            _starsLit = stars;
-        }
-
-        public static float StarMeter(LevelDef level, int movesLeft)
-        {
-            int budget = level.MoveBudget;
-            int three = level.ThreeStarSpare;
-            int two = level.TwoStarSpare;
-
-            if (movesLeft >= three) return 2f / 3f + Mathf.InverseLerp(three, budget, movesLeft) / 3f;
-            if (movesLeft >= two) return 1f / 3f + Mathf.InverseLerp(two, three, movesLeft) / 3f;
-            return Mathf.InverseLerp(0f, two, movesLeft) / 3f;
         }
 
         // --- score -----------------------------------------------------------------------------
@@ -287,12 +301,16 @@ namespace Snapline.UI
             _best.text = $"BEST {Format(bestScore)}";
             CandyText bestCandy = _best.GetComponent<CandyText>();
             if (bestCandy != null) bestCandy.Set(CandyStyle.OnBlue);
-            _starsLit = 3;
+            for (int i = 0; i < 3; i++)
+            {
+                _starLit[i] = false;
+                _starPossible[i] = true;
+            }
             _lastLines = -1;
             _lastMoves = -1;
             _comboShown = 0;
             _combo.gameObject.SetActive(false);
-            _starBar.Set(1f, animate: false);
+            _starBar.Set(0f, animate: false);
         }
 
         public void SetScoreImmediate(long score)
