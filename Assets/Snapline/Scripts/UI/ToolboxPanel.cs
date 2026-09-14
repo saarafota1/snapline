@@ -1,40 +1,42 @@
 using System;
 using UnityEngine;
 using UnityEngine.UI;
+using Snapline.App;
 using Snapline.Art;
 using Snapline.Core;
-using Snapline.App;
 using GameKit.Art;
 
 namespace Snapline.UI
 {
     /// <summary>
-    /// The store: three power-ups, what you own, what they cost, and a way to earn more coins.
+    /// The store, from `toolbox.png`: the open toolbox with the tools bursting out of it, then one
+    /// candy-striped row per power-up — what it does, how many you hold, a green plus and its price —
+    /// and a way to earn coins by watching a video.
     ///
-    /// Laid out from `Design/references/toolbox.png`. The one thing in that reference deliberately
-    /// left out is RESTORE PURCHASES, which only means anything if there are real-money purchases to
-    /// restore — and nothing else in the design describes any. A button that restores nothing is
-    /// worse than no button, and adding IAP changes both the store listing and the Data safety form.
+    /// RESTORE PURCHASES is deliberately left out. It only means something if there are real-money
+    /// purchases to restore, nothing else in the design describes any, and a button that restores
+    /// nothing is worse than no button.
     /// </summary>
     public sealed class ToolboxPanel : MonoBehaviour
     {
-        private RectTransform _root;
-        private Text _coinLabel;
-        private readonly Text[] _owned = new Text[3];
-        private readonly Button[] _buy = new Button[3];
+        private static class Layout
+        {
+            public const float TitleY = 180f;
+            public const float HeroY = 398f;
+            public const float SubY = 548f;
+            public const float FirstRowY = 752f;
+            public const float RowStep = 316f;
+            public static readonly Vector2 Row = new Vector2(950f, 292f);
+            public const float EarnFromBottom = 206f;
+        }
 
         public event Action BackRequested;
-
-        /// <summary>Raised when the player asks to watch an ad for coins.</summary>
         public event Action WatchAdRequested;
 
-        public bool IsVisible => _root != null && _root.gameObject.activeSelf;
-
         private static readonly Tool[] Order = { Tool.Undo, Tool.Shuffle, Tool.Hammer };
-
         private static readonly string[] Icons = { "icon_undo", "icon_shuffle", "icon_hammer" };
         private static readonly string[] Names = { "UNDO", "SHUFFLE", "HAMMER" };
-
+        private static readonly CandyStyle[] NameStyles = { CandyStyle.Pink, CandyStyle.Purple, CandyStyle.Blue };
         private static readonly string[] Blurbs =
         {
             "Take back your last move",
@@ -42,138 +44,142 @@ namespace Snapline.UI
             "Remove one block",
         };
 
-        /// <summary>Each tool's name colour, matching the reference.</summary>
-        private static readonly Color[] Tints =
-        {
-            new Color(0.93f, 0.16f, 0.42f, 1f),
-            new Color(0.45f, 0.20f, 0.85f, 1f),
-            new Color(0.13f, 0.55f, 0.92f, 1f),
-        };
+        private RectTransform _root;
+        private RectTransform _hero;
+        private Text _title;
+        private readonly RectTransform[] _rows = new RectTransform[3];
+        private readonly RectTransform[] _icons = new RectTransform[3];
+        private readonly Text[] _owned = new Text[3];
+        private readonly Button[] _price = new Button[3];
+        private Button _watch;
+
+        public bool IsVisible => _root != null && _root.gameObject.activeSelf;
+
+        /// <summary>The watch button, so coins paid for a video can fly out of it.</summary>
+        public Transform WatchButton => _watch != null ? _watch.transform : null;
 
         public void Init(RectTransform parent)
         {
             _root = UIKit.Stretch("Toolbox", parent);
+            Vector2 top = W.Top;
 
-            var top = new Vector2(0.5f, 1f);
+            // Opaque, because the store can open over a run in progress and the board must not show
+            // through it.
+            Image bg = UIKit.Image("Bg", _root, ArtKit.Background(), Color.white);
+            RectTransform bgRect = bg.rectTransform;
+            bgRect.anchorMin = Vector2.zero;
+            bgRect.anchorMax = Vector2.one;
+            bgRect.offsetMin = new Vector2(-200f, -200f);
+            bgRect.offsetMax = new Vector2(200f, 200f);
+            bg.raycastTarget = true;
 
-            Button back = CandyUI.SpriteButton("Back", _root, ArtKit.Ui("circle_pink"));
-            CandyUI.Place(back, top, new Vector2(-438f, -84f), new Vector2(116f, 116f));
-            CandyUI.Place(CandyUI.Icon("Sym", back.transform, ArtKit.Ui("sym_back")),
-                          new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(62f, 62f));
+            Button back = W.Round("Back", _root, "circle_pink", "sym_back", top, new Vector2(-420f, -100f), 124f, 0.5f);
             back.onClick.AddListener(() => BackRequested?.Invoke());
+            CoinPill.Create(_root, top, new Vector2(316f, -84f), 330f, 92f);
 
-            Image coinPill = CandyUI.Icon("CoinPill", _root, ArtKit.Ui("pill_blue"));
-            coinPill.type = Image.Type.Sliced;
-            coinPill.preserveAspect = false;
-            CandyUI.Place(coinPill, top, new Vector2(230f, -84f), new Vector2(300f, 88f));
-            CandyUI.Place(CandyUI.Icon("Coin", coinPill.transform, ArtKit.Ui("coin")),
-                          new Vector2(0f, 0.5f), new Vector2(46f, 0f), new Vector2(66f, 66f));
-            _coinLabel = CandyUI.Label("Coins", coinPill.transform, "0", 44, CandyUI.Caption);
-            CandyUI.Place(_coinLabel, new Vector2(0.5f, 0.5f), new Vector2(14f, 0f), new Vector2(190f, 58f));
+            _title = W.Title("Title", _root, "TOOLBOX", top, new Vector2(0f, -Layout.TitleY), 150);
 
-            CandyUI.Place(CandyUI.Label("Title", _root, "TOOLBOX", 92, CandyUI.Caption),
-                          top, new Vector2(0f, -216f), new Vector2(900f, 110f));
+            W.Starburst(_root, top, new Vector2(0f, -Layout.HeroY), 480f, 18f);
+            Image hero = W.Img("Hero", _root, "reward_toolbox_open", top, new Vector2(0f, -Layout.HeroY), new Vector2(360f, 330f));
+            // The title stays in front of the burst of tools, as the reference layers it.
+            _title.transform.SetAsLastSibling();
+            _hero = hero.rectTransform;
+            CandyPress heroMotion = hero.gameObject.AddComponent<CandyPress>();
+            heroMotion.Bob = 12f;
+            heroMotion.Click = false;
+            Glint glint = hero.gameObject.AddComponent<Glint>();
+            glint.Every = 0.5f;
+            glint.Size = 80f;
 
-            CandyUI.Place(CandyUI.Icon("Hero", _root, ArtKit.Ui("reward_toolbox_open")),
-                          top, new Vector2(0f, -400f), new Vector2(300f, 260f));
+            Button sub = W.Pill("Sub", _root, "pill_purple", "YOUR POWER-UPS", top, new Vector2(0f, -Layout.SubY),
+                                new Vector2(640f, 100f), 48, CandyStyle.OnPurple, sprinkles: true);
+            sub.interactable = false;
 
-            Image sub = CandyUI.Icon("SubPill", _root, ArtKit.Ui("pill_purple"));
-            sub.type = Image.Type.Sliced;
-            sub.preserveAspect = false;
-            CandyUI.Place(sub, top, new Vector2(0f, -556f), new Vector2(520f, 86f));
-            CandyUI.Place(CandyUI.Label("SubText", sub.transform, "YOUR POWER-UPS", 40, CandyUI.Caption),
-                          new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(500f, 56f));
+            // Rows spread into a tall screen's extra height, up to a point, instead of leaving it all
+            // as one empty band above the coins panel.
+            float canvasHeight = Design.CanvasWidth * Screen.height / Mathf.Max(1f, Screen.width);
+            float lastCentre = canvasHeight - Layout.EarnFromBottom - 125f - 40f - Layout.Row.y * 0.5f;
+            float step = Mathf.Clamp((lastCentre - Layout.FirstRowY) / 2f, Layout.RowStep, 350f);
+            for (int i = 0; i < Order.Length; i++) BuildRow(i, -(Layout.FirstRowY + i * step));
 
-            for (int i = 0; i < Order.Length; i++) BuildRow(i, -700f - i * 236f);
-
-            BuildEarnRow(-1420f);
+            BuildEarn();
 
             _root.gameObject.SetActive(false);
         }
 
-        /// <summary>One store row: icon, name, blurb, how many you own, and the price.</summary>
         private void BuildRow(int index, float y)
         {
-            var top = new Vector2(0.5f, 1f);
+            Image card = W.Card("Row" + index, _root, W.Top, new Vector2(0f, y), Layout.Row, 40f);
+            RectTransform row = card.rectTransform;
+            _rows[index] = row;
 
-            Image row = CandyUI.Icon($"Row{index}", _root, ArtKit.Ui("row_cream"));
-            row.type = Image.Type.Sliced;
-            row.preserveAspect = false;
-            CandyUI.Place(row, top, new Vector2(0f, y), new Vector2(940f, 210f));
+            Image box = W.Rounded("IconBox", row, CandyText.Hex(0xFFF1E0), CandyText.Hex(0xF1D5BD), W.Left,
+                                  new Vector2(150f, 0f), new Vector2(200f, 200f), 36f);
+            Image icon = W.Img("Icon", box.transform, Icons[index], W.Centre, Vector2.zero, new Vector2(170f, 170f));
+            _icons[index] = icon.rectTransform;
 
-            CandyUI.Place(CandyUI.Icon("Icon", row.transform, ArtKit.Ui(Icons[index])),
-                          new Vector2(0f, 0.5f), new Vector2(122f, 0f), new Vector2(130f, 130f));
+            Text name = W.Text("Name", row, Names[index], W.Left, new Vector2(460f, 70f), new Vector2(360f, 84f),
+                               68, NameStyles[index], Color.white, TextAnchor.MiddleLeft);
+            name.font = Design.Display;
 
-            Text name = CandyUI.Label("Name", row.transform, Names[index], 54, Tints[index],
-                                      TextAnchor.MiddleLeft, outline: false);
-            CandyUI.Place(name, new Vector2(0f, 1f), new Vector2(440f, -62f), new Vector2(340f, 60f));
+            W.Text("Blurb", row, Blurbs[index], W.Left, new Vector2(500f, 14f), new Vector2(460f, 46f),
+                   34, CandyStyle.Cocoa, Color.white, TextAnchor.MiddleLeft);
 
-            Text blurb = CandyUI.Label("Blurb", row.transform, Blurbs[index], 30, CandyUI.CaptionOnYellow,
-                                       TextAnchor.MiddleLeft, outline: false);
-            CandyUI.Place(blurb, new Vector2(0f, 1f), new Vector2(470f, -110f), new Vector2(400f, 40f));
-
-            _owned[index] = CandyUI.Label("Owned", row.transform, "YOU HAVE 0", 32, CandyUI.CaptionOnYellow,
-                                          TextAnchor.MiddleLeft, outline: false);
-            CandyUI.Place(_owned[index], new Vector2(0f, 0f), new Vector2(450f, 52f), new Vector2(360f, 44f));
-
-            // Price, which is also the buy button — the reference draws the green plus and the price
-            // tag as separate shapes but they do the same thing, and two hit targets for one action
-            // is a way to make a player think they missed.
-            _buy[index] = CandyUI.SpriteButton($"Buy{index}", row.transform, ArtKit.Ui("pill_gold"),
-                                               Image.Type.Sliced);
-            CandyUI.Place(_buy[index], new Vector2(1f, 0f), new Vector2(-140f, 62f), new Vector2(210f, 80f));
-            CandyUI.Place(CandyUI.Icon("Coin", _buy[index].transform, ArtKit.Ui("coin")),
-                          new Vector2(0f, 0.5f), new Vector2(44f, 0f), new Vector2(58f, 58f));
-            CandyUI.Place(CandyUI.Label("Price", _buy[index].transform, Economy.Price(Order[index]).ToString(),
-                                        40, CandyUI.Caption),
-                          new Vector2(0.5f, 0.5f), new Vector2(22f, 0f), new Vector2(140f, 50f));
+            Image have = W.Rounded("Have", row, CandyText.Hex(0xFBE3D2), CandyText.Hex(0xF2CDB6), W.Left,
+                                   new Vector2(440f, -76f), new Vector2(300f, 76f));
+            W.Text("Caption", have.transform, "YOU HAVE", W.Centre, new Vector2(-34f, 2f), new Vector2(200f, 60f),
+                   32, CandyStyle.Cocoa, Color.white);
+            _owned[index] = W.Text("Count", have.transform, "0", W.Centre, new Vector2(94f, 2f), new Vector2(80f, 70f),
+                                   58, CandyStyle.Pink, Color.white);
+            _owned[index].font = Design.Display;
 
             int captured = index;
-            _buy[index].onClick.AddListener(() => Buy(captured));
 
-            Button plus = CandyUI.SpriteButton($"Plus{index}", row.transform, ArtKit.Ui("btn_plus"));
-            CandyUI.Place(plus, new Vector2(1f, 1f), new Vector2(-160f, -66f), new Vector2(86f, 86f));
+            Button plus = W.Round("Plus", row, "btn_plus", null, W.Right, new Vector2(-150f, 70f), 118f);
             plus.onClick.AddListener(() => Buy(captured));
+
+            _price[index] = W.Pill("Price", row, "pill_gold", Economy.Price(Order[index]).ToString(), W.Right,
+                                   new Vector2(-150f, -72f), new Vector2(270f, 96f), 54, CandyStyle.OnGold, "coin", 78f);
+            _price[index].onClick.AddListener(() => Buy(captured));
         }
 
-        private void BuildEarnRow(float y)
+        private void BuildEarn()
         {
-            var top = new Vector2(0.5f, 1f);
+            Image panel = W.Sliced("Earn", _root, "panel_blue", W.Bottom, new Vector2(0f, Layout.EarnFromBottom),
+                                   new Vector2(950f, 250f));
 
-            Image panel = CandyUI.Icon("Earn", _root, ArtKit.Ui("panel_blue"));
-            panel.type = Image.Type.Sliced;
-            panel.preserveAspect = false;
-            CandyUI.Place(panel, top, new Vector2(0f, y), new Vector2(940f, 200f));
+            Image coins = W.Img("Coins", panel.transform, "reward_coins", W.Left, new Vector2(150f, 0f), new Vector2(250f, 216f));
+            coins.gameObject.AddComponent<Glint>().Every = 0.9f;
 
-            CandyUI.Place(CandyUI.Icon("Coins", panel.transform, ArtKit.Ui("reward_coins")),
-                          new Vector2(0f, 0.5f), new Vector2(140f, 0f), new Vector2(200f, 160f));
+            W.Text("Ask", panel.transform, "NEED MORE COINS?", W.Centre, new Vector2(110f, 64f), new Vector2(620f, 70f),
+                   54, CandyStyle.White, Color.white).font = Design.Display;
 
-            CandyUI.Place(CandyUI.Label("Ask", panel.transform, "NEED MORE COINS?", 42, CandyUI.Caption),
-                          new Vector2(0.5f, 1f), new Vector2(80f, -52f), new Vector2(560f, 56f));
-
-            Button watch = CandyUI.SpriteButton("Watch", panel.transform, ArtKit.Ui("pill_green"),
-                                                Image.Type.Sliced);
-            CandyUI.Place(watch, new Vector2(0.5f, 0f), new Vector2(80f, 58f), new Vector2(520f, 92f));
-            CandyUI.Place(CandyUI.Icon("Film", watch.transform, ArtKit.Ui("sym_ad")),
-                          new Vector2(0f, 0.5f), new Vector2(62f, 0f), new Vector2(74f, 74f));
-            CandyUI.Place(CandyUI.Label("Text", watch.transform, $"WATCH  +{Economy.AdReward}", 42,
-                                        CandyUI.Caption),
-                          new Vector2(0.5f, 0.5f), new Vector2(26f, 0f), new Vector2(380f, 54f));
-            watch.onClick.AddListener(() => WatchAdRequested?.Invoke());
+            _watch = W.Pill("Watch", panel.transform, "pill_green", $"WATCH +{Economy.AdReward}", W.Centre,
+                            new Vector2(110f, -46f), new Vector2(580f, 118f), 58, CandyStyle.OnGreen, "sym_ad", 86f,
+                            shine: true, pulse: 0.025f);
+            _watch.onClick.AddListener(() => WatchAdRequested?.Invoke());
         }
 
         private void Buy(int index)
         {
             Tool tool = Order[index];
+            int price = Economy.Price(tool);
 
-            // Refusing loudly beats a button that sometimes silently does nothing. There is nowhere
-            // else to send them yet — the only way to earn is the ad below, already on this screen.
             if (!Wallet.TryBuy(tool))
             {
-                Debug.Log($"[Snapline] cannot afford {tool} ({Economy.Price(tool)}), balance {Wallet.Coins}");
+                Sound.Deny();
+                Tween.Shake((RectTransform)_price[index].transform, 16f, 0.4f);
+                Fx.Instance?.Text(_price[index].transform.position, "NOT ENOUGH COINS", CandyStyle.White, 48f, 1.1f, 180f);
                 return;
             }
 
+            Sound.Purchase();
+            Haptics.Medium();
+            Fx.Instance?.Text(_price[index].transform.position, $"-{price}", CandyStyle.Gold, 64f, 0.9f, 200f);
+            Fx.Instance?.Sparkles(_icons[index].position, 14, 120f, 80f);
+            Fx.Instance?.Sprinkles(_icons[index].position, 10, 900f, 26f);
+            Tween.PopIn(_icons[index], 0f, 0.45f, 1.5f);
+            Tween.Punch(_owned[index].transform, 0.5f, 0.35f);
             Refresh();
         }
 
@@ -181,6 +187,14 @@ namespace Snapline.UI
         {
             Refresh();
             _root.gameObject.SetActive(true);
+            _root.SetAsLastSibling();
+
+            Tween.PopIn(_title.transform, 0f, 0.5f, 0.3f);
+            Tween.PopIn(_hero, 0.08f, 0.6f, 0f);
+            for (int i = 0; i < _rows.Length; i++)
+                Tween.SlideIn(_rows[i], new Vector2(i % 2 == 0 ? -1100f : 1100f, 0f), 0.12f + i * 0.08f, 0.5f);
+            Sound.Swoosh();
+            Tween.Delay(0.35f, Sound.Chest);
         }
 
         public void Hide()
@@ -188,23 +202,14 @@ namespace Snapline.UI
             if (_root != null) _root.gameObject.SetActive(false);
         }
 
-        /// <summary>Pulls every number from the wallet. Called on open and after any purchase.</summary>
         public void Refresh()
         {
-            if (_coinLabel == null) return;
-
-            _coinLabel.text = Hud.Format(Wallet.Coins);
-
             for (int i = 0; i < Order.Length; i++)
             {
-                _owned[i].text = $"YOU HAVE {Wallet.Count(Order[i])}";
-
-                // Unaffordable prices are dimmed rather than disabled: the row still explains what
-                // the tool does and what it costs, which is the point of a store.
-                var img = _buy[i].GetComponent<Image>();
-                img.color = Wallet.CanAfford(Economy.Price(Order[i]))
+                _owned[i].text = Wallet.Count(Order[i]).ToString();
+                _price[i].GetComponent<Image>().color = Wallet.CanAfford(Economy.Price(Order[i]))
                     ? Color.white
-                    : new Color(0.72f, 0.72f, 0.74f, 1f);
+                    : new Color(0.8f, 0.78f, 0.8f, 1f);
             }
         }
     }

@@ -27,6 +27,7 @@ namespace Snapline.Bench
             if (mode == "validate" || mode == "all") Validate();
             if (mode == "combo" || mode == "all") Combos();
             if (mode == "levels" || mode == "all") LevelLadder();
+            if (mode == "daily" || mode == "all") DailyChallenges();
 
             if (_failures > 0)
             {
@@ -309,6 +310,109 @@ namespace Snapline.Bench
         /// a level that is accidentally impossible, or trivially free, shows up here as a number
         /// rather than as a one-star review. A level nobody can beat is a bug, and it is silent.
         /// </summary>
+        /// <summary>
+        /// Play a season of daily challenges and report how many are beatable, for the shipped
+        /// objective and for a few candidates around it.
+        ///
+        /// A daily opens on a board that is already half built, so the ladder's move curve does not
+        /// apply to it — the clutter is both a head start on lines and a way to run out of room. The
+        /// only honest way to pick a line target and a move budget is to play them.
+        /// </summary>
+        private static void DailyChallenges()
+        {
+            Console.WriteLine("=== daily challenge ===");
+            const int days = 90;
+            const int attempts = 30;
+            int firstDay = Daily.DayIndex(new DateTime(2026, 9, 1));
+
+            (int Lines, int Moves)[] candidates =
+            {
+                (Daily.LineTarget, Daily.MoveBudget), (6, 18), (8, 20), (8, 24), (10, 26),
+            };
+
+            foreach ((int lines, int moves) in candidates)
+            {
+                var rates = new double[days];
+                int impossible = 0;
+                double sum = 0, stars = 0;
+                int wins = 0;
+
+                for (int d = 0; d < days; d++)
+                {
+                    LevelDef daily = Daily.ForDay(firstDay + d);
+                    var level = new LevelDef(daily.Number, lines, moves, daily.Seed, daily.StartOccupied, daily.StartColours);
+
+                    int dayWins = 0;
+                    for (int a = 0; a < attempts; a++)
+                    {
+                        var run = new GameRun(DealerConfig.Default(), new ScoreRules());
+                        var player = new AutoPlayer(PlayerSkill.Heuristic);
+                        var rng = new Rng(unchecked((ulong)(d * 7919 + a) * 0x2545F4914F6CDD1DUL));
+
+                        run.StartLevel(level);
+                        while (!run.IsGameOver)
+                        {
+                            if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+                            if (!run.Place(slot, col, row).Accepted) break;
+                        }
+
+                        if (!run.LevelComplete) continue;
+                        dayWins++;
+                        stars += level.StarsFor(run.MovesRemaining);
+                    }
+
+                    wins += dayWins;
+                    rates[d] = dayWins / (double)attempts;
+                    sum += rates[d];
+                    if (dayWins == 0)
+                    {
+                        impossible++;
+                        if (impossible <= 2 && lines == Daily.LineTarget && moves == Daily.MoveBudget)
+                        {
+                            Console.WriteLine($"  never beaten, day {firstDay + d}:\n{new Board().Also(level)}");
+                            var trace = new GameRun(DealerConfig.Default(), new ScoreRules());
+                            var tracer = new AutoPlayer(PlayerSkill.Heuristic);
+                            var trng = new Rng(99UL);
+                            trace.StartLevel(level);
+                            Console.WriteLine($"  at start: gameOver={trace.IsGameOver} failed={trace.LevelFailed} " +
+                                              $"tray={trace.Tray[0].ShapeId},{trace.Tray[1].ShapeId},{trace.Tray[2].ShapeId}");
+                            while (!trace.IsGameOver)
+                            {
+                                if (!tracer.ChooseMove(trace, ref trng, out int ts, out int tc, out int tr))
+                                {
+                                    Console.WriteLine("  autoplayer found no move");
+                                    break;
+                                }
+                                if (!trace.Place(ts, tc, tr).Accepted) { Console.WriteLine("  move rejected"); break; }
+                            }
+                            Console.WriteLine($"  ended: moves={trace.MovesUsed} lines={trace.Score.TotalLinesCleared} " +
+                                              $"failed={trace.LevelFailed}\n{trace.Board}");
+                        }
+                    }
+                }
+
+                Array.Sort(rates);
+                string shipped = lines == Daily.LineTarget && moves == Daily.MoveBudget ? "  <- shipped" : "";
+                Console.WriteLine($"  {lines,2} lines in {moves,2} moves: mean beat {sum / days,6:P0}, " +
+                                  $"worst day {rates[0],5:P0}, 10th pct {rates[days / 10],5:P0}, " +
+                                  $"median {rates[days / 2],5:P0}, avg stars {(wins == 0 ? 0 : stars / wins):F2}, " +
+                                  $"never beaten {impossible}{shipped}");
+
+                if (shipped.Length > 0 && impossible > 0)
+                {
+                    _failures++;
+                    Console.WriteLine($"  FAIL  {impossible} daily challenge(s) were never beaten in {attempts} attempts");
+                }
+            }
+        }
+
+        /// <summary>A board holding a level's opening position, for printing.</summary>
+        private static Board Also(this Board board, LevelDef level)
+        {
+            board.Restore(level.StartOccupied, level.StartColours);
+            return board;
+        }
+
         private static void LevelLadder()
         {
             Console.WriteLine("=== level ladder ===");

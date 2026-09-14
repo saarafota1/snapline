@@ -1,7 +1,7 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using Snapline.Art;
-using GameKit.Art;
 using Snapline.Core;
 using Snapline.UI;
 using Snapline.View;
@@ -9,10 +9,10 @@ using Snapline.View;
 namespace Snapline.App
 {
     /// <summary>
-    /// Joins the rules engine to everything the player can see.
+    /// Joins the rules engine to everything the player can see and hear.
     ///
-    /// All the decisions live in Snapline.Core; this reacts to them. It owns no rules of its own
-    /// beyond how loud a given event should be.
+    /// All the decisions live in Snapline.Core; this reacts to them — how loud a clear is, which card
+    /// comes up when a run ends, what a tool costs when you hold none. It owns no rules of its own.
     /// </summary>
     public sealed class GameController : MonoBehaviour
     {
@@ -21,40 +21,52 @@ namespace Snapline.App
         private TrayView _tray;
         private DragController _drag;
         private Hud _hud;
-        private GameOverPanel _gameOver;
-        private Juice _juice;
-        private Sfx _sfx;
-
+        private ToolsBar _tools;
         private AdController _ads;
 
+        private PausePopup _pause;
+        private NoMovesPopup _noMoves;
+        private GreatRunPopup _greatRun;
+        private LevelEndPopup _levelEnd;
 
         private bool _busy;
+        private bool _hammerArmed;
+        private LevelDef _level;
+        private bool _daily;
 
         public GameRun Run => _run;
+        public bool IsBusy => _busy;
+        public bool IsDaily => _daily;
 
-        private LevelResultPanel _levelResult;
+        public PausePopup PausePopup => _pause;
+        public NoMovesPopup NoMovesPopup => _noMoves;
+        public GreatRunPopup GreatRunPopup => _greatRun;
+        public LevelEndPopup LevelEndPopup => _levelEnd;
 
-        /// <summary>Raised when the player wants the level grid.</summary>
-        public event System.Action LevelsRequested;
+        public event Action MenuRequested;
+        public event Action LevelsRequested;
+        public event Action DailyRequested;
+        public event Action ScoresRequested;
 
-        public void Init(BoardView board, TrayView tray, DragController drag, Hud hud,
-                         GameOverPanel gameOver, Juice juice, Sfx sfx, LevelResultPanel levelResult,
-                         AdController ads)
+        /// <summary>Raised when a run starts in a mode, so the screen can lay the board out for it.</summary>
+        public event Action<GameMode> LayoutRequested;
+
+        public static bool HasSavedRun => SaveSystem.HasSavedRun();
+
+        public void Init(BoardView board, TrayView tray, DragController drag, Hud hud, ToolsBar tools,
+                         AdController ads, PausePopup pause, NoMovesPopup noMoves, GreatRunPopup greatRun,
+                         LevelEndPopup levelEnd)
         {
-            _ads = ads;
-
-            _levelResult = levelResult;
-            _levelResult.NextRequested += () => StartLevel(_run.LevelNumber + 1);
-            _levelResult.RetryRequested += () => StartLevel(_run.LevelNumber);
-            _levelResult.LevelsRequested += () => LevelsRequested?.Invoke();
-
             _board = board;
             _tray = tray;
             _drag = drag;
             _hud = hud;
-            _gameOver = gameOver;
-            _juice = juice;
-            _sfx = sfx;
+            _tools = tools;
+            _ads = ads;
+            _pause = pause;
+            _noMoves = noMoves;
+            _greatRun = greatRun;
+            _levelEnd = levelEnd;
 
             _run = new GameRun(DealerConfig.Default(), new ScoreRules());
 
@@ -63,62 +75,153 @@ namespace Snapline.App
             _drag.PlacementRequested += OnPlacementRequested;
             _drag.PlacementRejected += OnPlacementRejected;
 
-            _gameOver.ReviveRequested += OnReviveRequested;
+            _hud.PauseRequested += OpenPause;
+            _hud.NewBestReached += OnNewBest;
+            _tools.ToolPressed += OnTool;
+
+            _pause.ResumeRequested += Resume;
+            _pause.RestartRequested += Restart;
+            _pause.LevelsRequested += () => Leave(() => (_daily ? DailyRequested : LevelsRequested)?.Invoke());
+            _pause.HomeRequested += () => Leave(() => MenuRequested?.Invoke());
+
+            _noMoves.ShuffleChosen += () => StartCoroutine(Rescue(Route.Shuffle));
+            _noMoves.WatchChosen += () => StartCoroutine(Rescue(Route.Watch));
+            _noMoves.CoinsChosen += () => StartCoroutine(Rescue(Route.Coins));
+            _noMoves.EndChosen += () =>
+            {
+                if (_busy) return;
+                _noMoves.Close(() => StartCoroutine(FinishEndless()));
+            };
 
             // The interstitial runs as the player leaves the results card, never on top of it.
-            _gameOver.PlayAgainRequested += () => StartCoroutine(LeaveGameOver(StartNewRun));
-            _gameOver.MenuRequested += () => StartCoroutine(LeaveGameOver(() => MenuRequested?.Invoke()));
-            _gameOver.ShareRequested += ShareScore;
-            _hud.HomeRequested += () => { SaveNow(); MenuRequested?.Invoke(); };
+            _greatRun.PlayAgainRequested += () => StartCoroutine(LeaveResults(StartNewRun));
+            _greatRun.HomeRequested += () => StartCoroutine(LeaveResults(() => MenuRequested?.Invoke()));
+            _greatRun.ScoresRequested += () => StartCoroutine(LeaveResults(() => ScoresRequested?.Invoke()));
+            _greatRun.ShareRequested += ShareScore;
+
+            _levelEnd.NextRequested += () => StartLevel(_run.LevelNumber + 1);
+            _levelEnd.RetryRequested += Restart;
+            _levelEnd.LevelsRequested += () => (_daily ? DailyRequested : LevelsRequested)?.Invoke();
+            _levelEnd.HomeRequested += () => MenuRequested?.Invoke();
         }
 
-        /// <summary>Raised when the player asks to go back to the front screen.</summary>
-        public event System.Action MenuRequested;
-
-        public static bool HasSavedRun => SaveSystem.HasSavedRun();
-
-        /// <summary>
-        /// Dismiss the end-of-run cards.
-        ///
-        /// They are parented to the canvas rather than to the game screen, so switching screens does
-        /// not take them down — a finished level's result card sat on top of the main menu until
-        /// this was called from every screen transition.
-        /// </summary>
+        /// <summary>Dismisses every card and puts the tools away, for a screen change.</summary>
         public void HideOverlays()
         {
-            _gameOver.Hide();
-            _levelResult.Hide();
+            _pause.HideNow();
+            _noMoves.HideNow();
+            _greatRun.HideNow();
+            _levelEnd.HideNow();
+            Disarm();
         }
 
-        /// <summary>Pick the saved run back up exactly where it was left.</summary>
+        // --- starting runs ---------------------------------------------------------------------
+
+        public void StartNewRun()
+        {
+            HideOverlays();
+            SaveSystem.ClearRun();
+            _level = null;
+            _daily = false;
+
+            _run.StartNew(NewSeed());
+            LayoutRequested?.Invoke(GameMode.Endless);
+
+            _board.SyncFromBoard(_run.Board);
+            _tray.Refresh(_run.Tray, animate: true);
+            _hud.SetMode(GameMode.Endless);
+            _hud.ResetForNewRun(SaveSystem.HighScore);
+            AfterReset();
+            SaveNow();
+        }
+
+        /// <summary>Begin a level. Clamped to the ladder, so "next level" past the end is harmless.</summary>
+        public void StartLevel(int number)
+        {
+            _daily = false;
+            Begin(Levels.Get(Mathf.Clamp(number, 1, Levels.Count)));
+        }
+
+        /// <summary>Today's daily challenge.</summary>
+        public void StartDaily()
+        {
+            _daily = true;
+            Begin(Daily.ForDay(DailyProgress.Today));
+        }
+
+        private void Begin(LevelDef level)
+        {
+            HideOverlays();
+            _level = level;
+
+            _run.StartLevel(level);
+            LayoutRequested?.Invoke(GameMode.Level);
+
+            _board.SyncFromBoard(_run.Board, cascade: level.StartOccupied != 0UL);
+            _tray.Refresh(_run.Tray, animate: true);
+            _hud.SetMode(GameMode.Level);
+            _hud.ResetForNewRun(SaveSystem.HighScore);
+            PushObjective();
+            AfterReset();
+        }
+
+        private void AfterReset()
+        {
+            _tools.Refresh();
+            RefreshSlotPlayability();
+            _drag.InputEnabled = true;
+            _busy = false;
+        }
+
+        /// <summary>Pick the saved endless run back up exactly where it was left.</summary>
         public bool ResumeSavedRun()
         {
             RunSnapshot saved = SaveSystem.LoadRun();
             if (saved == null) return false;
 
-            _gameOver.Hide();
+            HideOverlays();
+            _level = null;
+            _daily = false;
+            _run.StartNew(NewSeed());
             _run.Restore(saved);
+            LayoutRequested?.Invoke(GameMode.Endless);
 
-            _board.SyncFromBoard(_run.Board);
-            _tray.Refresh(_run.Tray, animate: false);
+            _board.SyncFromBoard(_run.Board, cascade: true);
+            _tray.Refresh(_run.Tray, animate: true);
+            _hud.SetMode(GameMode.Endless);
             _hud.ResetForNewRun(SaveSystem.HighScore);
             _hud.SetScoreImmediate(_run.Score.Score);
             _hud.SetCombo(_run.Score.ComboCount, ComboMultiplier(_run.Score.ComboCount));
-            RefreshSlotPlayability();
+            AfterReset();
 
-            _drag.InputEnabled = !_run.IsGameOver;
-            _busy = false;
+            if (_run.IsGameOver)
+            {
+                _drag.InputEnabled = false;
+                StartCoroutine(FinishEndless());
+            }
 
-            if (_run.IsGameOver) ShowGameOver(isNewBest: false);
             return true;
         }
 
-        /// <summary>What a streak of this length is currently worth, for display.</summary>
-        private double ComboMultiplier(int combo) =>
-            System.Math.Min(1.0 + _run.Rules.ComboStep * System.Math.Max(0, combo - 1),
-                            _run.Rules.MaxComboMultiplier);
+        private string LevelName => _daily ? "DAILY" : $"LEVEL {_run.LevelNumber}";
 
-        /// <summary>Offer the current score to the system share sheet.</summary>
+        private void PushObjective()
+        {
+            if (_run.Objective == null) return;
+            _hud.SetObjective(LevelName, _run.Score.TotalLinesCleared, _run.Objective.LineTarget,
+                              _run.MovesRemaining, _level);
+        }
+
+        private double ComboMultiplier(int combo) =>
+            Math.Min(1.0 + _run.Rules.ComboStep * Math.Max(0, combo - 1), _run.Rules.MaxComboMultiplier);
+
+        private static ulong NewSeed()
+        {
+            ulong a = (ulong)DateTime.UtcNow.Ticks;
+            ulong b = (ulong)UnityEngine.Random.Range(int.MinValue, int.MaxValue) & 0xFFFFFFFFUL;
+            return a ^ (b << 21) ^ 0x9E3779B97F4A7C15UL;
+        }
+
         public void ShareScore()
         {
             long score = _run != null && _run.Score.Score > 0 ? _run.Score.Score : SaveSystem.HighScore;
@@ -130,75 +233,10 @@ namespace Snapline.App
                 ? $"I scored {Hud.Format(score)} in Snapline! Think you can beat that?"
                 : "I'm playing Snapline — see if you can beat my score!";
 
-        public void StartNewRun()
-        {
-            _gameOver.Hide();
-            _levelResult.Hide();
-            SaveSystem.ClearRun();
+        // --- moves -----------------------------------------------------------------------------
 
-            _run.StartNew(NewSeed());
-
-            _board.SyncFromBoard(_run.Board);
-            _tray.Refresh(_run.Tray, animate: true);
-            _hud.SetMode(GameMode.Endless);
-            _hud.ResetForNewRun(SaveSystem.HighScore);
-            RefreshSlotPlayability();
-
-            _drag.InputEnabled = true;
-            _busy = false;
-
-            SaveNow();
-        }
-
-        /// <summary>Begin a level. Clamped to the ladder, so "next level" past the end is harmless.</summary>
-        public void StartLevel(int number)
-        {
-            number = Mathf.Clamp(number, 1, Levels.Count);
-
-            _gameOver.Hide();
-            _levelResult.Hide();
-
-            _run.StartLevel(Levels.Get(number));
-
-            _board.SyncFromBoard(_run.Board);
-            _tray.Refresh(_run.Tray, animate: true);
-            _hud.SetMode(GameMode.Level);
-            _hud.ResetForNewRun(SaveSystem.HighScore);
-            PushObjective();
-            RefreshSlotPlayability();
-
-            _drag.InputEnabled = true;
-            _busy = false;
-        }
-
-        private void PushObjective()
-        {
-            if (_run.Objective == null) return;
-            _hud.SetObjective(_run.LevelNumber, _run.Score.TotalLinesCleared, _run.Objective.LineTarget,
-                              _run.MovesRemaining, _run.Objective.MoveBudget);
-        }
-
-        /// <summary>
-        /// A seed that differs every run but is still a plain number, so a player-reported run can
-        /// be reproduced exactly in the console harness from the value stored in their save.
-        /// </summary>
-        private static ulong NewSeed()
-        {
-            ulong a = (ulong)System.DateTime.UtcNow.Ticks;
-            ulong b = (ulong)Random.Range(int.MinValue, int.MaxValue) & 0xFFFFFFFFUL;
-            return a ^ (b << 21) ^ 0x9E3779B97F4A7C15UL;
-        }
-
-        // --- moves --------------------------------------------------------------------------
-
-        /// <summary>
-        /// Play a move without going through the drag input. Used by the screenshot and smoke
-        /// harnesses so they exercise the real animation and scoring path rather than a shortcut.
-        /// </summary>
+        /// <summary>Play a move without the drag input. The harnesses use it to exercise the real path.</summary>
         public void PlaceProgrammatically(int slot, int col, int row) => OnPlacementRequested(slot, col, row);
-
-        /// <summary>True while a move is still animating and input should be ignored.</summary>
-        public bool IsBusy => _busy;
 
         private void OnPlacementRequested(int slot, int col, int row)
         {
@@ -218,25 +256,41 @@ namespace Snapline.App
         {
             _busy = true;
 
+            int lines = move.Placement.LinesCleared;
+            int combo = move.Score.ComboCount;
+
             _board.AnimatePlacement(move.Placement.PieceMask, move.Colour, move.Placement.ClearedMask);
             _tray.Piece(move.TraySlot).Clear();
+            Sound.Place();
 
-            int lines = move.Placement.LinesCleared;
+            Fx fx = Fx.Instance;
 
             if (lines > 0)
             {
-                _board.AnimateClear(move.Placement);
-                _juice.Shake(ShakeFor(lines, move.Score.ComboCount));
-                ShowClearPopups(move);
+                ShapeDef shape = Shapes.Get(move.ShapeId);
+                int originCol = Mathf.Clamp(move.Col + shape.Width / 2, 0, Board.Width - 1);
+                int originRow = Mathf.Clamp(move.Row + shape.Height / 2, 0, Board.Height - 1);
 
-                _sfx.PlayClear(lines);
-                _sfx.PlayCombo(move.Score.ComboCount);
-                if (move.PerfectClear) _sfx.PlayPerfect();
+                _board.AnimateClear(move.Placement, originCol, originRow);
+                fx?.Shake(ShakeFor(lines, combo));
+                Sound.Clear(lines, combo);
+                Sound.Combo(combo);
+                if (lines >= 2 || combo >= 3) Haptics.Heavy();
+                else Haptics.Medium();
+
+                ShowClearShouts(move, originCol, originRow);
+
+                if (move.PerfectClear)
+                {
+                    Sound.Perfect();
+                    fx?.ScreenFlash(0.5f);
+                    fx?.Confetti(90);
+                }
             }
             else
             {
-                _juice.Shake(0.06f);
-                _sfx.PlayPlace();
+                Haptics.Light();
+                fx?.Shake(0.05f);
             }
 
             _hud.SetScore(_run.Score.Score);
@@ -244,8 +298,7 @@ namespace Snapline.App
 
             if (move.TrayRefilled)
             {
-                // Let the explosion breathe before three new pieces slide in underneath it.
-                yield return new WaitForSeconds(lines > 0 ? 0.20f : 0.06f);
+                yield return new WaitForSeconds(lines > 0 ? 0.22f : 0.08f);
                 _tray.Refresh(_run.Tray, animate: true);
             }
 
@@ -265,200 +318,74 @@ namespace Snapline.App
                 yield break;
             }
 
-            _sfx.PlayGameOver();
-            yield return new WaitForSeconds(0.45f);
-            yield return _board.PlayGameOverSweep();
-            yield return new WaitForSeconds(0.25f);
+            // Out of room. A shudder first, so the card arriving reads as a consequence.
+            Sound.Invalid();
+            fx?.Shake(0.35f);
+            yield return new WaitForSeconds(0.6f);
 
-            bool isNewBest = SaveSystem.SubmitScore(_run.Score.Score);
-
-
-            if (isNewBest) Telemetry.NewHighScore(_run.Score.Score);
-            SaveSystem.RecordFinishedRun(_run.Score.Score, _run.Score.TotalLinesCleared, _run.Score.BestCombo);
-            SaveSystem.ClearRun();
-
-            // Count the run before the card appears, so the pacing sees it. The interstitial itself
-            // waits until the player leaves the card — landing one on top of their final score, and
-            // over the rescue offer, would be the worst possible moment for it.
-            _ads?.RecordGameFinished();
-
-            ShowGameOver(isNewBest);
-        }
-
-        private IEnumerator ResolveLevelEnd(MoveResult move)
-        {
-            LevelDef level = Levels.Get(_run.LevelNumber);
-
-            if (move.LevelComplete)
+            if (_run.RevivesUsed < AdController.MaxRevivesPerRun)
             {
-                _sfx.PlayPerfect();
-                _juice.Shake(0.5f);
-
-                // The winning clear should be seen before the card covers it.
-                yield return new WaitForSeconds(0.85f);
-
-                int stars = level.StarsFor(_run.MovesRemaining);
-                SaveSystem.RecordLevelResult(level.Number, stars);
-                Telemetry.LevelCompleted();
-                SaveSystem.SubmitScore(_run.Score.Score);
-
-                _levelResult.Show(level.Number, complete: true, stars, _run.Score.TotalLinesCleared,
-                                  level.LineTarget, _run.MovesUsed, _run.Score.Score,
-                                  hasNextLevel: level.Number < Levels.Count);
+                _noMoves.Show(Wallet.Count(Tool.Shuffle), _ads != null && _ads.CanOfferRevive(_run));
                 yield break;
             }
 
-            _sfx.PlayGameOver();
-            yield return new WaitForSeconds(0.4f);
-            yield return _board.PlayGameOverSweep();
-            yield return new WaitForSeconds(0.2f);
-
-            _levelResult.Show(level.Number, complete: false, 0, _run.Score.TotalLinesCleared,
-                              level.LineTarget, _run.MovesUsed, _run.Score.Score, hasNextLevel: false);
+            yield return FinishEndless();
         }
 
-        private void OnPlacementRejected(int slot)
-        {
-            if (slot < 0 || slot >= _tray.SlotCount) return;
-            _sfx.PlayInvalid();
-            StartCoroutine(_tray.ReturnToSlot(slot));
-        }
-
-        // --- feedback -----------------------------------------------------------------------
-
-        /// <summary>
-        /// Shake grows with the size of the clear and again with the combo, but is clamped: past a
-        /// point more shake stops reading as impact and starts reading as a bug.
-        /// </summary>
         private static float ShakeFor(int lines, int combo)
         {
-            float baseAmount = 0.20f + 0.14f * (lines - 1);
-            float comboAmount = 0.04f * Mathf.Max(0, combo - 1);
-            return Mathf.Min(0.85f, baseAmount + comboAmount);
+            float amount = 0.22f + 0.15f * (lines - 1) + 0.05f * Mathf.Max(0, combo - 1);
+            return Mathf.Min(0.85f, amount);
         }
 
         /// <summary>
-        /// Everything the player is told about a clear, stacked vertically over the piece they just
-        /// dropped. Deliberately layered rather than one message: what happened (DOUBLE!), how well
-        /// they are doing (GREAT!), what the streak is worth (x2.5 POINTS) and what they earned
-        /// (+324) are four different pieces of information, and merging them loses all four.
-        ///
-        /// Each line is gated, so an ordinary single-line clear stays quiet and a big one is loud.
+        /// What the player is told about a clear, over where it happened: the size of the clear, the
+        /// points, and the streak. Three shouts at most — more than that is noise nobody reads.
         /// </summary>
-        private void ShowClearPopups(in MoveResult move)
+        private void ShowClearShouts(in MoveResult move, int originCol, int originRow)
         {
+            Fx fx = Fx.Instance;
+            if (fx == null) return;
+
             int lines = move.Placement.LinesCleared;
             int combo = move.Score.ComboCount;
-            double totalMultiplier = move.Score.SimultaneousMultiplier * move.Score.ComboMultiplier;
-
-            Vector2 centre = PopupAnchor(move);
+            Vector2 local = _board.CellToLocal(originCol, originRow);
+            Vector3 At(float dy) => _board.Grid.TransformPoint(local + new Vector2(0f, dy));
 
             string headline = lines switch
             {
-                1 => "CLEAR!",
+                1 => combo >= 3 ? PraiseFor(combo) : "NICE!",
                 2 => "DOUBLE!",
                 3 => "TRIPLE!",
                 4 => "QUAD!",
-                5 => "MASSIVE!",
-                _ => "UNREAL!",
+                _ => "INCREDIBLE!",
             };
 
-            Color headlineColour = lines >= 3 ? new Color(1f, 0.78f, 0.25f) : Color.white;
-            _juice.Popup(centre, headline, headlineColour, 62f + 10f * Mathf.Min(lines, 5));
-
-            _juice.Popup(centre + new Vector2(0f, -84f), $"+{Hud.Format(move.Score.Total)}",
-                         new Color(0.75f, 0.95f, 1f), 52f, 0.85f);
-
-            // Double points and beyond gets said out loud — otherwise the multiplier only ever
-            // shows up as a number that got bigger for no visible reason.
-            if (totalMultiplier >= 1.95)
-            {
-                _juice.Popup(centre + new Vector2(0f, -158f), $"x{totalMultiplier:0.#} POINTS",
-                             new Color(1f, 0.85f, 0.35f), 48f, 0.9f);
-            }
+            CandyStyle style = lines >= 3 ? CandyStyle.Gold : lines == 2 ? CandyStyle.Cyan : CandyStyle.White;
+            fx.Text(At(40f), headline, style, 96f + 12f * Mathf.Min(lines, 4), 1.05f, 200f);
+            fx.Text(At(-70f), $"+{Hud.Format(move.Score.Total)}", CandyStyle.White, 64f, 0.95f, 160f, 0.08f);
 
             if (combo >= 2)
-            {
-                _juice.Popup(centre + new Vector2(0f, 92f), $"COMBO x{combo}",
-                             new Color(1f, 0.55f, 0.85f), 54f, 1.0f);
-            }
-
-            string praise = PraiseFor(lines, combo);
-            if (praise != null)
-            {
-                _juice.Popup(centre + new Vector2(0f, 176f), praise, new Color(0.6f, 1f, 0.75f),
-                             58f + 6f * Mathf.Min(combo, 6), 1.15f);
-            }
+                fx.Text(At(150f), $"COMBO x{combo}", CandyStyle.Gold, 70f + 4f * Mathf.Min(combo, 8), 1.1f, 180f, 0.14f);
 
             if (move.PerfectClear)
-            {
-                _juice.Popup(centre + new Vector2(0f, 258f), "PERFECT CLEAR", Palette.Accent, 66f, 1.4f);
-                _juice.Shake(0.9f);
-            }
+                fx.Text(_board.CentreWorld, "PERFECT!", CandyStyle.Gold, 150f, 1.6f, 120f, 0.25f);
         }
 
-        /// <summary>
-        /// A word for how well that went, or null when the move does not deserve one.
-        ///
-        /// Driven by the streak first and the size of the clear second, so praise escalates as the
-        /// player keeps something going rather than firing on every lucky single line.
-        /// </summary>
-        private static string PraiseFor(int lines, int combo)
+        private static string PraiseFor(int combo)
         {
             if (combo >= 10) return "LEGENDARY!";
             if (combo >= 8) return "UNSTOPPABLE!";
             if (combo >= 6) return "ON FIRE!";
             if (combo >= 4) return "AMAZING!";
-            if (combo >= 3) return "GREAT!";
-            if (combo >= 2) return "NICE!";
-
-            // No streak, but a big single move still deserves acknowledgement.
-            return lines >= 3 ? "SUPERB!" : null;
+            return "GREAT!";
         }
 
-        /// <summary>
-        /// Where the popup stack is centred: over the piece the player just dropped, rather than a
-        /// fixed spot, so their eye is already looking at it.
-        ///
-        /// Clamped vertically because the stack reaches well above and below this point. A clear on
-        /// the top row would otherwise throw "GREAT!" and the combo badge straight over the score,
-        /// and one on the bottom row would push the points readout behind the tray.
-        /// </summary>
-        private Vector2 PopupAnchor(in MoveResult move)
+        private void OnPlacementRejected(int slot)
         {
-            ShapeDef shape = Shapes.Get(move.ShapeId);
-
-            int cx = Mathf.Clamp(move.Col + Mathf.RoundToInt(shape.Width * 0.5f - 0.5f), 0, Board.Width - 1);
-            int cy = Mathf.Clamp(move.Row + Mathf.RoundToInt(shape.Height * 0.5f - 0.5f), 0, Board.Height - 1);
-
-            Vector3 world = _board.CellToWorld(cx, cy);
-            Vector2 local = _juice.transform.InverseTransformPoint(world);
-
-            local.y = Mathf.Clamp(local.y, _popupAnchorMinY, _popupAnchorMaxY);
-            return local;
-        }
-
-        /// <summary>
-        /// Vertical band the popup stack may be centred in, in canvas units from the screen centre.
-        /// Set from the real layout by Bootstrap, because the usable height depends on the display's
-        /// aspect ratio and safe area — hardcoding it assumed one phone shape.
-        /// </summary>
-        private float _popupAnchorMaxY = 282f;
-        private float _popupAnchorMinY = -402f;
-
-        /// <summary>
-        /// Bound the popup stack to the gap between the HUD and the tray. The stack reaches +258
-        /// above its anchor and -158 below, and the labels drift up ~80 units as they fade.
-        /// </summary>
-        public void SetPopupBounds(float safeHeight, float hudHeight, float trayReserve)
-        {
-            float half = safeHeight * 0.5f;
-            _popupAnchorMaxY = half - hudHeight - 270f;
-            _popupAnchorMinY = -half + trayReserve + 170f;
-
-            // On a short screen the two can cross; collapse to the midpoint rather than inverting.
-            if (_popupAnchorMinY > _popupAnchorMaxY)
-                _popupAnchorMinY = _popupAnchorMaxY = (_popupAnchorMinY + _popupAnchorMaxY) * 0.5f;
+            if (slot < 0 || slot >= _tray.SlotCount) return;
+            Sound.Invalid();
+            StartCoroutine(_tray.ReturnToSlot(slot));
         }
 
         private void RefreshSlotPlayability()
@@ -466,36 +393,254 @@ namespace Snapline.App
             for (int i = 0; i < _tray.SlotCount && i < _run.Tray.Length; i++)
             {
                 if (_run.Tray[i].IsEmpty) continue;
-                bool fits = Board.CanPlaceAnywhere(_run.Board.Occupied, _run.Tray[i].Shape);
-                _tray.SetSlotPlayable(i, fits);
+                _tray.SetSlotPlayable(i, Board.CanPlaceAnywhere(_run.Board.Occupied, _run.Tray[i].Shape));
             }
         }
 
-        private void ShowGameOver(bool isNewBest)
+        private void OnNewBest()
         {
-            _drag.InputEnabled = false;
-            _gameOver.Show(_run.Score.Score, SaveSystem.HighScore, isNewBest,
-                           _run.Score.TotalLinesCleared, _run.Score.BestCombo, _run.Score.TotalPiecesPlaced,
-                           reviveAvailable: _ads != null && _ads.CanOfferRevive(_run));
+            Fx fx = Fx.Instance;
+            if (fx == null) return;
+            fx.Text(_hud.ScoreTarget.position + new Vector3(0f, -1f, 0f) * 0f, "NEW BEST!", CandyStyle.Gold, 100f, 1.6f, -140f);
+            fx.Confetti(60);
+            Sound.NewBest();
+            Haptics.Heavy();
+        }
+
+        // --- level end -------------------------------------------------------------------------
+
+        private IEnumerator ResolveLevelEnd(MoveResult move)
+        {
+            int lines = _run.Score.TotalLinesCleared;
+
+            if (move.LevelComplete)
+            {
+                Sound.Win();
+                Fx.Instance?.Confetti(70);
+                Fx.Instance?.Text(_board.CentreWorld, "COMPLETE!", CandyStyle.Gold, 130f, 1.2f, 100f, 0.1f);
+                Haptics.Heavy();
+
+                // The winning clear should be seen before the card covers it.
+                yield return new WaitForSeconds(1.0f);
+
+                int stars = _level.StarsFor(_run.MovesRemaining);
+
+                if (_daily)
+                {
+                    CompleteDaily(stars, lines);
+                    yield break;
+                }
+
+                int number = _run.LevelNumber;
+                int previous = SaveSystem.StarsForLevel(number);
+                SaveSystem.RecordLevelResult(number, stars);
+                SaveSystem.SubmitScore(_run.Score.Score);
+                Telemetry.LevelCompleted();
+
+                int coins = previous == 0 || stars > previous ? Economy.LevelReward : Economy.LevelReplayReward;
+                int before = Wallet.Coins;
+                CoinPill.HoldRoll(3f);
+                Wallet.Grant(coins);
+
+                _levelEnd.ShowComplete(number, stars, lines, _run.MovesUsed, previous > 0 && stars > previous,
+                                       coins, before, number < Levels.Count);
+                yield break;
+            }
+
+            Sound.GameOver();
+            yield return new WaitForSeconds(0.4f);
+            yield return _board.PlayGameOverSweep();
+            yield return new WaitForSeconds(0.25f);
+
+            _levelEnd.ShowFailed(LevelName, lines, _run.Objective.LineTarget, _daily);
         }
 
         /// <summary>
-        /// The player asked for a rescue. Play the ad, and only then clear the board.
-        ///
-        /// If the ad does not complete — closed early, no fill, network error — nothing happens
-        /// except the offer going away. The run stays over and the score stands; a failed ad must
-        /// never cost the player anything, and must never pay out either.
+        /// Pays out a finished daily: the completion coins plus that weekday's reward — but only the
+        /// first time today. A replay is still a win, and says so, but pays nothing.
         /// </summary>
-        /// <summary>
-        /// Run the paced interstitial, then do whatever the player actually asked for.
-        ///
-        /// The action always happens, whether or not an ad appeared or succeeded. Gating navigation
-        /// on an ad is how a game ends up with players stuck on a results screen because a network
-        /// call hung.
-        /// </summary>
-        private IEnumerator LeaveGameOver(System.Action then)
+        private void CompleteDaily(int stars, int lines)
         {
-            _gameOver.Hide();
+            int today = DailyProgress.Today;
+            bool first = DailyProgress.MarkDone(today);
+            Daily.Reward reward = Daily.RewardFor(Daily.WeekdayOf(today));
+
+            int before = Wallet.Coins;
+            int coins = 0;
+
+            if (first)
+            {
+                coins = Daily.CompletionCoins;
+                switch (reward.Kind)
+                {
+                    case Daily.RewardKind.Coins:
+                        coins += reward.Amount;
+                        break;
+                    case Daily.RewardKind.Tool:
+                        Wallet.GrantTool(reward.Tool, reward.Amount);
+                        break;
+                    case Daily.RewardKind.Chest:
+                        coins += reward.Amount;
+                        Wallet.GrantTool(Tool.Undo);
+                        Wallet.GrantTool(Tool.Shuffle);
+                        Wallet.GrantTool(Tool.Hammer);
+                        break;
+                }
+
+                CoinPill.HoldRoll(3f);
+                Wallet.Grant(coins);
+            }
+
+            _levelEnd.ShowDaily(stars, lines, _run.MovesUsed, first, coins, before, reward, DailyProgress.Streak());
+        }
+
+        // --- the endless finish ----------------------------------------------------------------
+
+        private enum Route { Shuffle, Watch, Coins }
+
+        /// <summary>Trigger the video rescue as if its button were tapped. Used by the smoke harness.</summary>
+        public void RequestRevive() => StartCoroutine(Rescue(Route.Watch));
+
+        /// <summary>
+        /// Rescue a dead board by one of the three routes on the NO MORE MOVES card. Whatever the
+        /// route, the rescue is the same, and there is one per run: space is cleared and a fresh tray
+        /// dealt. A route that fails — no shuffle held, not enough coins, an ad that did not finish —
+        /// costs nothing and leaves the card up.
+        /// </summary>
+        private IEnumerator Rescue(Route route)
+        {
+            if (_busy || !_run.IsGameOver || _run.Mode != GameMode.Endless) yield break;
+            _busy = true;
+
+            switch (route)
+            {
+                case Route.Shuffle:
+                    if (!Wallet.TryUseTool(Tool.Shuffle))
+                    {
+                        _noMoves.Refuse(NoMovesPopup.Choice.Shuffle);
+                        _busy = false;
+                        yield break;
+                    }
+                    break;
+
+                case Route.Coins:
+                    if (!Wallet.TrySpend(Economy.ContinuePrice))
+                    {
+                        _noMoves.Refuse(NoMovesPopup.Choice.Coins);
+                        _busy = false;
+                        yield break;
+                    }
+                    Sound.Purchase();
+                    break;
+
+                case Route.Watch:
+                    if (_ads == null)
+                    {
+                        _busy = false;
+                        yield break;
+                    }
+
+                    _noMoves.SetWatchBusy(true);
+                    System.Threading.Tasks.Task<bool> watching = _ads.ShowRewardedAsync();
+                    while (!watching.IsCompleted) yield return null;
+                    _noMoves.SetWatchBusy(false);
+
+                    if (!watching.Result)
+                    {
+                        // Do not offer it again this run; a second failure reads as a broken button.
+                        _noMoves.SetWatchAvailable(false);
+                        _busy = false;
+                        yield break;
+                    }
+
+                    Telemetry.RewardedAdWatched();
+                    break;
+            }
+
+            bool closed = false;
+            _noMoves.Close(() => closed = true);
+            while (!closed) yield return null;
+
+            ulong cleared = _run.Revive(AdController.ReviveRowsCleared);
+            if (cleared == 0UL)
+            {
+                _busy = false;
+                yield return FinishEndless();
+                yield break;
+            }
+
+            var rescue = new PlaceResult { ClearedMask = cleared };
+            for (int r = 0; r < Board.Height; r++)
+                if ((cleared & Bits.RowMask[r]) != 0UL) rescue.ClearedRowFlags |= 1 << r;
+
+            _board.AnimateClear(rescue, Board.Width / 2, Board.Height / 2);
+            Fx.Instance?.Shake(0.6f);
+            Fx.Instance?.Text(_board.CentreWorld, "SAVED!", CandyStyle.Gold, 140f, 1.3f, 120f);
+            Fx.Instance?.Confetti(50);
+            Sound.Clear(3, 1);
+            Sound.Prize();
+            Haptics.Heavy();
+
+            yield return new WaitForSeconds(0.5f);
+
+            _board.SyncFromBoard(_run.Board);
+            _tray.Refresh(_run.Tray, animate: true);
+            _hud.SetCombo(_run.Score.ComboCount, ComboMultiplier(_run.Score.ComboCount));
+            RefreshSlotPlayability();
+            _tools.Refresh();
+
+            _drag.InputEnabled = true;
+            _busy = false;
+            SaveNow();
+        }
+
+        private IEnumerator FinishEndless()
+        {
+            _busy = true;
+            Sound.GameOver();
+            yield return _board.PlayGameOverSweep();
+            yield return new WaitForSeconds(0.3f);
+
+            long score = _run.Score.Score;
+            long previousBest = SaveSystem.HighScore;
+            bool newBest = score > previousBest;
+            if (newBest) Telemetry.NewHighScore(score);
+
+            int lines = _run.Score.TotalLinesCleared;
+            int bestCombo = _run.Score.BestCombo;
+            SaveSystem.RecordFinishedRun(score, lines, bestCombo);
+            SaveSystem.ClearRun();
+
+            int coins = Economy.EndlessReward(lines, bestCombo);
+            int before = Wallet.Coins;
+            CoinPill.HoldRoll(3.5f);
+            Wallet.Grant(coins);
+
+            // Counted before the card appears, so the pacing sees it. The interstitial itself waits
+            // until the player leaves the card.
+            _ads?.RecordGameFinished();
+
+            _busy = false;
+            _greatRun.Show(score, previousBest, newBest, lines, bestCombo, coins, before, RankOf(score));
+        }
+
+        private static int RankOf(long score)
+        {
+            var table = SaveSystem.BestScores();
+            for (int i = 0; i < table.Count; i++)
+                if (table[i].Score == score) return i + 1;
+            return 0;
+        }
+
+        /// <summary>
+        /// Close the results card, run the paced interstitial, then do what the player asked. The
+        /// action always happens; gating navigation on an ad strands players when a network hangs.
+        /// </summary>
+        private IEnumerator LeaveResults(Action then)
+        {
+            bool closed = false;
+            _greatRun.Close(() => closed = true);
+            while (!closed) yield return null;
 
             if (_ads != null)
             {
@@ -506,95 +651,224 @@ namespace Snapline.App
             then?.Invoke();
         }
 
-        /// <summary>Trigger the rescue as if the button were tapped. Used by the smoke harness.</summary>
+        // --- pause -----------------------------------------------------------------------------
 
-
-        public void RequestRevive() => OnReviveRequested();
-
-
-
-        private void OnReviveRequested()
+        public void OpenPause()
         {
-            if (_ads == null || _busy) return;
-            StartCoroutine(ReviveFlow());
+            if (_busy || _run.IsGameOver || _pause.IsVisible) return;
+
+            Disarm();
+            _drag.InputEnabled = false;
+
+            string info = _run.Mode == GameMode.Level
+                ? $"{Mathf.Min(_run.Score.TotalLinesCleared, _run.Objective.LineTarget)} / {_run.Objective.LineTarget} LINES   •   {_run.MovesRemaining} MOVES LEFT"
+                : $"SCORE {Hud.Format(_run.Score.Score)}   •   BEST {Hud.Format(Math.Max(SaveSystem.HighScore, _run.Score.Score))}";
+
+            string title = _run.Mode == GameMode.Level ? LevelName : "ENDLESS";
+            _pause.ShowInGame(title, info, _daily ? "DAILY" : "LEVELS");
         }
 
-        private IEnumerator ReviveFlow()
+        private void Resume()
         {
-            _busy = true;
-            _gameOver.SetReviveBusy(true);
+            _pause.Close(() => _drag.InputEnabled = !_run.IsGameOver && !_hammerArmed);
+        }
 
-            System.Threading.Tasks.Task<bool> watching = _ads.ShowRewardedAsync();
-            while (!watching.IsCompleted) yield return null;
+        private void Restart()
+        {
+            _pause.HideNow();
+            _levelEnd.HideNow();
 
-            bool earned = watching.Result;
+            if (_run.Mode == GameMode.Endless) StartNewRun();
+            else if (_daily) StartDaily();
+            else StartLevel(_run.LevelNumber);
+        }
 
+        private void Leave(Action then)
+        {
+            SaveNow();
+            _pause.Close(then);
+        }
 
-            if (earned) Telemetry.RewardedAdWatched();
-            _gameOver.SetReviveBusy(false);
+        // --- tools -----------------------------------------------------------------------------
 
-            if (!earned)
+        private void OnTool(Tool tool)
+        {
+            if (_busy || _run.IsGameOver || _pause.IsVisible) return;
+
+            if (_hammerArmed)
             {
-                // Do not offer again this run; a second failure reads as a broken button.
-                _gameOver.SetReviveAvailable(false);
-                _busy = false;
-                yield break;
+                Disarm();
+                if (tool == Tool.Hammer)
+                {
+                    Sound.Close();
+                    return;
+                }
             }
 
-            ulong cleared = _run.Revive(AdController.ReviveRowsCleared);
+            RectTransform button = _tools.ButtonRect(tool);
 
-            if (cleared == 0UL)
+            if (tool == Tool.Undo && !_run.CanUndo)
             {
-                _gameOver.SetReviveAvailable(false);
-                _busy = false;
-                yield break;
+                Refuse(button, "NOTHING TO UNDO");
+                return;
             }
 
-            _gameOver.Hide();
+            if (Wallet.Count(tool) <= 0 && !Buy(tool, button)) return;
 
-            // Reuse the ordinary clear effect, so a rescue reads as the game doing something
-            // generous rather than as a menu closing.
-            var rescue = new PlaceResult { ClearedMask = cleared };
-            _board.AnimateClear(rescue);
-            _juice.Shake(0.6f);
-            _sfx.PlayClear(3);
+            switch (tool)
+            {
+                case Tool.Undo:
+                    UseUndo();
+                    break;
+                case Tool.Shuffle:
+                    StartCoroutine(UseShuffle());
+                    break;
+                case Tool.Hammer:
+                    Arm();
+                    break;
+            }
+        }
 
-            yield return new WaitForSeconds(0.45f);
+        /// <summary>Buys a tool on the spot when none is held, rather than leaving the run for a store.</summary>
+        private bool Buy(Tool tool, RectTransform button)
+        {
+            int price = Economy.Price(tool);
+            if (!Wallet.TrySpend(price))
+            {
+                Refuse(button, $"NEED {price} COINS");
+                CoinPill pill = CoinPill.Visible();
+                if (pill != null) Tween.Shake((RectTransform)pill.transform, 14f, 0.4f);
+                return false;
+            }
+
+            Wallet.GrantTool(tool);
+            Sound.Purchase();
+            Fx.Instance?.Text(button.position, $"-{price}", CandyStyle.Gold, 60f, 0.9f, 200f);
+            return true;
+        }
+
+        private static void Refuse(RectTransform button, string why)
+        {
+            Sound.Deny();
+            Tween.Shake(button, 16f, 0.4f);
+            Fx.Instance?.Text(button.position, why, CandyStyle.White, 46f, 1.2f, 260f);
+        }
+
+        private void UseUndo()
+        {
+            if (!Wallet.TryUseTool(Tool.Undo) || !_run.Undo()) return;
 
             _board.SyncFromBoard(_run.Board);
+            _board.Shimmer();
             _tray.Refresh(_run.Tray, animate: true);
+            _hud.SetScoreImmediate(_run.Score.Score);
             _hud.SetCombo(_run.Score.ComboCount, ComboMultiplier(_run.Score.ComboCount));
+            PushObjective();
             RefreshSlotPlayability();
 
-            _drag.InputEnabled = true;
-            _busy = false;
-
+            Sound.Rewind();
+            Haptics.Medium();
+            Fx.Instance?.Text(_board.CentreWorld, "UNDO!", CandyStyle.Cyan, 110f, 0.9f, 120f);
             SaveNow();
         }
 
-        // --- persistence --------------------------------------------------------------------
+        private IEnumerator UseShuffle()
+        {
+            if (!Wallet.TryUseTool(Tool.Shuffle)) yield break;
+
+            _busy = true;
+            Sound.Whoosh();
+            Haptics.Medium();
+
+            yield return _tray.SpinOut(() =>
+            {
+                _run.ShuffleTray();
+                _tray.Refresh(_run.Tray, animate: true);
+            });
+
+            Fx.Instance?.Text(_tools.ButtonRect(Tool.Shuffle).position, "SHUFFLE!", CandyStyle.Cyan, 80f, 0.9f, 260f);
+            RefreshSlotPlayability();
+            SaveNow();
+            _busy = false;
+        }
+
+        private void Arm()
+        {
+            _hammerArmed = true;
+            _drag.InputEnabled = false;
+            _board.SetHammerMode(true, OnHammerCell);
+            _tools.SetArmed(Tool.Hammer);
+            Fx.Instance?.Text(_board.CentreWorld, "TAP A BLOCK", CandyStyle.White, 80f, 1.5f, 40f);
+        }
+
+        private void Disarm()
+        {
+            if (!_hammerArmed) return;
+            _hammerArmed = false;
+            _board.SetHammerMode(false, null);
+            _tools.SetArmed(null);
+            if (!_run.IsGameOver && !_pause.IsVisible) _drag.InputEnabled = true;
+        }
+
+        private void OnHammerCell(int col, int row)
+        {
+            if (_busy) return;
+            if (!_run.Board.IsOccupied(col, row))
+            {
+                Sound.Deny();
+                return;
+            }
+
+            StartCoroutine(UseHammer(col, row));
+        }
+
+        private IEnumerator UseHammer(int col, int row)
+        {
+            if (!Wallet.TryUseTool(Tool.Hammer)) yield break;
+
+            _busy = true;
+            _run.Hammer(col, row);
+            _hammerArmed = false;
+            _board.SetHammerMode(false, null);
+            _tools.SetArmed(null);
+
+            yield return _board.Smash(col, row);
+
+            RefreshSlotPlayability();
+            PushObjective();
+            SaveNow();
+            _busy = false;
+            _drag.InputEnabled = !_run.IsGameOver;
+        }
+
+        // --- persistence -----------------------------------------------------------------------
 
         private void SaveNow()
         {
             if (_run == null || _run.IsGameOver) return;
 
-            // Only the endless run is resumable. Saving a level here would overwrite the endless
-            // board the menu's CONTINUE button offers, losing a long run because someone dipped
-            // into level 3 — levels are short and restart cleanly, so they are not worth saving.
+            // Only the endless run is resumable. Saving a level would overwrite the endless board the
+            // menu's CONTINUE offers, losing a long run because someone dipped into level 3.
             if (_run.Mode != GameMode.Endless) return;
 
             SaveSystem.SaveRun(_run.Snapshot());
         }
 
         /// <summary>
-        /// Android does not reliably call OnApplicationQuit when it kills a backgrounded app, so
-        /// pause is the only dependable moment to persist. Saving here is what makes "a run in
-        /// progress survives the app being killed" actually true rather than true-in-the-editor.
+        /// Android does not reliably call OnApplicationQuit when it kills a backgrounded app, so pause
+        /// is the only dependable moment to persist. A run left mid-move comes back paused, too.
         /// </summary>
         private void OnApplicationPause(bool paused)
         {
-            if (paused) SaveNow();
-            else Telemetry.ResumeSession();
+            if (paused)
+            {
+                SaveNow();
+                if (_hud != null && _hud.Root.gameObject.activeInHierarchy && !_run.IsGameOver && !_busy) OpenPause();
+            }
+            else
+            {
+                Telemetry.ResumeSession();
+            }
         }
 
         private void OnApplicationFocus(bool focused)
@@ -602,9 +876,6 @@ namespace Snapline.App
             if (!focused) SaveNow();
         }
 
-        private void OnApplicationQuit()
-        {
-            SaveNow();
-        }
+        private void OnApplicationQuit() => SaveNow();
     }
 }

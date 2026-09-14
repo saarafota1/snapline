@@ -41,7 +41,7 @@ namespace Snapline.Art
         /// Applied at the call site rather than baked into the file so the one sprite still serves
         /// both the board and anywhere a lit blue block is genuinely wanted.
         /// </summary>
-        public static readonly Color EmptyCellTint = new Color(0.42f, 0.50f, 0.78f, 1f);
+        public static readonly Color EmptyCellTint = new Color(0.60f, 0.68f, 0.92f, 1f);
 
         public static readonly Color TextBright = Hex("FFFFFF");
         public static readonly Color TextDim = Hex("9AA6E0");

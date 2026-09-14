@@ -132,7 +132,12 @@ namespace Snapline.View
             piece.SetCellSize(_boardCellSize, _boardGap);
             piece.Root.SetParent(_dragLayer, true);
             piece.Root.SetAsLastSibling();
-            piece.Root.localScale = Vector3.one;
+            piece.Root.localRotation = Quaternion.identity;
+
+            // A pop as it leaves the tray, so picking a piece up feels like lifting something.
+            Snapline.UI.Tween.PopIn(piece.Root, 0f, 0.22f, 0.75f);
+            Snapline.Art.Sound.Pickup();
+            Snapline.App.Haptics.Light();
 
             _grabOffset = Vector2.zero;
             UpdateDrag(screenPoint);
@@ -156,7 +161,7 @@ namespace Snapline.View
             if (TryResolveCell(piece, out int col, out int row))
             {
                 bool valid = CanPlace != null && CanPlace(_activeSlot, col, row);
-                _board.ShowGhost(piece.Shape, col, row, valid);
+                _board.ShowGhost(piece.Shape, col, row, valid, piece.ColourIndex);
             }
             else
             {

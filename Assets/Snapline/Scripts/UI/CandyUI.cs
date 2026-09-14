@@ -63,7 +63,7 @@ namespace Snapline.UI
             var button = go.GetComponent<Button>();
             button.targetGraphic = img;
             button.transition = Selectable.Transition.None;
-            go.AddComponent<PressScale>();
+            go.AddComponent<CandyPress>();
 
             return button;
         }
@@ -156,6 +156,10 @@ namespace Snapline.UI
             foreach (Text label in labels)
             {
                 if (label == null) continue;
+
+                // A label already set in one of the game's own weights was set deliberately — a small
+                // caption in the heavy display weight, say — and the sweep must not undo that.
+                if (label.font == Design.Display || label.font == Design.Body) continue;
                 label.font = Design.For(label.fontSize);
             }
 
@@ -179,25 +183,4 @@ namespace Snapline.UI
         }
     }
 
-    /// <summary>
-    /// Squashes a button slightly while it is held.
-    ///
-    /// The usual uGUI colour tint is wrong for artwork that carries its own shading — darkening a
-    /// glossy sprite reads as the button going muddy rather than going down. Scale reads as a press
-    /// on any sprite, whatever its colour.
-    /// </summary>
-    public sealed class PressScale : MonoBehaviour,
-        UnityEngine.EventSystems.IPointerDownHandler,
-        UnityEngine.EventSystems.IPointerUpHandler
-    {
-        private static float Pressed => Design.PressScale;
-
-        public void OnPointerDown(UnityEngine.EventSystems.PointerEventData _) =>
-            transform.localScale = Vector3.one * Pressed;
-
-        public void OnPointerUp(UnityEngine.EventSystems.PointerEventData _) =>
-            transform.localScale = Vector3.one;
-
-        private void OnDisable() => transform.localScale = Vector3.one;
-    }
 }

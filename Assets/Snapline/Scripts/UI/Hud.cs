@@ -1,262 +1,377 @@
-using System.Collections;
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 using Snapline.Art;
+using Snapline.Core;
 using GameKit.Art;
 
 namespace Snapline.UI
 {
     /// <summary>
-    /// The score bar across the top: current score, best score, and the combo streak.
+    /// Everything above the board: pause, the score, coins and the toolbox, and — per mode — the
+    /// combo pill in endless, or the lines and moves pills and the star meter in a level.
     ///
-    /// The score counter deliberately rolls rather than snapping. A number that climbs is the
-    /// cheapest reward signal there is, and it keeps the eye on the score after a big clear instead
-    /// of the value having already changed by the time the explosion finishes.
+    /// Laid out from `endless_game.png` and `level_game.png`, measured off the references and
+    /// converted to canvas units (the references are 941 wide, the canvas 1080). Everything hangs
+    /// from the top of the screen.
+    ///
+    /// The score rolls rather than snapping. A number that climbs is the cheapest reward signal
+    /// there is, and it keeps the eye on the score after a big clear.
     /// </summary>
     public sealed class Hud : MonoBehaviour
     {
-        private Text _scoreLabel;
-        private Text _bestLabel;
-        private Text _comboLabel;
-        private Text _levelLabel;
-        private Text _objectiveLabel;
-        private Text _movesLabel;
-        private RectTransform _endlessGroup;
-        private RectTransform _levelGroup;
-        private RectTransform _scoreRect;
-        private RectTransform _comboRect;
-        private Image _comboPanel;
+        /// <summary>Where everything sits, in canvas units measured down from the top.</summary>
+        public static class Layout
+        {
+            public const float PauseX = -425f;
+            public const float PauseY = 82f;
+            public const float PauseSize = 124f;
 
-        private long _displayedScore;
-        private long _targetScore;
-        private float _rollSpeed;
-        private Coroutine _punch;
+            public const float CoinX = 352f;
+            public const float CoinY = 78f;
+            public const float CoinWidth = 290f;
+            public const float CoinHeight = 88f;
 
-        private long _bestScore;
-        private bool _beatenThisRun;
+            public const float ToolboxX = 426f;
+            public const float ToolboxY = 200f;
+            public const float ToolboxSize = 116f;
 
-        /// <summary>Raised when the player taps the small MENU button during a run.</summary>
+            // endless
+            public const float ScoreY = 92f;
+            public const float ScoreWidth = 380f;
+            public const float ScoreHeight = 116f;
+            public const float BestY = 178f;
+            public const float ComboY = 246f;
+            public const float ComboWidth = 470f;
+            public const float ComboHeight = 80f;
 
+            /// <summary>Bottom of the endless HUD. The board is placed below this.</summary>
+            public const float EndlessBottom = 292f;
 
-        public event System.Action HomeRequested;
+            // level
+            public const float LevelPillY = 90f;
+            public const float LevelPillWidth = 300f;
+            public const float LevelPillHeight = 132f;
+            public const float GoalY = 272f;
+            public const float GoalWidth = 330f;
+            public const float GoalHeight = 150f;
+            public const float GoalSplit = 176f;
+            public const float StarBarY = 400f;
+            public const float StarBarWidth = 590f;
+            public const float StarBarHeight = 46f;
 
+            /// <summary>Bottom of the level HUD.</summary>
+            public const float LevelBottom = 436f;
+        }
 
+        public event Action PauseRequested;
+
+        /// <summary>Raised once per run, the moment the rolling score passes the previous best.</summary>
+        public event Action NewBestReached;
 
         public RectTransform Root { get; private set; }
 
-        public void Init(RectTransform parent, long bestScore, float height = 300f)
+        private RectTransform _endless;
+        private RectTransform _level;
+
+        private Text _score;
+        private Text _best;
+        private RectTransform _scorePill;
+        private RectTransform _combo;
+        private Text _comboLeft;
+        private Text _comboRight;
+        private int _comboShown;
+
+        private Text _levelName;
+        private Text _levelScore;
+        private RectTransform _levelPill;
+        private RectTransform _linesPill;
+        private Text _linesValue;
+        private CandyBar _linesBar;
+        private Text _movesValue;
+        private CandyText _movesCandy;
+        private CandyBar _starBar;
+        private readonly Image[] _stars = new Image[3];
+        private int _starsLit = 3;
+        private int _lastLines = -1;
+        private int _lastMoves = -1;
+
+        private GameMode _mode;
+        private long _displayed;
+        private long _target;
+        private float _rollSpeed;
+        private long _bestScore;
+        private bool _beaten;
+
+        public static float Bottom(GameMode mode) => mode == GameMode.Level ? Layout.LevelBottom : Layout.EndlessBottom;
+
+        /// <summary>The pill the score is shown in, for points to fly at.</summary>
+        public RectTransform ScoreTarget => _mode == GameMode.Level ? _levelPill : _scorePill;
+
+        public void Init(RectTransform parent, long bestScore)
         {
             Root = UIKit.Rect("Hud", parent);
             Root.anchorMin = new Vector2(0f, 1f);
             Root.anchorMax = new Vector2(1f, 1f);
             Root.pivot = new Vector2(0.5f, 1f);
-            Root.offsetMin = new Vector2(0f, -height);
-            Root.offsetMax = new Vector2(0f, 0f);
+            Root.offsetMin = new Vector2(0f, -Layout.LevelBottom);
+            Root.offsetMax = Vector2.zero;
 
             _bestScore = bestScore;
+            Vector2 top = W.Top;
 
-            // Endless shows the best score up top; level mode replaces it with the objective. Both
-            // live in their own group so switching modes is one SetActive rather than re-layout.
-            _endlessGroup = UIKit.Rect("EndlessTop", Root);
-            _endlessGroup.anchorMin = new Vector2(0f, 1f);
-            _endlessGroup.anchorMax = new Vector2(1f, 1f);
-            _endlessGroup.pivot = new Vector2(0.5f, 1f);
-            _endlessGroup.offsetMin = new Vector2(0f, -140f);
-            _endlessGroup.offsetMax = Vector2.zero;
+            Button pause = CandyUI.SpriteButton("Pause", Root, ArtKit.Ui("circle_pink"));
+            pause.GetComponent<Image>().preserveAspect = true;
+            CandyUI.Place(pause, top, new Vector2(Layout.PauseX, -Layout.PauseY), new Vector2(Layout.PauseSize, Layout.PauseSize));
+            Color bar = Color.white;
+            Color rim = CandyText.Hex(0xFFC3DD);
+            W.Rounded("BarL", pause.transform, bar, rim, W.Centre, new Vector2(-15f, 0f), new Vector2(24f, 58f), 12f);
+            W.Rounded("BarR", pause.transform, bar, rim, W.Centre, new Vector2(15f, 0f), new Vector2(24f, 58f), 12f);
+            pause.onClick.AddListener(() => PauseRequested?.Invoke());
 
-            Text bestCaption = UIKit.Label("BestCaption", _endlessGroup, "BEST", 34, Palette.TextDim);
-            UIKit.Place(bestCaption.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                        new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(500f, 40f));
+            CoinPill.Create(Root, top, new Vector2(Layout.CoinX, -Layout.CoinY), Layout.CoinWidth, Layout.CoinHeight);
+            ToolboxButton.Create(Root, top, new Vector2(Layout.ToolboxX, -Layout.ToolboxY), Layout.ToolboxSize);
 
-            _bestLabel = UIKit.Label("Best", _endlessGroup, Format(bestScore), 44, Palette.Accent);
-            UIKit.Place(_bestLabel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                        new Vector2(0.5f, 1f), new Vector2(0f, -74f), new Vector2(500f, 56f));
+            BuildEndless(top);
+            BuildLevel(top);
 
-            _levelGroup = UIKit.Rect("LevelTop", Root);
-            _levelGroup.anchorMin = new Vector2(0f, 1f);
-            _levelGroup.anchorMax = new Vector2(1f, 1f);
-            _levelGroup.pivot = new Vector2(0.5f, 1f);
-            _levelGroup.offsetMin = new Vector2(0f, -140f);
-            _levelGroup.offsetMax = Vector2.zero;
-
-            _levelLabel = UIKit.Label("LevelName", _levelGroup, "LEVEL 1", 34, Palette.TextDim);
-            UIKit.Place(_levelLabel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                        new Vector2(0.5f, 1f), new Vector2(0f, -26f), new Vector2(600f, 40f));
-
-            _objectiveLabel = UIKit.Label("Objective", _levelGroup, "LINES 0 / 4", 46, Palette.TextBright);
-            UIKit.Place(_objectiveLabel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                        new Vector2(0.5f, 1f), new Vector2(-190f, -66f), new Vector2(460f, 56f));
-
-            _movesLabel = UIKit.Label("Moves", _levelGroup, "MOVES 22", 46, Palette.Accent);
-            UIKit.Place(_movesLabel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                        new Vector2(0.5f, 1f), new Vector2(190f, -66f), new Vector2(460f, 56f));
-
-            _levelGroup.gameObject.SetActive(false);
-
-            _scoreLabel = UIKit.Label("Score", Root, "0", 118, Palette.TextBright);
-            _scoreRect = _scoreLabel.rectTransform;
-            UIKit.Place(_scoreRect, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                        new Vector2(0.5f, 1f), new Vector2(0f, -140f), new Vector2(900f, 140f));
-
-            // Small home button. The run is saved after every move, so leaving is lossless and the
-            // menu offers CONTINUE straight back into it.
-            Button home = UIKit.Button("Home", Root, "MENU", new Color(0.26f, 0.30f, 0.50f, 0.9f),
-                                       Palette.TextDim, 30);
-            UIKit.Place(home.GetComponent<RectTransform>(), new Vector2(0f, 1f), new Vector2(0f, 1f),
-                        new Vector2(0f, 1f), new Vector2(34f, -34f), new Vector2(170f, 78f));
-            home.onClick.AddListener(() => HomeRequested?.Invoke());
-
-            // Combo badge, hidden until a streak is actually running.
-            _comboRect = UIKit.Rect("Combo", Root);
-            UIKit.Place(_comboRect, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                        new Vector2(0.5f, 1f), new Vector2(0f, -272f), new Vector2(440f, 62f));
-
-            _comboPanel = UIKit.Image("ComboPanel", _comboRect,
-                                      ArtKit.RoundedRect("combo", new Color(1f, 0.72f, 0.18f, 0.92f),
-                                                         new Color(1f, 1f, 1f, 0.5f), 3f),
-                                      Color.white, Image.Type.Sliced);
-            RectTransform cp = _comboPanel.rectTransform;
-            cp.anchorMin = Vector2.zero;
-            cp.anchorMax = Vector2.one;
-            cp.offsetMin = Vector2.zero;
-            cp.offsetMax = Vector2.zero;
-
-            _comboLabel = UIKit.Label("ComboText", _comboRect, "COMBO x2", 38, new Color(0.15f, 0.08f, 0f));
-            RectTransform cl = _comboLabel.rectTransform;
-            cl.anchorMin = Vector2.zero;
-            cl.anchorMax = Vector2.one;
-            cl.offsetMin = Vector2.zero;
-            cl.offsetMax = Vector2.zero;
-
-            _comboRect.gameObject.SetActive(false);
+            SetMode(GameMode.Endless);
         }
 
-        /// <summary>Switch the top bar between the endless best score and the level objective.</summary>
-        public void SetMode(Core.GameMode mode)
+        private void BuildEndless(Vector2 top)
         {
-            bool level = mode == Core.GameMode.Level;
-            _endlessGroup.gameObject.SetActive(!level);
-            _levelGroup.gameObject.SetActive(level);
+            _endless = UIKit.Stretch("Endless", Root);
+
+            Image pill = W.Sliced("ScorePill", _endless, "pill_blue", top, new Vector2(0f, -Layout.ScoreY),
+                                  new Vector2(Layout.ScoreWidth, Layout.ScoreHeight));
+            _scorePill = pill.rectTransform;
+            _score = W.Text("Score", pill.transform, "0", W.Centre, new Vector2(0f, 4f),
+                            new Vector2(Layout.ScoreWidth, Layout.ScoreHeight), 76, CandyStyle.OnBlue, Color.white);
+            _score.font = Design.Display;
+
+            _best = W.Text("Best", _endless, "BEST 0", top, new Vector2(0f, -Layout.BestY), new Vector2(520f, 50f),
+                           36, CandyStyle.OnBlue, Color.white);
+
+            Image combo = W.Sliced("Combo", _endless, "pill_red", top, new Vector2(0f, -Layout.ComboY),
+                                   new Vector2(Layout.ComboWidth, Layout.ComboHeight));
+            _combo = combo.rectTransform;
+            _comboLeft = W.Text("Left", combo.transform, "COMBO x2  •", W.Centre, Vector2.zero, new Vector2(400f, 70f),
+                                42, CandyStyle.OnPink, Color.white, TextAnchor.MiddleRight);
+            _comboLeft.font = Design.Display;
+            _comboRight = W.Text("Right", combo.transform, "1.5×", W.Centre, Vector2.zero, new Vector2(200f, 70f),
+                                 42, CandyStyle.Gold, Color.white, TextAnchor.MiddleLeft);
+            _comboRight.font = Design.Display;
+            _combo.gameObject.SetActive(false);
+        }
+
+        private void BuildLevel(Vector2 top)
+        {
+            _level = UIKit.Stretch("Level", Root);
+
+            Image pill = W.Sliced("LevelPill", _level, "pill_blue", top, new Vector2(0f, -Layout.LevelPillY),
+                                  new Vector2(Layout.LevelPillWidth, Layout.LevelPillHeight));
+            _levelPill = pill.rectTransform;
+            _levelName = W.Text("Name", pill.transform, "LEVEL 1", W.Centre, new Vector2(0f, 34f), new Vector2(300f, 46f),
+                                32, CandyStyle.OnBlue, Color.white);
+            _levelScore = W.Text("Score", pill.transform, "0", W.Centre, new Vector2(0f, -14f), new Vector2(300f, 80f),
+                                 64, CandyStyle.OnBlue, Color.white);
+            _levelScore.font = Design.Display;
+
+            Image lines = W.Sliced("Lines", _level, "tile_pink", top, new Vector2(-Layout.GoalSplit, -Layout.GoalY),
+                                   new Vector2(Layout.GoalWidth, Layout.GoalHeight));
+            _linesPill = lines.rectTransform;
+            W.Img("Icon", lines.transform, "icon_levels", W.Left, new Vector2(64f, 14f), new Vector2(76f, 76f));
+            W.Text("Caption", lines.transform, "LINES", W.Centre, new Vector2(44f, 40f), new Vector2(220f, 40f),
+                   30, CandyStyle.OnPink, Color.white);
+            _linesValue = W.Text("Value", lines.transform, "0 / 4", W.Centre, new Vector2(44f, -4f), new Vector2(230f, 64f),
+                                 52, CandyStyle.OnPink, Color.white);
+            _linesValue.font = Design.Display;
+            _linesBar = CandyBar.Create(lines.transform, W.Bottom, new Vector2(0f, 28f),
+                                        new Vector2(Layout.GoalWidth - 64f, 28f));
+
+            Image moves = W.Sliced("Moves", _level, "tile_purple", top, new Vector2(Layout.GoalSplit, -Layout.GoalY),
+                                   new Vector2(Layout.GoalWidth, Layout.GoalHeight));
+            W.Img("Icon", moves.transform, "sym_restart", W.Left, new Vector2(70f, 0f), new Vector2(78f, 78f));
+            W.Text("Caption", moves.transform, "MOVES", W.Centre, new Vector2(46f, 36f), new Vector2(220f, 40f),
+                   30, CandyStyle.OnPurple, Color.white);
+            _movesValue = W.Text("Value", moves.transform, "22", W.Centre, new Vector2(46f, -14f), new Vector2(220f, 80f),
+                                 72, CandyStyle.OnPurple, Color.white);
+            _movesValue.font = Design.Display;
+            _movesCandy = _movesValue.GetComponent<CandyText>();
+
+            _starBar = CandyBar.Create(_level, top, new Vector2(0f, -Layout.StarBarY),
+                                       new Vector2(Layout.StarBarWidth, Layout.StarBarHeight));
+            for (int i = 0; i < 3; i++)
+            {
+                float x = -Layout.StarBarWidth * 0.5f + Layout.StarBarWidth * (i + 1) / 3f - (i == 2 ? 34f : 0f);
+                _stars[i] = W.Img("Star" + i, _level, "reward_star_gold", top, new Vector2(x, -Layout.StarBarY),
+                                  new Vector2(84f, 84f));
+            }
+        }
+
+        // --- mode ------------------------------------------------------------------------------
+
+        public void SetMode(GameMode mode)
+        {
+            _mode = mode;
+            _endless.gameObject.SetActive(mode == GameMode.Endless);
+            _level.gameObject.SetActive(mode == GameMode.Level);
         }
 
         /// <summary>
-        /// Update the level objective readout. Moves turn amber and then red as the budget runs
-        /// down, so the pressure is visible without the player counting.
+        /// The level readout: lines against target, moves left, and the star meter.
+        ///
+        /// The meter is split into equal thirds, one per star, rather than drawn linearly in moves.
+        /// Three stars survive until only a fifth of the budget is left, so a linear bar would sit
+        /// nearly full for most of a level and then collapse through two stars in a few moves; in
+        /// thirds, every star visibly drains before it is lost.
         /// </summary>
-        public void SetObjective(int levelNumber, int linesCleared, int lineTarget, int movesLeft, int moveBudget)
+        public void SetObjective(string levelName, int lines, int target, int movesLeft, LevelDef level)
         {
-            _levelLabel.text = $"LEVEL {levelNumber}";
-            _objectiveLabel.text = $"LINES {Mathf.Min(linesCleared, lineTarget)} / {lineTarget}";
-            _movesLabel.text = $"MOVES {movesLeft}";
+            _levelName.text = levelName;
 
-            float fraction = moveBudget <= 0 ? 1f : movesLeft / (float)moveBudget;
-            _movesLabel.color = fraction <= 0.15f
-                ? new Color(1f, 0.42f, 0.40f)
-                : fraction <= 0.35f
-                    ? new Color(1f, 0.72f, 0.30f)
-                    : Palette.Accent;
+            int shown = Mathf.Min(lines, target);
+            _linesValue.text = $"{shown} / {target}";
+            _linesBar.Set(target <= 0 ? 0f : shown / (float)target);
+            if (_lastLines >= 0 && shown > _lastLines)
+            {
+                Tween.Punch(_linesPill, 0.14f, 0.3f);
+                if (Fx.Instance != null) Fx.Instance.Sparkles(_linesPill.position, 5, 120f, 60f);
+            }
+            _lastLines = shown;
+
+            _movesValue.text = movesLeft.ToString();
+            if (_lastMoves >= 0 && movesLeft != _lastMoves) Tween.Punch(_movesValue.transform, 0.22f, 0.25f);
+            _movesCandy.Set(movesLeft <= 3 ? CandyStyle.Gold : CandyStyle.OnPurple);
+            _lastMoves = movesLeft;
+
+            if (level == null) return;
+
+            int stars = level.StarsFor(movesLeft);
+            _starBar.Set(StarMeter(level, movesLeft), animate: true);
+
+            for (int i = 0; i < 3; i++)
+                _stars[i].sprite = ArtKit.Ui(stars >= i + 1 ? "reward_star_gold" : "reward_star_silver");
+
+            if (stars < _starsLit)
+            {
+                Image lost = _stars[Mathf.Clamp(stars, 0, 2)];
+                Tween.Shake(lost.rectTransform, 14f, 0.4f);
+                Sound.StarLost();
+                if (Fx.Instance != null) Fx.Instance.Sparkles(lost.rectTransform.position, 6, 50f, 44f, new Color(0.85f, 0.88f, 1f));
+            }
+            _starsLit = stars;
         }
+
+        public static float StarMeter(LevelDef level, int movesLeft)
+        {
+            int budget = level.MoveBudget;
+            int three = level.ThreeStarSpare;
+            int two = level.TwoStarSpare;
+
+            if (movesLeft >= three) return 2f / 3f + Mathf.InverseLerp(three, budget, movesLeft) / 3f;
+            if (movesLeft >= two) return 1f / 3f + Mathf.InverseLerp(two, three, movesLeft) / 3f;
+            return Mathf.InverseLerp(0f, two, movesLeft) / 3f;
+        }
+
+        // --- score -----------------------------------------------------------------------------
 
         public void ResetForNewRun(long bestScore)
         {
             _bestScore = bestScore;
-            _beatenThisRun = false;
-            _displayedScore = 0;
-            _targetScore = 0;
-            _scoreLabel.text = "0";
-            _scoreLabel.color = Palette.TextBright;
-            _bestLabel.text = Format(bestScore);
-            SetCombo(0);
+            _beaten = false;
+            _displayed = 0;
+            _target = 0;
+            _score.text = "0";
+            _levelScore.text = "0";
+            _best.text = $"BEST {Format(bestScore)}";
+            CandyText bestCandy = _best.GetComponent<CandyText>();
+            if (bestCandy != null) bestCandy.Set(CandyStyle.OnBlue);
+            _starsLit = 3;
+            _lastLines = -1;
+            _lastMoves = -1;
+            _comboShown = 0;
+            _combo.gameObject.SetActive(false);
+            _starBar.Set(1f, animate: false);
         }
 
-        /// <summary>Jump straight to a value with no roll. Used when a saved run is restored.</summary>
         public void SetScoreImmediate(long score)
         {
-            _displayedScore = score;
-            _targetScore = score;
-            _scoreLabel.text = Format(score);
+            _displayed = score;
+            _target = score;
+            _score.text = Format(score);
+            _levelScore.text = Format(score);
+            if (score > _bestScore) _beaten = true;
         }
 
         public void SetScore(long score)
         {
-            _targetScore = score;
-
-            // Roll fast enough that a big clear resolves in well under a second, but always at
-            // least a fixed floor so tiny gains still visibly tick.
-            long delta = _targetScore - _displayedScore;
+            _target = score;
+            long delta = _target - _displayed;
             _rollSpeed = Mathf.Max(240f, Mathf.Abs(delta) / 0.55f);
-
-            if (_punch != null) StopCoroutine(_punch);
-            _punch = StartCoroutine(Punch(_scoreRect, 1.14f));
+            Tween.Punch(_mode == GameMode.Level ? _levelScore.transform : _score.transform, 0.16f, 0.22f);
         }
 
-        /// <summary>
-        /// Show the streak and what it is currently worth.
-        ///
-        /// The multiplier is spelled out rather than left implicit in the score. A player who can
-        /// see "x2.5 PTS" knows why the numbers jumped and has a reason to keep the streak alive;
-        /// without it a combo is just a word that appears.
-        /// </summary>
+        /// <summary>The streak and what it is worth right now, e.g. COMBO x4 • 3.2×.</summary>
         public void SetCombo(int combo, double multiplier = 1.0)
         {
-            bool show = combo >= 2;
-            if (_comboRect.gameObject.activeSelf != show) _comboRect.gameObject.SetActive(show);
-            if (!show) return;
+            bool show = combo >= 2 && _mode == GameMode.Endless;
+            if (!show)
+            {
+                _combo.gameObject.SetActive(false);
+                _comboShown = 0;
+                return;
+            }
 
-            _comboLabel.text = multiplier >= 1.05
-                ? $"COMBO x{combo}   ·   x{multiplier:0.#} PTS"
-                : $"COMBO x{combo}";
+            _comboLeft.text = $"COMBO x{combo}  •";
+            _comboRight.text = $"{multiplier:0.0}×";
 
-            // Ramp the badge from amber toward hot pink as the streak grows, so a long combo is
-            // visible at a glance without reading the number.
-            float t = Mathf.Clamp01((combo - 2) / 8f);
-            _comboPanel.color = Color.Lerp(new Color(1f, 1f, 1f, 1f), new Color(1f, 0.55f, 0.85f, 1f), t);
-            StartCoroutine(Punch(_comboRect, 1.2f));
+            float lw = _comboLeft.preferredWidth;
+            float rw = _comboRight.preferredWidth;
+            const float gap = 14f;
+            float start = -(lw + gap + rw) * 0.5f;
+            _comboLeft.rectTransform.anchoredPosition = new Vector2(start + lw - 200f, 2f);
+            _comboRight.rectTransform.anchoredPosition = new Vector2(start + lw + gap + 100f, 2f);
+
+            if (!_combo.gameObject.activeSelf)
+            {
+                _combo.gameObject.SetActive(true);
+                Tween.PopIn(_combo, 0f, 0.4f, 0.4f);
+            }
+            else if (combo > _comboShown)
+            {
+                Tween.Punch(_combo, 0.18f, 0.3f);
+            }
+
+            if (combo > _comboShown && Fx.Instance != null)
+                Fx.Instance.Sparkles(_combo.position, 4 + Mathf.Min(combo, 6), 180f, 60f);
+
+            _comboShown = combo;
         }
 
         private void Update()
         {
-            if (_displayedScore == _targetScore) return;
+            if (_displayed == _target) return;
 
-            float step = _rollSpeed * Time.deltaTime;
-            long delta = _targetScore - _displayedScore;
-            long move = (long)Mathf.Max(1f, step);
+            long step = (long)Mathf.Max(1f, _rollSpeed * Time.unscaledDeltaTime);
+            long delta = _target - _displayed;
+            if (Math.Abs(delta) <= step) _displayed = _target;
+            else _displayed += delta > 0 ? step : -step;
 
-            if (System.Math.Abs(delta) <= move) _displayedScore = _targetScore;
-            else _displayedScore += delta > 0 ? move : -move;
+            string text = Format(_displayed);
+            _score.text = text;
+            _levelScore.text = text;
 
-            _scoreLabel.text = Format(_displayedScore);
+            if (_mode != GameMode.Endless || _displayed <= _bestScore) return;
 
-            // Best tracks the *rolling* score, not the target. Driving it from the target instead
-            // made BEST display a number the score had not visibly reached yet, which reads as a
-            // bug the first time a player beats their record.
-            if (_displayedScore <= _bestScore) return;
+            _best.text = $"BEST {text}";
+            if (_beaten) return;
 
-            _bestScore = _displayedScore;
-            _bestLabel.text = Format(_displayedScore);
-
-            if (_beatenThisRun) return;
-
-            _beatenThisRun = true;
-            _bestLabel.color = Palette.Accent;
-            StartCoroutine(Punch(_bestLabel.rectTransform, 1.35f));
-        }
-
-        private IEnumerator Punch(RectTransform rt, float scale)
-        {
-            const float duration = 0.18f;
-            float t = 0f;
-            while (t < duration)
-            {
-                t += Time.deltaTime;
-                float k = Mathf.Clamp01(t / duration);
-                float s = k < 0.4f
-                    ? Mathf.Lerp(1f, scale, k / 0.4f)
-                    : Mathf.Lerp(scale, 1f, (k - 0.4f) / 0.6f);
-                rt.localScale = Vector3.one * s;
-                yield return null;
-            }
-            rt.localScale = Vector3.one;
+            _beaten = true;
+            CandyText bestCandy = _best.GetComponent<CandyText>();
+            if (bestCandy != null) bestCandy.Set(CandyStyle.Gold);
+            Tween.Punch(_best.transform, 0.35f, 0.4f);
+            if (_bestScore > 0) NewBestReached?.Invoke();
         }
 
         /// <summary>Thousands separators, invariant so a European locale cannot turn 1,000 into 1.000.</summary>

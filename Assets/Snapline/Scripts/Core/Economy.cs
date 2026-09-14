@@ -34,6 +34,12 @@ namespace Snapline.Core
         /// <summary>A finished level, from popup_level_complete.png.</summary>
         public const int LevelReward = 50;
 
+        /// <summary>
+        /// Replaying a level already beaten, without improving its stars. Not zero, so a replay still
+        /// feels like something — but nowhere near the full reward, or level 1 becomes a coin farm.
+        /// </summary>
+        public const int LevelReplayReward = 10;
+
         /// <summary>A finished daily challenge, from daily_challenge.png.</summary>
         public const int DailyReward = 100;
 

@@ -96,6 +96,25 @@ namespace Snapline.EditorTools
         }
 
         /// <summary>
+        /// The recorded sound cues. Imported as WAV they would ship at full PCM size; Vorbis at this
+        /// quality is indistinguishable through a phone speaker at a tenth of the size. Decompressed on
+        /// load, because these are short cues fired many times a second, and decoding one on every
+        /// clear would cost more than keeping it in memory.
+        /// </summary>
+        private void OnPreprocessAudio()
+        {
+            if (!assetPath.StartsWith(ArtRoot + "Sound/", System.StringComparison.Ordinal)) return;
+
+            var importer = (AudioImporter)assetImporter;
+            AudioImporterSampleSettings settings = importer.defaultSampleSettings;
+            settings.loadType = AudioClipLoadType.DecompressOnLoad;
+            settings.compressionFormat = AudioCompressionFormat.Vorbis;
+            settings.quality = 0.6f;
+            settings.sampleRateSetting = AudioSampleRateSetting.OptimizeSampleRate;
+            importer.defaultSampleSettings = settings;
+        }
+
+        /// <summary>
         /// Borders have to be set after the texture is read, because they are a fraction of its
         /// height and the height is not known at preprocess time.
         /// </summary>

@@ -1,100 +1,90 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using Snapline.Art;
-using GameKit.Art;
 using Snapline.Core;
+using Snapline.UI;
+using GameKit.Art;
 
 namespace Snapline.View
 {
     /// <summary>
-    /// The three offered pieces along the bottom of the screen.
+    /// The three offered pieces, each in its own navy slot.
     ///
-    /// Tray pieces are drawn smaller than board cells so that even a 3x3 block fits comfortably in
-    /// a third of the screen width; they scale up to full board size the moment they are lifted,
-    /// which is what makes the drag read as picking something up.
+    /// Each piece is sized to fit its own slot rather than all sharing one cell size: a single
+    /// 2x2 block drawn at the size that lets a 5-long bar fit looks lost in its panel, which is
+    /// how the tray looked before. Pieces grow to full board size the moment they are lifted.
     /// </summary>
     public sealed class TrayView : MonoBehaviour
     {
         private RectTransform _root;
         private RectTransform[] _slots;
         private PieceVisual[] _pieces;
-        private Image[] _slotPanels;
+        private Image[] _panels;
 
-        private float _trayCellSize;
-        private float _trayGap;
+        private Vector2 _slotSize = new Vector2(320f, 290f);
+        private float _gap = 5f;
+        private float _maxCell = 66f;
 
         public int SlotCount => _slots?.Length ?? 0;
-        public float TrayCellSize => _trayCellSize;
-        public float TrayGap => _trayGap;
 
-        public void Init(RectTransform root, int slots, float slotWidth, float trayCellSize, float trayGap)
+        public void Init(RectTransform root, int slots, float gap)
         {
             _root = root;
-            _trayCellSize = trayCellSize;
-            _trayGap = trayGap;
-
-            WarnIfShapesDoNotFit(root, slotWidth, trayCellSize, trayGap);
+            _gap = gap;
 
             _slots = new RectTransform[slots];
             _pieces = new PieceVisual[slots];
-            _slotPanels = new Image[slots];
-
-            float totalWidth = slotWidth * slots;
-            float startX = -totalWidth * 0.5f + slotWidth * 0.5f;
+            _panels = new Image[slots];
 
             for (int i = 0; i < slots; i++)
             {
                 RectTransform slot = UIKit.Rect($"Slot{i}", _root);
                 slot.anchorMin = slot.anchorMax = new Vector2(0.5f, 0.5f);
                 slot.pivot = new Vector2(0.5f, 0.5f);
-                slot.anchoredPosition = new Vector2(startX + i * slotWidth, 0f);
-                slot.sizeDelta = new Vector2(slotWidth - 12f, _root.sizeDelta.y);
                 _slots[i] = slot;
 
-                Image panel = UIKit.Image($"SlotPanel{i}", slot, ArtKit.SoftPanel(), Color.white, Image.Type.Sliced);
+                Image panel = W.Rounded($"SlotPanel{i}", slot, CandyText.Hex(0x1E2F7E), CandyText.Hex(0x4C74EA),
+                                        W.Centre, Vector2.zero, _slotSize, 34f);
                 RectTransform prt = panel.rectTransform;
                 prt.anchorMin = Vector2.zero;
                 prt.anchorMax = Vector2.one;
                 prt.offsetMin = Vector2.zero;
                 prt.offsetMax = Vector2.zero;
-                _slotPanels[i] = panel;
+                _panels[i] = panel;
 
                 _pieces[i] = new PieceVisual(slot, $"Piece{i}");
             }
         }
 
-        /// <summary>
-        /// Complain loudly if any shape in the catalogue is too big for a tray slot.
-        ///
-        /// A piece that does not fit still draws — it just hangs off the bottom of the screen, which
-        /// is easy to miss and was in fact shipped once before a screenshot caught it. Adding a
-        /// taller shape to the catalogue should fail noisily, not quietly.
-        /// </summary>
-        private static void WarnIfShapesDoNotFit(RectTransform root, float slotWidth,
-                                                 float trayCellSize, float trayGap)
+        /// <summary>Sizes and spaces the slots. The two game modes use different tray proportions.</summary>
+        public void Layout(Vector2 slotSize, float spacing, float maxCell)
         {
-            float step = trayCellSize + trayGap;
-            float availableHeight = root.sizeDelta.y;
-            float availableWidth = slotWidth - 12f;
+            _slotSize = slotSize;
+            _maxCell = maxCell;
 
-            foreach (ShapeDef shape in Shapes.All)
+            for (int i = 0; i < _slots.Length; i++)
             {
-                float h = shape.Height * step - trayGap;
-                float w = shape.Width * step - trayGap;
-
-                if (h > availableHeight)
-                    Debug.LogError($"[Snapline] Shape '{shape.Name}' is {h:F0} tall but the tray is " +
-                                   $"{availableHeight:F0}. Reduce TrayCellSize or raise TrayHeight.");
-
-                if (w > availableWidth)
-                    Debug.LogError($"[Snapline] Shape '{shape.Name}' is {w:F0} wide but a slot is " +
-                                   $"{availableWidth:F0}. Reduce TrayCellSize or widen the slots.");
+                _slots[i].sizeDelta = slotSize;
+                _slots[i].anchoredPosition = new Vector2((i - (_slots.Length - 1) * 0.5f) * spacing, 0f);
+                W.FitSlices(_panels[i], slotSize);
+                _panels[i].pixelsPerUnitMultiplier = Mathf.Max(0.05f, 50f / 34f);
+                if (_pieces[i].HasShape) CentreInSlot(i);
             }
         }
 
         public PieceVisual Piece(int slot) => _pieces[slot];
         public RectTransform Slot(int slot) => _slots[slot];
+
+        /// <summary>The largest cell that lets this shape sit inside a slot with room around it.</summary>
+        public float CellFor(ShapeDef shape)
+        {
+            if (shape == null) return _maxCell;
+            float byWidth = (_slotSize.x - 56f - (shape.Width - 1) * _gap) / shape.Width;
+            float byHeight = (_slotSize.y - 56f - (shape.Height - 1) * _gap) / shape.Height;
+            return Mathf.Floor(Mathf.Clamp(Mathf.Min(byWidth, byHeight), 20f, _maxCell));
+        }
 
         /// <summary>Redraw all three slots from the engine's tray.</summary>
         public void Refresh(TrayPiece[] tray, bool animate)
@@ -107,19 +97,20 @@ namespace Snapline.View
                     continue;
                 }
 
-                _pieces[i].Set(tray[i].Shape, tray[i].Colour, _trayCellSize, _trayGap);
+                _pieces[i].Set(tray[i].Shape, tray[i].Colour, CellFor(tray[i].Shape), _gap);
                 CentreInSlot(i);
 
-                if (animate) StartCoroutine(DealIn(_pieces[i].Root, i * 0.07f));
+                if (animate) StartCoroutine(DealIn(i, i * 0.08f));
             }
         }
 
-        /// <summary>Position a piece so its bounding box sits in the middle of its slot.</summary>
+        /// <summary>Put a piece back at tray size, centred in its slot.</summary>
         public void CentreInSlot(int slot)
         {
             PieceVisual piece = _pieces[slot];
             if (!piece.HasShape) return;
 
+            piece.SetCellSize(CellFor(piece.Shape), _gap);
             piece.Root.SetParent(_slots[slot], false);
             piece.Root.anchorMin = piece.Root.anchorMax = new Vector2(0.5f, 0.5f);
             piece.Root.pivot = new Vector2(0f, 1f);
@@ -127,6 +118,7 @@ namespace Snapline.View
             Vector2 size = piece.BoundingSize;
             piece.Root.anchoredPosition = new Vector2(-size.x * 0.5f, size.y * 0.5f);
             piece.Root.localScale = Vector3.one;
+            piece.Root.localRotation = Quaternion.identity;
             piece.SetAlpha(1f);
         }
 
@@ -134,49 +126,75 @@ namespace Snapline.View
         public void SetSlotPlayable(int slot, bool playable)
         {
             if (_pieces[slot] == null || !_pieces[slot].HasShape) return;
-            _pieces[slot].SetAlpha(playable ? 1f : 0.32f);
+            _pieces[slot].SetAlpha(playable ? 1f : 0.35f);
+            _panels[slot].color = playable ? Color.white : new Color(0.75f, 0.7f, 0.8f, 1f);
         }
 
-        private IEnumerator DealIn(RectTransform rt, float delay)
+        private IEnumerator DealIn(int slot, float delay)
         {
+            RectTransform rt = _pieces[slot].Root;
             if (rt == null) yield break;
 
             Vector2 home = rt.anchoredPosition;
-            rt.anchoredPosition = home + new Vector2(0f, -260f);
-            rt.localScale = Vector3.one * 0.6f;
+            Vector2 from = home + new Vector2(0f, -200f);
+            rt.anchoredPosition = from;
+            rt.localScale = Vector3.zero;
 
-            if (delay > 0f) yield return new WaitForSeconds(delay);
+            if (delay > 0f) yield return new WaitForSecondsRealtime(delay);
 
-            const float duration = 0.26f;
+            const float duration = 0.42f;
             float t = 0f;
-            Vector2 from = rt.anchoredPosition;
-
             while (t < duration)
             {
-                t += Time.deltaTime;
+                t += Time.unscaledDeltaTime;
                 if (rt == null) yield break;
-
                 float k = Mathf.Clamp01(t / duration);
-                float eased = 1f - Mathf.Pow(1f - k, 3f);
-                rt.anchoredPosition = Vector2.Lerp(from, home, eased);
-                rt.localScale = Vector3.one * Mathf.Lerp(0.6f, 1f, eased);
+                rt.anchoredPosition = Vector2.LerpUnclamped(from, home, Ease.OutBack(k, 1.3f));
+                rt.localScale = Vector3.one * Mathf.LerpUnclamped(0.2f, 1f, Ease.OutBack(k, 2.2f));
                 yield return null;
             }
 
             if (rt == null) yield break;
             rt.anchoredPosition = home;
             rt.localScale = Vector3.one;
+            if (Fx.Instance != null) Fx.Instance.Sparkles(_slots[slot].position, 3, 90f, 46f);
         }
 
-        /// <summary>Bounce a piece back to its slot after an illegal drop.</summary>
-        public IEnumerator ReturnToSlot(int slot, float duration = 0.18f)
+        /// <summary>
+        /// The shuffle: the three pieces spin away into their slots, then <paramref name="dealt"/>
+        /// runs so the new ones can be dealt in.
+        /// </summary>
+        public IEnumerator SpinOut(Action dealt)
+        {
+            const float duration = 0.28f;
+            float t = 0f;
+            while (t < duration)
+            {
+                t += Time.unscaledDeltaTime;
+                float k = Mathf.Clamp01(t / duration);
+                for (int i = 0; i < _pieces.Length; i++)
+                {
+                    if (!_pieces[i].HasShape) continue;
+                    _pieces[i].Root.localScale = Vector3.one * (1f - Ease.InCubic(k));
+                    _pieces[i].Root.localRotation = Quaternion.Euler(0f, 0f, 540f * k);
+                }
+                yield return null;
+            }
+
+            for (int i = 0; i < _slots.Length; i++)
+                if (Fx.Instance != null) Fx.Instance.Sparkles(_slots[i].position, 5, 110f, 60f);
+
+            dealt?.Invoke();
+        }
+
+        /// <summary>Bounce a piece back to its slot after an illegal drop, with a little shudder.</summary>
+        public IEnumerator ReturnToSlot(int slot, float duration = 0.22f)
         {
             PieceVisual piece = _pieces[slot];
             if (!piece.HasShape) yield break;
 
             RectTransform rt = piece.Root;
             Vector3 fromWorld = rt.position;
-            Vector3 fromScale = rt.localScale;
 
             CentreInSlot(slot);
             Vector3 toWorld = rt.position;
@@ -184,15 +202,14 @@ namespace Snapline.View
             float t = 0f;
             while (t < duration)
             {
-                t += Time.deltaTime;
+                t += Time.unscaledDeltaTime;
                 float k = Mathf.Clamp01(t / duration);
-                float eased = 1f - Mathf.Pow(1f - k, 3f);
-                rt.position = Vector3.Lerp(fromWorld, toWorld, eased);
-                rt.localScale = Vector3.Lerp(fromScale, Vector3.one, eased);
+                rt.position = Vector3.LerpUnclamped(fromWorld, toWorld, Ease.OutBack(k, 1.2f));
                 yield return null;
             }
 
             CentreInSlot(slot);
+            Tween.Shake(_slots[slot], 12f, 0.3f);
         }
     }
 }

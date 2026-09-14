@@ -13,8 +13,9 @@ namespace Snapline.App
     /// Builds the entire game at runtime from one empty GameObject.
     ///
     /// The scene asset holds nothing but this component. Everything else — canvas, layout, board,
-    /// tray, effects — is constructed here, which means the whole interface is reviewable as source,
-    /// diffs cleanly, and cannot be broken by someone nudging a RectTransform in the inspector.
+    /// tray, screens, popups, effects, sound — is constructed here, which means the whole interface
+    /// is reviewable as source, diffs cleanly, and cannot be broken by someone nudging a
+    /// RectTransform in the inspector.
     /// </summary>
     [DefaultExecutionOrder(-100)]
     public sealed class Bootstrap : MonoBehaviour
@@ -23,38 +24,68 @@ namespace Snapline.App
         private const float RefWidth = 1080f;
         private const float RefHeight = 1920f;
 
-        private const float BoardMargin = 48f;
-        private const float BoardGap = 10f;
-        private const float BoardPadding = 18f;
+        /// <summary>The board's proportions, as fractions of the framed board's size.</summary>
+        private static class BoardLayout
+        {
+            /// <summary>Largest the framed board is drawn, on a tall phone.</summary>
+            public const float MaxSize = 880f;
+            public const float SideMargin = 44f;
 
-        /// <summary>Breathing room above and below the board within its area.</summary>
-        private const float BoardVerticalMargin = 24f;
+            /// <summary>From the frame's outer edge to the first cell.</summary>
+            public const float Inset = 0.078f;
+            public const float Gap = 0.0095f;
 
-        private const float HudHeight = 300f;
-        private const float TrayHeight = 300f;
-        private const float TrayBottomInset = 60f;
-
-        // Sized so the tallest shape in the catalogue still fits inside the tray. The 5-cell bar
-        // needs 5*(cell+gap) - gap <= TrayHeight minus a little padding; at cell 60 that came to
-        // 324 against a 300-tall tray and the piece hung off the bottom of the screen.
-        private const float TrayCellSize = 50f;
-        private const float TrayGap = 5f;
-
+            /// <summary>Thickness of the candy stripe.</summary>
+            public const float Stripe = 0.078f;
+        }
 
         /// <summary>
-        /// Services config. Assigned by SceneBuilder rather than loaded from Resources, so the asset
-        /// stays where the kit puts it and the reference is visible in the scene.
+        /// Where the tray and the tools sit in each mode, measured UP from the bottom of the screen,
+        /// read off `endless_game.png` and `level_game.png`. The two references disagree about whether
+        /// the tools go above or below the tray; each mode follows its own reference.
         /// </summary>
+        private static class PlayLayout
+        {
+            public static readonly Vector2 EndlessSlot = new Vector2(328f, 296f);
+            public const float EndlessSlotSpacing = 336f;
+            public const float EndlessTrayY = 326f;
+            public const float EndlessToolsY = 622f;
+            public const float EndlessToolsScale = 1.04f;
+            public const float EndlessBottomReserve = 772f;
+
+            public static readonly Vector2 LevelSlot = new Vector2(310f, 232f);
+            public const float LevelSlotSpacing = 322f;
+            public const float LevelTrayY = 488f;
+            public const float LevelToolsY = 238f;
+            public const float LevelToolsScale = 0.98f;
+            public const float LevelBottomReserve = 618f;
+
+            public const float ToolSpacing = 292f;
+            public const float BoardGap = 14f;
+        }
+
+        /// <summary>Services config. Assigned by SceneBuilder, so the reference is visible in the scene.</summary>
         [SerializeField] private GameKit.GameKitConfig _gameKitConfig;
 
+        private RectTransform _gameRoot;
+        private RectTransform _boardPanel;
+        private RectTransform _trayRoot;
+        private float _safeHeight;
 
-        /// <summary>Heights resolved at startup from the real screen shape.</summary>
+        private GameController _controller;
+        private DragController _drag;
+        private TrayView _tray;
+        private ToolsBar _tools;
 
-        private float _hudHeight = HudHeight;
+        private MainMenu _menu;
+        private LevelSelect _levelSelect;
+        private DailyScreen _daily;
+        private ScoresPanel _scores;
+        private ToolboxPanel _toolbox;
+        private PausePopup _pause;
 
-        private float _trayHeight = TrayHeight;
-
-        private float _trayInset = TrayBottomInset;
+        private bool _toolboxOverGame;
+        private bool _dragWasEnabled;
 
         private void Awake()
         {
@@ -62,7 +93,6 @@ namespace Snapline.App
 
             Canvas canvas = BuildCanvas();
             EnsureEventSystem();
-
             RectTransform canvasRect = canvas.GetComponent<RectTransform>();
 
             // The feature graphic is a landscape banner, not the game. Build it and quit before any
@@ -73,8 +103,7 @@ namespace Snapline.App
                 return;
             }
 
-            // The background is the only thing outside the safe area, so it bleeds behind a notch
-            // rather than leaving a bar of nothing there.
+            // The background is the only thing outside the safe area, so it bleeds behind a notch.
             BuildBackground(canvasRect);
 
             RectTransform safeRoot = UIKit.Rect("SafeArea", canvasRect);
@@ -82,72 +111,73 @@ namespace Snapline.App
 
             float canvasHeight = CanvasHeightUnits();
             Rect safe = Screen.safeArea;
-            float unitsPerPixel = UnitsPerPixel();
-            float safeWidth = safe.width * unitsPerPixel;
-            float safeHeight = canvasHeight * (safe.height / Mathf.Max(1f, Screen.height));
+            float safeWidth = safe.width * UnitsPerPixel();
+            _safeHeight = canvasHeight * (safe.height / Mathf.Max(1f, Screen.height));
 
-            // Everything that should shake lives under here. The menu and the game-over panel
-            // deliberately do not, so a big final clear cannot leave a card wobbling.
+            // Everything that should shake lives under here. Screens and cards deliberately do not.
             RectTransform shakeRoot = UIKit.Stretch("ShakeRoot", safeRoot);
-
-            // The whole game screen hangs off one rect that gets switched off for the menu.
             _gameRoot = UIKit.Stretch("GameRoot", shakeRoot);
 
-            // Tall phones have height to spare once the board is capped by the screen width. Handing
-            // it to the HUD and the tray beats leaving a big symmetric void around a small board,
-            // and a taller tray means bigger, easier-to-grab pieces.
-            float extra = Mathf.Max(0f, safeHeight - RefHeight);
-            _hudHeight = HudHeight + extra * 0.30f;
-            _trayHeight = TrayHeight + extra * 0.35f;
-            _trayInset = TrayBottomInset + extra * 0.10f;
+            float boardSize = ComputeBoardSize(safeWidth, _safeHeight);
+            float gap = Mathf.Max(4f, Mathf.Round(boardSize * BoardLayout.Gap));
+            float cell = Mathf.Floor((boardSize * (1f - 2f * BoardLayout.Inset) - (Board.Width - 1) * gap) / Board.Width);
+            float gridExtent = Board.Width * cell + (Board.Width - 1) * gap;
 
-            float boardCell = ComputeBoardCellSize(safeWidth, safeHeight, _hudHeight, _trayHeight + _trayInset);
-            float gridExtent = Board.Width * boardCell + (Board.Width - 1) * BoardGap;
+            Debug.Log($"[Snapline] layout: screen {Screen.width}x{Screen.height}, canvas {RefWidth:F0}x{canvasHeight:F0} " +
+                      $"units, safe {safeWidth:F0}x{_safeHeight:F0}, board {boardSize:F0}, cell {cell:F0}, gap {gap:F0}");
 
-            float slotWidth = safeWidth / 3f;
-            float trayCell = ComputeTrayCellSize(_trayHeight, slotWidth);
-
-            Debug.Log($"[Snapline] layout: screen {Screen.width}x{Screen.height}, " +
-                      $"canvas {RefWidth:F0}x{canvasHeight:F0} units, safe {safeWidth:F0}x{safeHeight:F0}, " +
-                      $"cell {boardCell:F0}, board {gridExtent + BoardPadding * 2f:F0}");
-
-            RectTransform grid = BuildBoardPanel(_gameRoot, gridExtent);
+            RectTransform grid = BuildBoardPanel(_gameRoot, boardSize, gridExtent);
             RectTransform ghostLayer = BuildGhostLayer(grid);
-            RectTransform trayRoot = BuildTrayRoot(_gameRoot);
+
+            _trayRoot = UIKit.Rect("Tray", _gameRoot);
+            _trayRoot.anchorMin = _trayRoot.anchorMax = new Vector2(0.5f, 0f);
+            _trayRoot.pivot = new Vector2(0.5f, 0.5f);
+            _trayRoot.sizeDelta = new Vector2(RefWidth, 300f);
+
+            _tools = Make<ToolsBar>("ToolsController", _gameRoot);
+            _tools.Init(_gameRoot);
+
+            var hud = Make<Hud>("HudController", _gameRoot);
+            hud.Init(_gameRoot, SaveSystem.HighScore);
+
+            // Last in the game screen, so a dragged piece passes over the tray, the tools and the HUD.
             RectTransform dragLayer = UIKit.Stretch("DragLayer", _gameRoot);
 
-            // Effects sit above the board and the tray but below the results card.
-            RectTransform effectLayer = UIKit.Stretch("EffectLayer", _gameRoot);
-            var juice = effectLayer.gameObject.AddComponent<Juice>();
-            RectTransform particleLayer = UIKit.Stretch("Particles", effectLayer);
-            RectTransform popupLayer = UIKit.Stretch("Popups", effectLayer);
-            juice.Init(particleLayer, popupLayer, shakeRoot);
-
             var boardView = grid.gameObject.AddComponent<BoardView>();
-            boardView.Init(grid, ghostLayer, juice, boardCell, BoardGap);
+            boardView.Init(grid, ghostLayer, cell, gap);
 
-            var trayView = trayRoot.gameObject.AddComponent<TrayView>();
-            trayView.Init(trayRoot, 3, slotWidth, trayCell, TrayGap);
+            _tray = _trayRoot.gameObject.AddComponent<TrayView>();
+            _tray.Init(_trayRoot, 3, Mathf.Max(4f, Mathf.Round(gap * 0.6f)));
 
-            var hud = new GameObject("HudController").AddComponent<Hud>();
-            hud.transform.SetParent(_gameRoot, false);
-            hud.Init(_gameRoot, SaveSystem.HighScore, _hudHeight);
+            _drag = gameObject.AddComponent<DragController>();
+            _drag.Init(boardView, _tray, dragLayer, canvas, cell, gap);
 
-            var gameOver = new GameObject("GameOverController").AddComponent<GameOverPanel>();
-            gameOver.transform.SetParent(safeRoot, false);
-            gameOver.Init(safeRoot);
+            Sound.Init(transform);
+            Sound.Muted = !Settings.SoundEnabled;
+            Music.Create(transform, Settings.MusicEnabled);
 
-            var drag = gameObject.AddComponent<DragController>();
-            drag.Init(boardView, trayView, dragLayer, canvas, boardCell, BoardGap);
+            // Screens, then the cards over them, then the store over everything — it can be opened
+            // from a card, and has to cover it.
+            _menu = Make<MainMenu>("MainMenu", safeRoot);
+            _menu.Init(safeRoot);
+            _levelSelect = Make<LevelSelect>("LevelSelect", safeRoot);
+            _levelSelect.Init(safeRoot);
+            _daily = Make<DailyScreen>("DailyScreen", safeRoot);
+            _daily.Init(safeRoot);
+            _scores = Make<ScoresPanel>("ScoresPanel", safeRoot);
+            _scores.Init(safeRoot);
 
-            _sfx = gameObject.AddComponent<Sfx>();
-            _sfx.Init();
-            _sfx.Muted = !Settings.SoundEnabled;
+            _pause = Make<PausePopup>("PausePopup", safeRoot);
+            _pause.Init(safeRoot);
+            var noMoves = Make<NoMovesPopup>("NoMovesPopup", safeRoot);
+            noMoves.Init(safeRoot);
+            var greatRun = Make<GreatRunPopup>("GreatRunPopup", safeRoot);
+            greatRun.Init(safeRoot);
+            var levelEnd = Make<LevelEndPopup>("LevelEndPopup", safeRoot);
+            levelEnd.Init(safeRoot);
 
-            _controller = gameObject.AddComponent<GameController>();
-            var levelResult = new GameObject("LevelResult").AddComponent<LevelResultPanel>();
-            levelResult.transform.SetParent(safeRoot, false);
-            levelResult.Init(safeRoot);
+            _toolbox = Make<ToolboxPanel>("Toolbox", safeRoot);
+            _toolbox.Init(safeRoot);
 
             // Services come up in the background. Nothing waits on them: with no SDK installed the
             // kit hands back offline implementations and the game plays exactly the same.
@@ -156,67 +186,56 @@ namespace Snapline.App
             // consent - at launch or later from PRIVACY SETTINGS - actually stops being measured.
             if (_gameKitConfig != null) _ = AnalyticsConsent.InitializeAsync(_gameKitConfig);
 
-            // Attribution networks measure retention in sessions; Android gives them no warm-start resume.
-
-
             Telemetry.ResumeSession();
-
-
 
             var ads = gameObject.AddComponent<AdController>();
             ads.Init(_gameKitConfig);
 
-            _controller.Init(boardView, trayView, drag, hud, gameOver, juice, _sfx, levelResult, ads);
-            _controller.SetPopupBounds(safeHeight, _hudHeight, _trayHeight + _trayInset);
-
+            _controller = gameObject.AddComponent<GameController>();
+            _controller.Init(boardView, _tray, _drag, hud, _tools, ads, _pause, noMoves, greatRun, levelEnd);
+            _controller.LayoutRequested += ApplyLayout;
             _controller.MenuRequested += ShowMenu;
             _controller.LevelsRequested += ShowLevelSelect;
+            _controller.DailyRequested += ShowDaily;
+            _controller.ScoresRequested += ShowScores;
+            ApplyLayout(GameMode.Endless);
 
-            _menu = new GameObject("MainMenu").AddComponent<MainMenu>();
-            _menu.transform.SetParent(safeRoot, false);
-            _menu.Init(safeRoot);
             _menu.NewGameRequested += StartNewGame;
             _menu.ContinueRequested += ContinueGame;
             _menu.LevelsRequested += ShowLevelSelect;
-
             _menu.ScoresRequested += ShowScores;
-            _menu.ShareRequested += () => GameKit.Share.TextWithLink(GameController.ShareMessage(SaveSystem.HighScore));
+            _menu.ShareRequested += Share;
             _menu.SoundToggled += ToggleSound;
             _menu.PrivacyRequested += ShowPrivacyOptions;
+            _menu.DailyRequested += ShowDaily;
+            _menu.SettingsRequested += OpenSettings;
 
-            _levelSelect = new GameObject("LevelSelect").AddComponent<LevelSelect>();
-            _levelSelect.transform.SetParent(safeRoot, false);
-            _levelSelect.Init(safeRoot);
             _levelSelect.LevelChosen += StartLevel;
             _levelSelect.BackRequested += ShowMenu;
 
-            _toolbox = new GameObject("Toolbox").AddComponent<ToolboxPanel>();
-            _toolbox.transform.SetParent(safeRoot, false);
-            _toolbox.Init(safeRoot);
-            _toolbox.BackRequested += ShowMenu;
-            _toolbox.WatchAdRequested += WatchAdForCoins;
-            _menu.ToolsRequested += ShowToolbox;
+            _daily.PlayRequested += StartDaily;
+            _daily.BackRequested += ShowMenu;
 
-            _scores = new GameObject("ScoresPanel").AddComponent<ScoresPanel>();
-            _scores.transform.SetParent(safeRoot, false);
-            _scores.Init(safeRoot);
             _scores.BackRequested += ShowMenu;
-            _scores.ShareRequested += () => GameKit.Share.TextWithLink(GameController.ShareMessage(SaveSystem.HighScore));
+            _scores.ShareRequested += Share;
             _scores.PlayRequested += StartNewGame;
-            _levelSelect.ToolsRequested += ShowToolbox;
+
+            _toolbox.BackRequested += CloseToolbox;
+            _toolbox.WatchAdRequested += WatchAdForCoins;
+            Nav.ToolboxRequested += ShowToolbox;
+
+            _pause.PrivacyRequested += ShowPrivacyOptions;
+
+            // Over every screen and card, so an effect fired from a result card is never hidden by it.
+            Fx.Create(canvasRect, shakeRoot);
 
             // Every screen is built by this point, so one pass reaches every label — including the
-            // ones the kit creates inside UIKit.Button and its popup pool, where there is no call
-            // site here to change.
-            //
-            // Must stay ABOVE the screenshot branches below, both of which return. Sitting under
-            // them meant the font was applied in ordinary play and in nothing else — including the
-            // store-screenshot build, which is the one that ends up on the Play listing.
+            // ones the kit creates internally. Must stay ABOVE the screenshot branches below.
             CandyUI.ApplyFont(canvasRect.gameObject);
 
             if (StoreShots.StoreShotsRequested())
             {
-                drag.InputEnabled = false;
+                _drag.InputEnabled = false;
                 ShowMenu();
                 gameObject.AddComponent<StoreShots>().Begin(_controller, this);
                 return;
@@ -224,70 +243,146 @@ namespace Snapline.App
 
             if (SmokeShots.RequestedOnCommandLine())
             {
-                // The harness captures the menu, then starts a game itself.
-                drag.InputEnabled = false;
+                _drag.InputEnabled = false;
                 ShowMenu();
-                gameObject.AddComponent<SmokeShots>().Begin(_controller, drag, this);
+                gameObject.AddComponent<SmokeShots>().Begin(_controller, _drag, this);
                 return;
             }
 
             ShowMenu();
 
-            // The splash goes over a menu that is already built and shown, rather than delaying the
-            // build until the video ends. A player who taps to skip on the first frame then lands on
-            // a finished screen instead of watching one assemble.
+            // The splash goes over a menu that is already built and shown, so a player who taps to
+            // skip on the first frame lands on a finished screen instead of watching one assemble.
             SplashScreen.TryPlay(canvasRect, null);
         }
 
-        private RectTransform _gameRoot;
-        private GameController _controller;
-        private MainMenu _menu;
-        private LevelSelect _levelSelect;
+        private void OnDestroy() => Nav.ToolboxRequested -= ShowToolbox;
 
-        private ScoresPanel _scores;
-        private ToolboxPanel _toolbox;
-        private Sfx _sfx;
+        private static T Make<T>(string name, Transform parent) where T : Component
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            return go.AddComponent<T>();
+        }
+
+        // --- screens ---------------------------------------------------------------------------
+
+        private void HideScreens()
+        {
+            _controller.HideOverlays();
+            _pause.HideNow();
+            _menu.Hide();
+            _levelSelect.Hide();
+            _daily.Hide();
+            _scores.Hide();
+            _toolbox.Hide();
+            _toolboxOverGame = false;
+        }
 
         internal void ShowMenu()
         {
+            HideScreens();
             _gameRoot.gameObject.SetActive(false);
-            _controller.HideOverlays();
-            _levelSelect.Hide();
-            _scores.Hide();
-            if (_toolbox != null) _toolbox.Hide();
-            // Re-asked every time the menu opens rather than cached at startup: consent is gathered
-            // asynchronously, so at first launch the answer often is not known yet when the menu is
-            // first built.
+
+            // Re-asked every time: consent is gathered asynchronously, so at first launch the answer
+            // often is not known yet when the menu is first built.
             _menu.SetPrivacyAvailable(GameKit.GameKitRuntime.Consent.IsPrivacyOptionsRequired);
             _menu.Show(SaveSystem.HighScore, GameController.HasSavedRun);
         }
 
         internal void ShowScores()
         {
+            HideScreens();
             _gameRoot.gameObject.SetActive(false);
-            _controller.HideOverlays();
-            _menu.Hide();
-            _levelSelect.Hide();
-            _toolbox.Hide();
             _scores.Show();
         }
 
-        internal void ShowToolbox()
+        internal void ShowLevelSelect()
         {
+            HideScreens();
             _gameRoot.gameObject.SetActive(false);
-            _controller.HideOverlays();
-            _menu.Hide();
-            _levelSelect.Hide();
-            _scores.Hide();
-            _toolbox.Show();
+            _levelSelect.Show();
+        }
+
+        internal void ShowDaily()
+        {
+            HideScreens();
+            _gameRoot.gameObject.SetActive(false);
+            _daily.Show();
         }
 
         /// <summary>
-        /// Pays out for a rewarded ad, and pays nothing if the ad did not actually play.
-        ///
-        /// The kit hands back a result rather than a promise that it worked, because a failed or
-        /// skipped ad must cost the player nothing and give them nothing — silently granting coins
-        /// for an ad that never ran is how an AdMob account gets flagged.
+        /// The store opens over whatever is showing and closes back to it — including a run in
+        /// progress, whose input is held off while the store is up, because the drag controller
+        /// polls the pointer directly and would otherwise pick pieces up through it.
+        /// </summary>
+        internal void ShowToolbox()
+        {
+            if (_toolbox.IsVisible) return;
+
+            _toolboxOverGame = _gameRoot.gameObject.activeSelf;
+            if (_toolboxOverGame)
+            {
+                _dragWasEnabled = _drag.InputEnabled;
+                _drag.InputEnabled = false;
+            }
+
+            _toolbox.Show();
+        }
+
+        private void CloseToolbox()
+        {
+            _toolbox.Hide();
+            if (_toolboxOverGame) _drag.InputEnabled = _dragWasEnabled;
+            _toolboxOverGame = false;
+        }
+
+        internal void OpenSettings() =>
+            _pause.ShowSettings(GameKit.GameKitRuntime.Consent.IsPrivacyOptionsRequired);
+
+        internal void StartLevel(int number)
+        {
+            HideScreens();
+            _gameRoot.gameObject.SetActive(true);
+            _controller.StartLevel(number);
+        }
+
+        internal void StartNewGame()
+        {
+            HideScreens();
+            _gameRoot.gameObject.SetActive(true);
+            _controller.StartNewRun();
+        }
+
+        internal void StartDaily()
+        {
+            HideScreens();
+            _gameRoot.gameObject.SetActive(true);
+            _controller.StartDaily();
+        }
+
+        private void ContinueGame()
+        {
+            HideScreens();
+            _gameRoot.gameObject.SetActive(true);
+
+            // The save can vanish between the menu being drawn and the tap. Fall back to a fresh board.
+            if (!_controller.ResumeSavedRun()) _controller.StartNewRun();
+        }
+
+        private static void Share() => GameKit.Share.TextWithLink(GameController.ShareMessage(SaveSystem.HighScore));
+
+        private void ToggleSound()
+        {
+            Settings.SoundEnabled = !Settings.SoundEnabled;
+            Sound.Muted = !Settings.SoundEnabled;
+            _menu.RefreshSoundLabel();
+            if (Settings.SoundEnabled) Sound.Tap();
+        }
+
+        /// <summary>
+        /// Pays out for a rewarded ad, and pays nothing if the ad did not actually play. Silently
+        /// granting coins for an ad that never ran is how an ad account gets flagged.
         /// </summary>
         private async void WatchAdForCoins()
         {
@@ -295,85 +390,125 @@ namespace Snapline.App
             if (ads == null) return;
 
             bool watched = await ads.ShowRewardedAsync();
-            if (!watched) return;
+            if (!watched)
+            {
+                Sound.Deny();
+                return;
+            }
 
-            Wallet.Grant(Core.Economy.AdReward);
+            CoinPill.HoldRoll(1.2f);
+            Wallet.Grant(Economy.AdReward);
             _toolbox.Refresh();
-        }
 
-
-
-        internal void ShowLevelSelect()
-        {
-            _gameRoot.gameObject.SetActive(false);
-            _controller.HideOverlays();
-            _menu.Hide();
-            _scores.Hide();
-            _levelSelect.Show();
-            _levelSelect.ScrollTo(SaveSystem.HighestUnlockedLevel());
-        }
-
-        internal void StartLevel(int number)
-        {
-            _menu.Hide();
-            _levelSelect.Hide();
-            _scores.Hide();
-            _gameRoot.gameObject.SetActive(true);
-            _controller.StartLevel(number);
-        }
-
-        internal void StartNewGame()
-        {
-            _menu.Hide();
-            _levelSelect.Hide();
-            _scores.Hide();
-            _gameRoot.gameObject.SetActive(true);
-            _controller.StartNewRun();
-        }
-
-        private void ContinueGame()
-        {
-            _menu.Hide();
-            _levelSelect.Hide();
-            _scores.Hide();
-            _gameRoot.gameObject.SetActive(true);
-
-            // The save can vanish between the menu being drawn and the tap — a crash, or the run
-            // having already ended. Fall back to a fresh board rather than an empty screen.
-            if (!_controller.ResumeSavedRun()) _controller.StartNewRun();
-        }
-
-        private void ToggleSound()
-        {
-            Settings.SoundEnabled = !Settings.SoundEnabled;
-            _sfx.Muted = !Settings.SoundEnabled;
-            _menu.RefreshSoundLabel();
+            CoinPill pill = CoinPill.Visible();
+            if (pill != null && _toolbox.WatchButton != null)
+                Fx.Instance?.CoinFly(_toolbox.WatchButton.position, pill.Coin, 10, 72f);
+            Sound.Prize();
         }
 
         /// <summary>
-        /// Reopens the consent form so the player can change their answer. Fire and forget: the
-        /// form is a native overlay, and the menu underneath needs no state change either way.
-        ///
-        /// Through GameKitRuntime rather than GameKitRuntime.Consent: only the runtime's version
-        /// raises ConsentChanged afterwards, which is how LevelPlay's GDPR flag and analytics
-        /// collection hear a changed answer. Calling the consent service directly changes the form
-        /// and nothing that acts on it.
+        /// Reopens the consent form. Through GameKitRuntime rather than GameKitRuntime.Consent: only the
+        /// runtime's version raises ConsentChanged afterwards, which is how LevelPlay's GDPR flag and
+        /// analytics collection hear a changed answer.
         /// </summary>
         private async void ShowPrivacyOptions()
         {
             await GameKit.GameKitRuntime.ShowPrivacyOptionsAsync();
 
-            // Withdrawing consent can remove the entry point, so re-read rather than assuming it
-            // still applies.
-            if (_menu != null)
-                _menu.SetPrivacyAvailable(GameKit.GameKitRuntime.Consent.IsPrivacyOptionsRequired);
+            bool required = GameKit.GameKitRuntime.Consent.IsPrivacyOptionsRequired;
+            if (_menu != null) _menu.SetPrivacyAvailable(required);
+            if (_pause != null) _pause.SetPrivacyAvailable(required);
         }
+
+        // --- the play screen's layout ----------------------------------------------------------
+
+        /// <summary>
+        /// The largest framed board that fits across the screen and, in BOTH modes, between the HUD
+        /// and the tray and tools. One size for both, so switching modes never rescales the pieces.
+        /// </summary>
+        private static float ComputeBoardSize(float safeWidth, float safeHeight)
+        {
+            float byWidth = Mathf.Min(BoardLayout.MaxSize, safeWidth - BoardLayout.SideMargin * 2f);
+            float endless = safeHeight - Hud.Layout.EndlessBottom - PlayLayout.BoardGap * 2f - PlayLayout.EndlessBottomReserve;
+            float level = safeHeight - Hud.Layout.LevelBottom - PlayLayout.BoardGap * 2f - PlayLayout.LevelBottomReserve;
+            return Mathf.Floor(Mathf.Max(360f, Mathf.Min(byWidth, Mathf.Min(endless, level))));
+        }
+
+        /// <summary>Places the board, the tray and the tools for a mode. The board centres in the room left.</summary>
+        private void ApplyLayout(GameMode mode)
+        {
+            bool level = mode == GameMode.Level;
+
+            float top = Hud.Bottom(mode) + PlayLayout.BoardGap;
+            float reserve = level ? PlayLayout.LevelBottomReserve : PlayLayout.EndlessBottomReserve;
+            float available = _safeHeight - top - reserve - PlayLayout.BoardGap;
+            _boardPanel.anchoredPosition = new Vector2(0f, -(top + available * 0.5f));
+
+            _trayRoot.anchoredPosition = new Vector2(0f, level ? PlayLayout.LevelTrayY : PlayLayout.EndlessTrayY);
+            _tray.Layout(level ? PlayLayout.LevelSlot : PlayLayout.EndlessSlot,
+                         level ? PlayLayout.LevelSlotSpacing : PlayLayout.EndlessSlotSpacing,
+                         level ? 58f : 70f);
+
+            _tools.Place(level ? PlayLayout.LevelToolsY : PlayLayout.EndlessToolsY, PlayLayout.ToolSpacing,
+                         level ? PlayLayout.LevelToolsScale : PlayLayout.EndlessToolsScale);
+        }
+
+        private RectTransform BuildBoardPanel(RectTransform parent, float size, float gridExtent)
+        {
+            RectTransform panel = UIKit.Rect("BoardPanel", parent);
+            panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 1f);
+            panel.pivot = new Vector2(0.5f, 0.5f);
+            panel.sizeDelta = new Vector2(size, size);
+            _boardPanel = panel;
+
+            float ground = size * (1f - BoardLayout.Stripe * 1.2f);
+            W.Rounded("Ground", panel, CandyText.Hex(0x172668), CandyText.Hex(0x2C44A0), W.Centre, Vector2.zero,
+                      new Vector2(ground, ground), size * 0.05f);
+
+            // The candy stripe, tiled rather than stretched so its stripes and sprinkles keep their
+            // drawn proportions along the full length of each side.
+            Sprite frameSprite = ArtKit.BoardFrame();
+            if (frameSprite != null)
+            {
+                Image frame = CandyUI.Icon("Frame", panel, frameSprite);
+                frame.preserveAspect = false;
+                frame.type = Image.Type.Tiled;
+                RectTransform fr = frame.rectTransform;
+                fr.anchorMin = Vector2.zero;
+                fr.anchorMax = Vector2.one;
+                fr.offsetMin = Vector2.zero;
+                fr.offsetMax = Vector2.zero;
+                frame.pixelsPerUnitMultiplier = Mathf.Max(0.05f, frameSprite.border.x / (size * BoardLayout.Stripe));
+            }
+
+            // The grid is pivoted top-left so cell (0,0) is the top-left cell, matching the engine.
+            RectTransform grid = UIKit.Rect("Grid", panel);
+            grid.anchorMin = grid.anchorMax = new Vector2(0f, 1f);
+            grid.pivot = new Vector2(0f, 1f);
+            float inset = (size - gridExtent) * 0.5f;
+            grid.anchoredPosition = new Vector2(inset, -inset);
+            grid.sizeDelta = new Vector2(gridExtent, gridExtent);
+
+            return grid;
+        }
+
+        /// <summary>The ghost lives inside the grid, so it is positioned with the same maths as the blocks.</summary>
+        private static RectTransform BuildGhostLayer(RectTransform grid)
+        {
+            RectTransform ghost = UIKit.Rect("GhostLayer", grid);
+            ghost.anchorMin = ghost.anchorMax = new Vector2(0f, 1f);
+            ghost.pivot = new Vector2(0f, 1f);
+            ghost.anchoredPosition = Vector2.zero;
+            ghost.sizeDelta = Vector2.zero;
+            return ghost;
+        }
+
+        // --- canvas ----------------------------------------------------------------------------
 
         private static void ConfigureScreen()
         {
             // A standalone player pauses entirely when it loses focus, which hangs any capture run
-            // launched from a script. Only enabled for the harnesses; the shipped game keeps the
-            // default so it never burns battery in the background.
+            // launched from a script. Only enabled for the harnesses.
             if (StoreShots.StoreShotsRequested() || StoreShots.FeatureGraphicRequested() ||
                 SmokeShots.RequestedOnCommandLine())
             {
@@ -387,8 +522,6 @@ namespace Snapline.App
 
         private static Canvas BuildCanvas()
         {
-            // A camera is created even though the canvas is in overlay mode: without one the scene
-            // renders nothing behind the UI and the editor reports a missing main camera.
             var camGo = new GameObject("MainCamera", typeof(Camera));
             camGo.tag = "MainCamera";
             Camera cam = camGo.GetComponent<Camera>();
@@ -404,17 +537,9 @@ namespace Snapline.App
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(RefWidth, RefHeight);
 
-            // Match on WIDTH.
-            //
-            // Matching on height was wrong and shipped a board that ran off both sides of almost
-            // every modern phone. Matching on height sets the scale from screenHeight/1920, so the
-            // canvas is only screenWidth/scale reference units wide — on a 20:9 display that is
-            // 1080 * 1920/2400 = 864 units, against a board panel 1018 wide. Taller screens make the
-            // usable width *smaller*, not larger.
-            //
-            // Matching on width pins 1080 units to the physical screen width, so anything drawn
-            // inside 1080 always fits horizontally. Extra height on tall phones becomes vertical
-            // room, which the layout below distributes rather than assuming.
+            // Match on WIDTH. Matching on height shipped a board that ran off both sides of almost
+            // every modern phone; matching on width pins 1080 units to the physical screen width, and
+            // extra height on tall phones becomes vertical room.
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
             scaler.matchWidthOrHeight = 0f;
 
@@ -438,142 +563,19 @@ namespace Snapline.App
             rt.offsetMax = Vector2.zero;
         }
 
-        /// <summary>
-        /// Canvas height in reference units.
-        ///
-        /// With the scaler matching on width, 1080 units always map to the physical screen width, so
-        /// the height in units follows the aspect ratio: 1920 on 16:9, 2400 on 20:9, 1440 on 4:3.
-        /// The layout has to work from this rather than from RefHeight, which is only the value on
-        /// one particular phone shape.
-        /// </summary>
-        private static float CanvasHeightUnits() =>
-            RefWidth * Screen.height / Mathf.Max(1f, Screen.width);
+        /// <summary>Canvas height in reference units: 1920 on 16:9, 2400 on 20:9, 1440 on 4:3.</summary>
+        private static float CanvasHeightUnits() => RefWidth * Screen.height / Mathf.Max(1f, Screen.width);
 
-        /// <summary>Reference units per screen pixel, for converting the safe area.</summary>
         private static float UnitsPerPixel() => RefWidth / Mathf.Max(1f, Screen.width);
 
-        /// <summary>
-        /// Inset a rect to the display's safe area, so nothing lands under a notch, a punch-hole or
-        /// the gesture bar. Insets are zero on hardware without cutouts, so this costs nothing there.
-        /// </summary>
+        /// <summary>Inset a rect to the display's safe area, so nothing lands under a notch or the gesture bar.</summary>
         private static void ApplySafeArea(RectTransform rt)
         {
             Rect safe = Screen.safeArea;
-
-            float left = safe.xMin / Mathf.Max(1f, Screen.width);
-            float right = safe.xMax / Mathf.Max(1f, Screen.width);
-            float bottom = safe.yMin / Mathf.Max(1f, Screen.height);
-            float top = safe.yMax / Mathf.Max(1f, Screen.height);
-
-            rt.anchorMin = new Vector2(left, bottom);
-            rt.anchorMax = new Vector2(right, top);
+            rt.anchorMin = new Vector2(safe.xMin / Mathf.Max(1f, Screen.width), safe.yMin / Mathf.Max(1f, Screen.height));
+            rt.anchorMax = new Vector2(safe.xMax / Mathf.Max(1f, Screen.width), safe.yMax / Mathf.Max(1f, Screen.height));
             rt.offsetMin = Vector2.zero;
             rt.offsetMax = Vector2.zero;
-        }
-
-        /// <summary>
-        /// Largest cell size that fits the board both across the screen and into the gap between the
-        /// HUD and the tray.
-        ///
-        /// Taking the smaller of the two constraints is what stops the board running off the sides
-        /// on a narrow-in-units display, and off the top and bottom on a short one like a tablet.
-        /// </summary>
-        private static float ComputeBoardCellSize(float safeWidth, float safeHeight, float hudHeight, float trayReserve)
-        {
-            float usableWidth = safeWidth - BoardMargin * 2f - BoardPadding * 2f;
-
-            float usableHeight = safeHeight - hudHeight - trayReserve
-                                 - BoardPadding * 2f - BoardVerticalMargin * 2f;
-
-            float extent = Mathf.Min(usableWidth, usableHeight);
-            float cell = Mathf.Floor((extent - (Board.Width - 1) * BoardGap) / Board.Width);
-
-            // A floor, so a freakishly short window degrades to a small board rather than a
-            // zero-sized or negative one.
-            return Mathf.Max(24f, cell);
-        }
-
-        /// <summary>
-        /// Tray cell size, bounded by both the tray's height and one slot's width.
-        ///
-        /// The tallest shape is five cells and so is the widest, so both constraints bite. Checking
-        /// only the height is what previously let a 5-long bar hang off the bottom of the screen;
-        /// checking only the width would let one run into its neighbouring slot.
-        /// </summary>
-        private static float ComputeTrayCellSize(float trayHeight, float slotWidth)
-        {
-            const int longest = 5;
-
-            float byHeight = (trayHeight - TrayVerticalPadding - (longest - 1) * TrayGap) / longest;
-            float byWidth = (slotWidth - TraySlotInset - (longest - 1) * TrayGap) / longest;
-
-            return Mathf.Clamp(Mathf.Floor(Mathf.Min(byHeight, byWidth)), 24f, 74f);
-        }
-
-        /// <summary>Space kept clear above and below a tray piece.</summary>
-        private const float TrayVerticalPadding = 44f;
-
-        /// <summary>Gap between one tray slot's contents and the next.</summary>
-        private const float TraySlotInset = 24f;
-
-        private RectTransform BuildBoardPanel(RectTransform parent, float gridExtent)
-        {
-            // The board sits centred in whatever is left between the HUD and the tray. Anchoring the
-            // container to both edges instead of positioning it from a hardcoded 1920-unit centre is
-            // what lets the same layout hold on a 16:9 phone, a 20:9 phone and a 4:3 tablet.
-            RectTransform area = UIKit.Rect("BoardArea", parent);
-            area.anchorMin = new Vector2(0f, 0f);
-            area.anchorMax = new Vector2(1f, 1f);
-            area.pivot = new Vector2(0.5f, 0.5f);
-            area.offsetMin = new Vector2(0f, _trayHeight + _trayInset);
-            area.offsetMax = new Vector2(0f, -_hudHeight);
-
-            float panelSize = gridExtent + BoardPadding * 2f;
-
-            RectTransform panel = UIKit.Rect("BoardPanel", area);
-            UIKit.Place(panel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                        Vector2.zero, new Vector2(panelSize, panelSize));
-
-            Image bg = UIKit.Image("PanelBg", panel, ArtKit.Panel(), Color.white, Image.Type.Sliced);
-            RectTransform bgRect = bg.rectTransform;
-            bgRect.anchorMin = Vector2.zero;
-            bgRect.anchorMax = Vector2.one;
-            bgRect.offsetMin = Vector2.zero;
-            bgRect.offsetMax = Vector2.zero;
-
-            // The grid is pivoted top-left so cell (0,0) is the top-left cell, matching the engine.
-            RectTransform grid = UIKit.Rect("Grid", panel);
-            grid.anchorMin = grid.anchorMax = new Vector2(0f, 1f);
-            grid.pivot = new Vector2(0f, 1f);
-            grid.anchoredPosition = new Vector2(BoardPadding, -BoardPadding);
-            grid.sizeDelta = new Vector2(gridExtent, gridExtent);
-
-            return grid;
-        }
-
-        /// <summary>
-        /// The ghost lives inside the grid with a zero offset, so ghost cells can be positioned with
-        /// the very same CellToLocal maths the blocks use.
-        /// </summary>
-        private static RectTransform BuildGhostLayer(RectTransform grid)
-        {
-            RectTransform ghost = UIKit.Rect("GhostLayer", grid);
-            ghost.anchorMin = ghost.anchorMax = new Vector2(0f, 1f);
-            ghost.pivot = new Vector2(0f, 1f);
-            ghost.anchoredPosition = Vector2.zero;
-            ghost.sizeDelta = Vector2.zero;
-            return ghost;
-        }
-
-        private RectTransform BuildTrayRoot(RectTransform parent)
-        {
-            RectTransform tray = UIKit.Rect("Tray", parent);
-            tray.anchorMin = new Vector2(0f, 0f);
-            tray.anchorMax = new Vector2(1f, 0f);
-            tray.pivot = new Vector2(0.5f, 0f);
-            tray.offsetMin = new Vector2(0f, _trayInset);
-            tray.offsetMax = new Vector2(0f, _trayInset + _trayHeight);
-            return tray;
         }
     }
 }

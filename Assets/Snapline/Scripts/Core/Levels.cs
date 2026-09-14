@@ -40,12 +40,24 @@ namespace Snapline.Core
         /// </summary>
         public readonly ulong Seed;
 
-        public LevelDef(int number, int lineTarget, int moveBudget, ulong seed)
+        /// <summary>
+        /// Blocks already on the board when the level opens. Empty for the ladder; the daily
+        /// challenge opens half built.
+        /// </summary>
+        public readonly ulong StartOccupied;
+
+        /// <summary>Colours of <see cref="StartOccupied"/>, one per cell. Null when the board opens empty.</summary>
+        public readonly byte[] StartColours;
+
+        public LevelDef(int number, int lineTarget, int moveBudget, ulong seed,
+                        ulong startOccupied = 0UL, byte[] startColours = null)
         {
             Number = number;
             LineTarget = lineTarget;
             MoveBudget = moveBudget;
             Seed = seed;
+            StartOccupied = startOccupied;
+            StartColours = startColours;
         }
 
         public LevelObjective ToObjective() => new LevelObjective(LineTarget, MoveBudget);

@@ -57,6 +57,12 @@ namespace Snapline.Core
 
         /// <summary>Added in save version 2. Absent from a version 1 save, which defaults it to 0.</summary>
         public int DryMovesSinceClear;
+
+        /// <summary>
+        /// Level moves spent at the moment of the snapshot. Kept for undo only — it is NOT written
+        /// by SaveCodec, because only endless runs are saved and they have no move count.
+        /// </summary>
+        public int MovesUsed;
     }
 
     /// <summary>
@@ -133,12 +139,14 @@ namespace Snapline.Core
             Mode = GameMode.Level;
             Objective = level.ToObjective();
             LevelNumber = level.Number;
-            ResetRun(level.Seed);
+            ResetRun(level.Seed, level.StartOccupied, level.StartColours);
         }
 
-        private void ResetRun(ulong seed)
+        private void ResetRun(ulong seed, ulong startOccupied = 0UL, byte[] startColours = null)
         {
             Board.Clear();
+            if (startOccupied != 0UL) Board.Restore(startOccupied, startColours);
+            _undoPoint = null;
             Score.Reset();
             _rng = new Rng(seed);
             IsGameOver = false;
@@ -324,6 +332,10 @@ namespace Snapline.Core
             RunSnapshot point = _undoPoint;
             _undoPoint = null;
             Restore(point);
+
+            // A level's move count is not part of the save format, so Restore leaves it alone. An
+            // undo that took the piece back but kept the move spent would read as a bug.
+            if (Objective != null) MovesUsed = point.MovesUsed;
             return true;
         }
 
@@ -429,6 +441,7 @@ namespace Snapline.Core
                 BestSimultaneousLines = Score.BestSimultaneousLines,
                 GameOver = IsGameOver,
                 DryMovesSinceClear = Score.DryMovesSinceClear,
+                MovesUsed = MovesUsed,
             };
         }
 
