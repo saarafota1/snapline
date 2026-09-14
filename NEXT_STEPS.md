@@ -143,21 +143,29 @@ Run `Studio → Release → Check Readiness` before the final build; it enforces
 
 **Title** (30 char limit): `Snapline: Block Puzzle` — 22 characters.
 
-**Short description** (80 char limit):
-> Drop blocks, clear lines, chase combos. 60 levels plus an endless high-score run.
+*Rewritten 15 Sep 2026 for the candy redesign (260 levels, daily puzzle, special blocks, power-ups).
+Every claim below is true of the build on `feature/candy-redesign` — keep it that way when features change.*
 
-**Full description**:
-> Fit blocks onto the grid. Fill a row or a column and it explodes.
+**Short description** (80 char limit):
+> Drop candy blocks, clear lines and chase combos. 260 levels plus daily puzzles.
+
+**Full description** (4000 char limit):
+> Fit candy blocks onto the grid. Fill a row or a column and it bursts!
 >
-> Snapline is a block puzzle built around one idea: it should never feel unfair. The pieces you are
-> offered are chosen with the board in mind, so a run ends because of a decision you made, not
-> because the game handed you something that could not fit.
+> Snapline is a sweet, relaxing block puzzle with a little bit of fireworks. Drag pieces onto the board, clear lines, and chain your clears together for big combos. Clear three lines at once and the whole board goes BOOM.
 >
-> • ENDLESS — no timer, no levels, just you and your best score
-> • 60 LEVELS — clear a line target inside a move budget, three stars for finishing with moves to spare
-> • COMBOS — keep clearing to build a multiplier, with a little forgiveness so streaks are actually reachable
-> • PICK UP WHERE YOU LEFT OFF — a run in progress survives closing the app
-> • PLAYS OFFLINE — no account, no sign-in
+> And it never feels unfair: the pieces you are offered are chosen with the board in mind, so a run ends because of a move you made, not because the game handed you something that could never fit.
+>
+> • 260 LEVELS – clear the target lines before you run out of moves, and earn up to three stars
+> • DAILY PUZZLE – a new puzzle every day, with rewards that grow through the week and a treasure chest on Sunday
+> • SPECIAL BLOCKS – crack tough stone blocks, set off bombs, and unwrap gifts for extra moves
+> • ENDLESS MODE – no timer, no pressure, just you and your best score
+> • POWER-UPS – undo a move, shuffle your pieces, or smash a block with the hammer
+> • COMBOS – keep clearing to build your multiplier
+> • PICK UP WHERE YOU LEFT OFF – your endless run is saved even if you close the app
+> • NO ACCOUNT NEEDED – just open it and play
+>
+> Easy to learn, hard to put down. How far can you go?
 
 ---
 
