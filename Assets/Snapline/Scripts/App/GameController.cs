@@ -323,12 +323,24 @@ namespace Snapline.App
             fx?.Shake(0.35f);
             yield return new WaitForSeconds(0.6f);
 
+            bool offered = false;
             if (_run.RevivesUsed < AdController.MaxRevivesPerRun)
             {
-                _noMoves.Show(Wallet.Count(Tool.Shuffle), _ads != null && _ads.CanOfferRevive(_run));
-                yield break;
+                // Guarded: if the card fails to open, the run must still end rather than leave the
+                // player on a dead board with input off and nothing to tap.
+                try
+                {
+                    _noMoves.Show(Wallet.Count(Tool.Shuffle), _ads != null && _ads.CanOfferRevive(_run));
+                    offered = true;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                    _noMoves.HideNow();
+                }
             }
 
+            if (offered) yield break;
             yield return FinishEndless();
         }
 
@@ -621,7 +633,17 @@ namespace Snapline.App
             _ads?.RecordGameFinished();
 
             _busy = false;
-            _greatRun.Show(score, previousBest, newBest, lines, bestCombo, coins, before, RankOf(score));
+            try
+            {
+                _greatRun.Show(score, previousBest, newBest, lines, bestCombo, coins, before, RankOf(score));
+            }
+            catch (Exception e)
+            {
+                // Everything is already saved and paid; a card that will not open must not strand the player.
+                Debug.LogException(e);
+                _greatRun.HideNow();
+                MenuRequested?.Invoke();
+            }
         }
 
         private static int RankOf(long score)

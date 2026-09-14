@@ -32,6 +32,18 @@ namespace Snapline.UI
         public static readonly Vector2 Left = new Vector2(0f, 0.5f);
         public static readonly Vector2 Right = new Vector2(1f, 0.5f);
 
+        /// <summary>
+        /// The component on an object, added if it is not there yet.
+        ///
+        /// Never write <c>GetComponent&lt;T&gt;() ?? AddComponent&lt;T&gt;()</c>. In the editor a missing
+        /// component comes back as a fake-null object that Unity's == calls null but C#'s ?? does not,
+        /// so ?? keeps the fake, the next line throws MissingComponentException, and whatever was
+        /// opening stops half way. That froze the NO MORE MOVES card in the editor while every player
+        /// build — where the null is real — worked.
+        /// </summary>
+        public static T Ensure<T>(Component on) where T : Component =>
+            on.TryGetComponent(out T existing) ? existing : on.gameObject.AddComponent<T>();
+
         /// <summary>A plain sprite, letterboxed inside its box.</summary>
         public static Image Img(string name, Transform parent, string ui, Vector2 anchor, Vector2 pos, Vector2 size)
         {

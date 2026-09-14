@@ -438,7 +438,7 @@ namespace Snapline.UI
                 _dayDots[i].color = isToday && !dayDone ? new Color(1f, 0.86f, 0.30f, 1f) : Color.white;
                 _dayDots[i].rectTransform.sizeDelta = isToday ? new Vector2(76f, 76f) : new Vector2(64f, 64f);
 
-                CandyPress pulse = _dayDots[i].GetComponent<CandyPress>() ?? _dayDots[i].gameObject.AddComponent<CandyPress>();
+                CandyPress pulse = W.Ensure<CandyPress>(_dayDots[i]);
                 pulse.Click = false;
                 pulse.Pulse = isToday && !dayDone ? 0.1f : 0f;
             }

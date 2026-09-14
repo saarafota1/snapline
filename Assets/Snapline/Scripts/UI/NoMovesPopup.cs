@@ -157,7 +157,7 @@ namespace Snapline.UI
         private static void Dim(Button b, bool dim)
         {
             b.GetComponent<Image>().color = dim ? new Color(0.72f, 0.72f, 0.78f, 1f) : Color.white;
-            CanvasGroup g = b.GetComponent<CanvasGroup>() ?? b.gameObject.AddComponent<CanvasGroup>();
+            CanvasGroup g = W.Ensure<CanvasGroup>(b);
             g.alpha = dim ? 0.7f : 1f;
         }
 

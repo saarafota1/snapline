@@ -254,7 +254,7 @@ namespace Snapline.UI
                 _daySymbols[i].sprite = ArtKit.Ui(done ? "sym_check" : i == 6 ? "sym_lock_gold" : "sym_lock_blue");
                 _dayToday[i].gameObject.SetActive(isToday && !done);
 
-                CandyPress press = _dayDiscs[i].GetComponent<CandyPress>() ?? _dayDiscs[i].gameObject.AddComponent<CandyPress>();
+                CandyPress press = W.Ensure<CandyPress>(_dayDiscs[i]);
                 press.Pulse = isToday && !done ? 0.06f : 0f;
                 press.Click = false;
 

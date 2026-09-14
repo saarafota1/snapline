@@ -70,6 +70,25 @@ namespace Snapline.App
             return true;
         }
 
+        private RawImage Video(string name, RectTransform root, AspectRatioFitter.AspectMode mode, float aspect, Color tint)
+        {
+            var raw = new GameObject(name, typeof(RawImage)).GetComponent<RawImage>();
+            raw.transform.SetParent(root, false);
+            raw.texture = _target;
+            raw.color = tint;
+            raw.raycastTarget = false;
+            RectTransform rt = raw.rectTransform;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+
+            var fitter = raw.gameObject.AddComponent<AspectRatioFitter>();
+            fitter.aspectMode = mode;
+            fitter.aspectRatio = aspect;
+            return raw;
+        }
+
         private void Begin(RectTransform canvasRect, VideoClip clip, Action onDone)
         {
             _onDone = onDone;
@@ -87,22 +106,16 @@ namespace Snapline.App
                 name = "SplashTarget"
             };
 
-            var raw = new GameObject("SplashVideo", typeof(RawImage)).GetComponent<RawImage>();
-            raw.transform.SetParent(root, false);
-            raw.texture = _target;
-            raw.raycastTarget = false;
-            RectTransform rawRect = raw.rectTransform;
-            rawRect.anchorMin = Vector2.zero;
-            rawRect.anchorMax = Vector2.one;
-            rawRect.offsetMin = Vector2.zero;
-            rawRect.offsetMax = Vector2.zero;
+            float aspect = clip.width / (float)Mathf.Max(1, clip.height);
 
-            // Cover, not fit: fill the screen and let the overflow crop. The bumper is centred, so
-            // cropping the edges costs nothing, whereas pillarboxing a 9:16 clip on a 9:20 phone
-            // puts black bars down two thirds of the screen.
-            var fitter = raw.gameObject.AddComponent<AspectRatioFitter>();
-            fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
-            fitter.aspectRatio = clip.width / (float)Mathf.Max(1, clip.height);
+            // Two copies of the same frame. Behind: enlarged to cover the whole screen and dimmed, so
+            // whatever the phone's shape there are no black bars. In front: the clip fitted INSIDE the
+            // screen, so none of it is cropped.
+            //
+            // Covering with the front copy alone was the first version, and on a phone taller than
+            // 9:16 it cut the sides off — the SNAPLINE wordmark ran off both edges of the screen.
+            Video("SplashFill", root, AspectRatioFitter.AspectMode.EnvelopeParent, aspect, new Color(0.62f, 0.62f, 0.68f, 1f));
+            Video("SplashVideo", root, AspectRatioFitter.AspectMode.FitInParent, aspect, Color.white);
 
             _player = gameObject.AddComponent<VideoPlayer>();
             _player.clip = clip;
