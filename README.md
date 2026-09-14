@@ -141,8 +141,17 @@ Unity.exe -batchmode -nographics -quit -projectPath . \
 ## Shipping
 
 Process lives in `_StudioKit/Documentation~/NEW_GAME.md` and `PLAYBOOK.md`. Build a release with
-**Studio > Release > Build Android Release...** — never File > Build Settings, which produces test
-ad units and a debug signature.
+**Studio > Release > Build Android Release...** — never File > Build Settings, which skips the
+release gates and the artifact audits and signs with the debug key.
+
+**Since 1.4 every build requests live ads.** Ads are mediated by ironSource / Unity LevelPlay, which
+has no test/live pair of unit ids the way AdMob direct did: a non-release build only switches on
+LevelPlay's diagnostics. Tap an ad only on a phone registered as a test device in the ironSource
+dashboard. Clicking your own live ads can get the account banned, and a ban takes the portfolio.
+
+After a release build, check the artifact itself:
+`Tools/ArtifactCheck/verify_artifact.py <bundle> <aapt2>` — every check is paired with a positive
+control, so a failed read cannot pass as an absence.
 
 **Every version that goes to Play gets an entry in `release-notes.json`** at the repo root, in the
 same commit as the release. The Studio Hub dashboard reads it verbatim. The rules and a validation
