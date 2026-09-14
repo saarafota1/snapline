@@ -51,17 +51,28 @@ namespace Snapline.App
 
             if (SimulationRequested())
             {
-                GameKitRuntime.InstallAdService(new SimulatedAdService());
+                // UseAdService, not InstallAdService: the override has to be sticky. Services start
+                // asynchronously and finish after this runs, and under LevelPlay the real adapter
+                // initialises even on Windows - InstallAdService lets it replace the fake, and the
+                // self-playing harness then reports that no ad ever played. Found on Bloomgate.
+                GameKitRuntime.UseAdService(new SimulatedAdService());
                 Debug.Log("[Snapline] Simulated ad network installed (development flag).");
             }
 
-            // Log which units are actually live. Whether a build serves test or real ads is the one
-            // thing here worth being able to confirm from a device log rather than reason about.
+            // Log what this build will actually request. Whether a build serves test or real ads is
+            // the one thing here worth confirming from a device log rather than reasoning about - and
+            // under LevelPlay the answer is always live: there is no test/live pair of unit ids, and a
+            // non-release build only turns on diagnostics. Tap ads only on a device registered as a
+            // test device in the ironSource dashboard.
             if (config != null)
             {
-                Debug.Log($"[Snapline] ad units: release build={GameKitConfig.IsReleaseBuild}, " +
-                          $"using {(config.UsingAdMobTestUnits ? "GOOGLE TEST" : "LIVE")} units — " +
-                          $"rewarded={config.AdMobRewardedUnit} interstitial={config.AdMobInterstitialUnit}");
+                Debug.Log(config.adNetwork == AdNetwork.LevelPlay
+                    ? $"[Snapline] ads: LevelPlay, release build={GameKitConfig.IsReleaseBuild}, LIVE units " +
+                      $"rewarded={config.LevelPlayRewardedUnit} interstitial={config.LevelPlayInterstitialUnit} " +
+                      "- tap only on a registered test device"
+                    : $"[Snapline] ad units: release build={GameKitConfig.IsReleaseBuild}, " +
+                      $"using {(config.UsingAdMobTestUnits ? "GOOGLE TEST" : "LIVE")} units — " +
+                      $"rewarded={config.AdMobRewardedUnit} interstitial={config.AdMobInterstitialUnit}");
             }
 
             Debug.Log($"[Snapline] ads: rewardedReady={GameKitRuntime.Ads.IsRewardedReady} " +

@@ -1,0 +1,10 @@
+<!--
+  Keeps Snapline's self-registering service adapters through the IL2CPP managed linker. Nothing
+  calls them by name - they register themselves before the first scene - so without this a release
+  build strips them and ships with no analytics while looking healthy. The kit's adapters, LevelPlay
+  and native UMP consent among them, are preserved by the kit's own Assets/StudioKit/link.xml, and
+  the kit's AdapterAudit does not check this assembly: Tools/ArtifactCheck does.
+-->
+<linker>
+  <assembly fullname="Snapline.Services" preserve="all"/>
+</linker>

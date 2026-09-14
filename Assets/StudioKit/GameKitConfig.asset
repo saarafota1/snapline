@@ -15,7 +15,7 @@ MonoBehaviour:
   enableServices: 1
   environment: production
   autoSignInAnonymously: 1
-  adNetwork: 2
+  adNetwork: 3
   admobRewardedAndroid: ca-app-pub-3940256099942544/5224354917
   admobInterstitialAndroid: ca-app-pub-3940256099942544/1033173712
   admobRewardedIOS: ca-app-pub-3940256099942544/1712485313
@@ -24,6 +24,12 @@ MonoBehaviour:
   admobInterstitialAndroidRelease: ca-app-pub-1931205009793131/4765050515
   admobRewardedIOSRelease: 
   admobInterstitialIOSRelease: 
+  levelPlayAndroidAppKey: 27f3fdd8d
+  levelPlayIosAppKey: 
+  levelPlayRewardedAndroid: 01o2jtwe9iwyg6cg
+  levelPlayInterstitialAndroid: ju6wcgbi3v5nq1og
+  levelPlayRewardedIOS: 
+  levelPlayInterstitialIOS: 
   androidGameId: 
   iosGameId: 
   adsTestMode: 1

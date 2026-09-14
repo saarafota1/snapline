@@ -56,3 +56,7 @@ crashlytics-build.properties
 !/Tools/**/*.csproj
 /Tools/**/bin/
 /Tools/**/obj/
+
+# EDM4U resolver output: exploded .aar files, regenerated on every resolve
+/Assets/GeneratedLocalRepo/
+/Assets/GeneratedLocalRepo.meta
