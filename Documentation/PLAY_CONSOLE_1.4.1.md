@@ -1,4 +1,4 @@
-# Snapline 1.4.1 — Play Console changes for adding Unity Ads
+# Snapline 1.4.1 — Play Console changes for adding Unity Ads and Meta Audience Network
 
 1.4.1 adds **Unity Ads as a third LevelPlay network** (ironSource adapter
 `com.unity3d.ads-mediation:unityads-adapter:5.12.0` + `com.unity3d.ads:unity-ads:4.20.0`) and picks up the
@@ -47,6 +47,36 @@ true for UGS; the new row is Unity Ads' own identifier, not a player account.
 - *Way to request deletion?* — **No**, unchanged. Unity offers deletion for its own data, but Snapline
   has no in-app deletion route of its own; keep the answer consistent with 1.4.
 - *Account creation* — unchanged: the app does not allow creating an account.
+
+---
+
+## Meta Audience Network (also new in 1.4.1)
+
+1.4.1 also adds **Meta Audience Network** as a LevelPlay network: LevelPlay's adapter file 5.5.0.0,
+which is `facebook-adapter:5.3.0` + `audience-network-sdk:6.21.0`. This is separate from the Meta app-events SDK
+that 1.3 already had.
+
+**Meta does not publish a Data safety table for Audience Network.** Its guidance is the narrative
+"Resources for completing app store data practice questionnaires" (Facebook and Audience Network
+SDKs), https://developers.facebook.com/blog/post/2022/07/18/resources-for-completing-app-store-data-practice-questionnaires-apps-facebook-or-audience-network-sdk/
+and its Data Processing Options page, which confirms IP-derived location. Mapped onto the form:
+
+| Data type | Audience Network | Change to the form |
+|---|---|---|
+| Device or other IDs (advertising id, device identifiers) | Collected, shared with Meta; advertising, analytics, fraud prevention | None — already declared, same purposes |
+| App activity › App interactions (ads shown, viewed, clicked) | Collected, shared; advertising, analytics, fraud prevention | None — already declared |
+| Location › Approximate location (inferred from IP) | Collected, shared; advertising, analytics, fraud prevention | None — already declared |
+| App info and performance › Diagnostics (SDK and ad-request performance, errors) | Collected, shared; analytics, app functionality, fraud prevention | None beyond the **App functionality** purpose Unity Ads already adds |
+
+So Audience Network adds **no new rows and no new purposes** on top of the Unity Ads changes above.
+Every type it touches is already declared with those purposes. Two things to keep true:
+
+- **Shared stays Yes** on all four. The data goes to Meta as a third party.
+- **Meta's Limited Data Use** (US state privacy laws) is not switched on in code. If the studio ever
+  enables it, nothing on this form changes, but the privacy policy should mention it.
+
+**Meta Monetization Manager:** Meta serves nothing until payout details are added and the SnapLine
+property passes review. Until then Audience Network shows as present in LevelPlay but never fills.
 
 ---
 

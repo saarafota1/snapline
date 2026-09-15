@@ -114,6 +114,16 @@ check("Unity Ads SDK in dex", c("com/unity3d/ads/IUnityAdsInitializationListener
       f"com/unity3d/ads (not discriminating)={c('com/unity3d/ads')}")
 check("Unity Ads LevelPlay adapter in dex", c("com/ironsource/adapters/unityads") > 0,
       f"com/ironsource/adapters/unityads={c('com/ironsource/adapters/unityads')}")
+# Meta Audience Network as a fourth LevelPlay network (1.4.1). Not the bare "com/facebook/ads" path, nor
+# the AudienceNetworkActivity string: both are already 1 in a build with no Audience Network, from the
+# LevelPlay SDK's own references. The SDK's entry class and the adapter package are 0 there.
+check("Meta Audience Network SDK in dex", c("Lcom/facebook/ads/AudienceNetworkAds;") > 0,
+      f"AudienceNetworkAds={c('Lcom/facebook/ads/AudienceNetworkAds;')}, "
+      f"com/facebook/ads (not discriminating)={c('com/facebook/ads')}")
+check("Meta Audience Network LevelPlay adapter in dex", c("com/ironsource/adapters/facebook") > 0,
+      f"com/ironsource/adapters/facebook={c('com/ironsource/adapters/facebook')}")
+check("Meta app events still in dex (unchanged beside Audience Network)", c("com/facebook/appevents") > 0,
+      f"com/facebook/appevents={c('com/facebook/appevents')}")
 # Data safety: ironSource's Ad Quality SDK calls getInstalledApplications; the AdMob-direct builds had none.
 for s in ("getInstalledApplications", "getInstalledPackages", "QUERY_ALL_PACKAGES"):
     print(f"INFO dex {s}: {c(s)}   manifest: {manifest.count(s)}")

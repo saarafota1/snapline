@@ -35,7 +35,38 @@ cheap way to tell a fixed build from an unfixed one without a device.
 
 **Fix:** an `AdapterAudit` marker for it, so a release built from a stale kit is refused.
 
-## 3. Confirmed on Snapline
+## 3. Meta Audience Network 5.7.0.0 cannot build on Unity 6000.2.7f2
+
+The adapter file handed down for this task (5.7.0.0 = `facebook-adapter:5.4.0` + `audience-network-sdk:6.22.0`)
+fails every Android build on the studio's editor:
+
+```
+Execution failed for task ':launcher:checkReleaseAarMetadata'.
+  Dependency 'androidx.browser:browser:1.9.0' requires Android Gradle plugin 8.9.1 or higher.
+  This build currently uses Android Gradle plugin 8.7.2.
+```
+
+- Gradle's dependency tree shows `audience-network-sdk:6.22.0` is the only thing asking for browser 1.9.0.
+  `ads-mobile-sdk` wants 1.8.0; Meta's app-events SDK wants 1.0.0.
+- **Pinning browser to 1.8.0 is not safe.** Audience Network ships its real code as
+  `assets/audience_network/classes.dex`, and that dex references three classes that exist only in browser
+  1.9.0: `CustomTabsCallback$NavigationEvent`, `CustomTabsIntent$ContentTargetType` and
+  `CustomTabsIntent$OpenInBrowserState`. A check of `classes.jar` alone finds no browser references at all,
+  which is misleading.
+- **The ironSource SDK version is not the problem.** LevelPlay's own `LevelPlayVersions.json`
+  (the project copy and the live `s3.amazonaws.com/ssa.public/Unity/Package/V2/LevelPlayVersions.json`)
+  gives every Meta and Unity Ads version `ironSourceSdkVersion [9.0.0, 10.0[`. 9.6.0 is the newest SDK.
+- **What Snapline ships (owner's choice):** LevelPlay's official **5.5.0.0** file,
+  `facebook-adapter:5.3.0` + `audience-network-sdk:6.21.0`. The 6.21.0 pom has no androidx.browser
+  dependency.
+- **`com/facebook/ads` in the dex does not prove Audience Network is present:** it is 1 in a build
+  without it. Use `Lcom/facebook/ads/AudienceNetworkAds;` or `com/ironsource/adapters/facebook`.
+
+**Fix:** until the editor moves past AGP 8.7.2, the PLAYBOOK should name 5.5.0.0 as the Audience
+Network file for this portfolio. A resolve-time check that refuses any AAR needing a newer AGP would
+catch the next one before a build.
+
+## 4. Confirmed on Snapline
 
 - **Headless route works for Unity Ads:** adding `ISUnityAdsAdapterDependencies.xml` 5.12.0.0 and
   running `StudioKit.EditorTools.AndroidDependencies.Resolve` added `unityads-adapter:5.12.0` and
