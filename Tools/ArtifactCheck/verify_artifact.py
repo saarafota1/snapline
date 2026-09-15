@@ -105,6 +105,15 @@ check("UMP library in dex", c("com/google/android/ump") > 0, f"{c('com/google/an
 check("Firebase Analytics in dex", c("com/google/firebase/analytics/FirebaseAnalytics") > 0,
       f"{c('com/google/firebase/analytics/FirebaseAnalytics')}")
 check("TikTok in dex", c("com/tiktok") > 0, f"{c('com/tiktok')}")
+# Unity Ads as a third LevelPlay network (1.4.1): the network SDK and the ironSource adapter for it.
+# Without the adapter, the Unity Ads bidding instances set up in the LevelPlay dashboard never bid.
+# Not the bare "com/unity3d/ads" path: LevelPlay's own mediation-sdk carries a few strings under it,
+# so it is non-zero in a build with no Unity Ads at all (the 1.4 APK). The SDK's init interface is not.
+check("Unity Ads SDK in dex", c("com/unity3d/ads/IUnityAdsInitializationListener") > 0,
+      f"IUnityAdsInitializationListener={c('com/unity3d/ads/IUnityAdsInitializationListener')}, "
+      f"com/unity3d/ads (not discriminating)={c('com/unity3d/ads')}")
+check("Unity Ads LevelPlay adapter in dex", c("com/ironsource/adapters/unityads") > 0,
+      f"com/ironsource/adapters/unityads={c('com/ironsource/adapters/unityads')}")
 # Data safety: ironSource's Ad Quality SDK calls getInstalledApplications; the AdMob-direct builds had none.
 for s in ("getInstalledApplications", "getInstalledPackages", "QUERY_ALL_PACKAGES"):
     print(f"INFO dex {s}: {c(s)}   manifest: {manifest.count(s)}")

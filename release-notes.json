@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.4.1",
+    "date": "2026-09-15",
+    "title": "Ads that show up when you want them",
+    "changes": [
+      { "category": "fixed", "text": "The video to keep a finished run going, and the video for extra coins, could stay unavailable for a whole session after the first one failed to load. They now keep trying in the background." },
+      { "category": "improved", "text": "Ads now come from more ad networks, so a video is ready more often when you ask for one." }
+    ]
+  },
+  {
     "version": "1.4.0",
     "date": "2026-09-15",
     "title": "A sweet new look, 200 new levels and a daily puzzle",
