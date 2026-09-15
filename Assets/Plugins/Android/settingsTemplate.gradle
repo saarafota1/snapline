@@ -28,3 +28,21 @@ dependencyResolutionManagement {
         }
     }
 }
+
+// Snapline: pin androidx.browser to 1.8.0 for every module (launcher and unityLibrary alike). Same fix
+// as Plumbline 1.8.
+//
+// Meta Audience Network 6.22.0 (LevelPlay adapter file 5.7.0.0) declares androidx.browser 1.9.0, and
+// 1.9.0 refuses to build under the Android Gradle Plugin that Unity 6000.2.7f2 ships (8.7.2):
+// ":launcher:checkReleaseAarMetadata" fails with "requires Android Gradle plugin 8.9.1 or higher".
+// Every other SDK here asks for 1.8.0 or older, so this is the version the build already used before
+// Audience Network arrived.
+//
+// Set here rather than in mainTemplate.gradle because the failure is in the launcher module, which has
+// no template of its own, and outside the Android Resolver markers so a re-resolve keeps it.
+// Remove it once Unity ships AGP 8.9.1 or later.
+gradle.beforeProject { p ->
+    p.configurations.configureEach {
+        resolutionStrategy.force 'androidx.browser:browser:1.8.0'
+    }
+}

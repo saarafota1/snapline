@@ -52,8 +52,8 @@ true for UGS; the new row is Unity Ads' own identifier, not a player account.
 
 ## Meta Audience Network (also new in 1.4.1)
 
-1.4.1 also adds **Meta Audience Network** as a LevelPlay network: LevelPlay's adapter file 5.5.0.0,
-which is `facebook-adapter:5.3.0` + `audience-network-sdk:6.21.0`. This is separate from the Meta app-events SDK
+1.4.1 also adds **Meta Audience Network** as a LevelPlay network: LevelPlay's adapter file 5.7.0.0,
+which is `facebook-adapter:5.4.0` + `audience-network-sdk:6.22.0`. This is separate from the Meta app-events SDK
 that 1.3 already had.
 
 **Meta does not publish a Data safety table for Audience Network.** Its guidance is the narrative

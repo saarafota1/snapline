@@ -35,7 +35,7 @@ cheap way to tell a fixed build from an unfixed one without a device.
 
 **Fix:** an `AdapterAudit` marker for it, so a release built from a stale kit is refused.
 
-## 3. Meta Audience Network 5.7.0.0 cannot build on Unity 6000.2.7f2
+## 3. Meta Audience Network 5.7.0.0 builds on Unity 6000.2.7f2 only with an androidx.browser pin
 
 The adapter file handed down for this task (5.7.0.0 = `facebook-adapter:5.4.0` + `audience-network-sdk:6.22.0`)
 fails every Android build on the studio's editor:
@@ -48,23 +48,31 @@ Execution failed for task ':launcher:checkReleaseAarMetadata'.
 
 - Gradle's dependency tree shows `audience-network-sdk:6.22.0` is the only thing asking for browser 1.9.0.
   `ads-mobile-sdk` wants 1.8.0; Meta's app-events SDK wants 1.0.0.
-- **Pinning browser to 1.8.0 is not safe.** Audience Network ships its real code as
-  `assets/audience_network/classes.dex`, and that dex references three classes that exist only in browser
-  1.9.0: `CustomTabsCallback$NavigationEvent`, `CustomTabsIntent$ContentTargetType` and
-  `CustomTabsIntent$OpenInBrowserState`. A check of `classes.jar` alone finds no browser references at all,
-  which is misleading.
+- **Pinning browser to 1.8.0 is safe** (Plumbline 1.8's fix, now applied here in `settingsTemplate.gradle`).
+  Audience Network ships its real code as `assets/audience_network/classes.dex`, which vendors its own
+  relocated copy of the library under `com.facebook.ads.androidx.browser`. It has **0** top-level
+  `Landroidx/browser/` references. At runtime it looks up only `ICustomTabsService` and `ICustomTabsCallback`,
+  both in 1.8.0, and never `IAuthTabCallback`, which 1.9.0 added.
+  - **Correction:** an earlier version of this note said the pin was unsafe because the dex names three
+    1.9.0-only classes (`CustomTabsCallback$NavigationEvent`, `CustomTabsIntent$ContentTargetType`,
+    `$OpenInBrowserState`). Those matches were substrings of Meta's relocated
+    `Lcom/facebook/ads/androidx/browser/...` names, not references to the real library. Anchor such greps
+    on the leading `L`.
 - **The ironSource SDK version is not the problem.** LevelPlay's own `LevelPlayVersions.json`
   (the project copy and the live `s3.amazonaws.com/ssa.public/Unity/Package/V2/LevelPlayVersions.json`)
   gives every Meta and Unity Ads version `ironSourceSdkVersion [9.0.0, 10.0[`. 9.6.0 is the newest SDK.
-- **What Snapline ships (owner's choice):** LevelPlay's official **5.5.0.0** file,
-  `facebook-adapter:5.3.0` + `audience-network-sdk:6.21.0`. The 6.21.0 pom has no androidx.browser
-  dependency.
+- **What Snapline ships:** LevelPlay's official **5.7.0.0** file (`facebook-adapter:5.4.0` +
+  `audience-network-sdk:6.22.0`) with the browser pin, the same as Plumbline 1.8. For a while Snapline used
+  5.5.0.0 (`facebook-adapter:5.3.0` + `audience-network-sdk:6.21.0`, no androidx.browser dependency),
+  chosen on the mistaken "pin is unsafe" reading above. It is the fallback if the pin is ever removed
+  before Unity's AGP catches up.
 - **`com/facebook/ads` in the dex does not prove Audience Network is present:** it is 1 in a build
   without it. Use `Lcom/facebook/ads/AudienceNetworkAds;` or `com/ironsource/adapters/facebook`.
 
-**Fix:** until the editor moves past AGP 8.7.2, the PLAYBOOK should name 5.5.0.0 as the Audience
-Network file for this portfolio. A resolve-time check that refuses any AAR needing a newer AGP would
-catch the next one before a build.
+**Fix:** until the editor moves past AGP 8.7.2, every kit game adding Audience Network 6.22.0 needs the
+same `settingsTemplate.gradle` pin. That makes it a kit concern: the PLAYBOOK's Unity Ads / network
+section should carry it, or the kit's Gradle template setup should add it. A resolve-time check that
+refuses any AAR needing a newer AGP would catch the next one before a build.
 
 ## 4. Confirmed on Snapline
 
