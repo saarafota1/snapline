@@ -52,6 +52,9 @@ crashlytics-build.properties
 /.utmp/
 /StoreAssets/
 
+# Smoke-harness captures
+/Shots/
+
 # The benchmark harness project IS source, unlike Unity's generated csproj files above
 !/Tools/**/*.csproj
 /Tools/**/bin/
