@@ -87,7 +87,7 @@ namespace Snapline.Core
 
     /// <summary>
     /// The level ladder: sixty open-board levels, then two hundred puzzle levels (see <see cref="Puzzles"/>)
-    /// that open half built and bring in stones, gifts and bombs.
+    /// that open half built. Special blocks appear from level 5 across both halves - see <see cref="Specials"/>.
     ///
     /// The first sixty are generated from a curve rather than hand-authored, because a curve can be
     /// swept and verified. `dotnet run -- levels` plays every level with the heuristic autoplayer
@@ -138,7 +138,21 @@ namespace Snapline.Core
 
                 ulong seed = unchecked((ulong)(i + 1) * 0x9E3779B97F4A7C15UL) ^ 0x5A17E1UL;
 
-                levels[i] = new LevelDef(i + 1, lineTarget, moveBudget, seed);
+                // A level of the open ladder can still hold a special block or two, from level 5 on.
+                // They sit on an otherwise empty board rather than in clutter, which is what makes
+                // them teachable: the one stone on the board is unmistakably the thing being shown.
+                var colours = new byte[Board.CellCount];
+                var specials = new byte[Board.CellCount];
+                ulong occupied = Specials.Place(i + 1, seed, colours, specials);
+
+                // A stone costs a move: its line has to be cleared once to crack it and again to
+                // break it. Without the allowance, level 60's beat rate fell from 73% to 47% purely
+                // from blocks being introduced earlier, which is a difficulty change nobody asked for.
+                int budget = moveBudget + Specials.Count(i + 1, Special.Stone);
+
+                levels[i] = occupied == 0UL
+                    ? new LevelDef(i + 1, lineTarget, budget, seed)
+                    : new LevelDef(i + 1, lineTarget, budget, seed, occupied, colours, specials);
             }
 
             return levels;

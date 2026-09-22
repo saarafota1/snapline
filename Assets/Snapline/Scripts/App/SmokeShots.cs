@@ -294,7 +294,17 @@ namespace Snapline.App
         private IEnumerator SpecialPhase()
         {
             NewBlockPopup.ResetSeen();
-            _app.StartLevel(Puzzles.BombsFrom + 4);
+
+            // Where a player actually meets their first special block now: level 5, one stone, on an
+            // otherwise open board.
+            _app.StartLevel(Specials.StoneDebut);
+            yield return new WaitForSeconds(1.7f);
+            yield return Capture("16b_first_stone_card");
+            _controller.DismissIntroForHarness();
+            yield return new WaitForSeconds(1.0f);
+            yield return Capture("16c_level5_board");
+
+            _app.StartLevel(Specials.FirstLevelHolding(Puzzles.First, Special.Stone, Special.Bomb));
             yield return new WaitForSeconds(1.8f);
             yield return Capture("17_new_block");
 

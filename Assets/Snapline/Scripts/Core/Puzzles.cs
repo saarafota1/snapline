@@ -4,8 +4,8 @@ using System.Collections.Generic;
 namespace Snapline.Core
 {
     /// <summary>
-    /// Levels 61 to 260: puzzle levels that open on a half-built board, and bring in the special
-    /// blocks one at a time — stones from 81, gifts from 111, bombs from 141.
+    /// Levels 61 to 260: puzzle levels that open on a half-built board. Which of them hold special
+    /// blocks is decided by <see cref="Specials"/>, the same policy the first sixty follow.
     ///
     /// Each level is generated from its number, a variant and a move adjustment. The variant and the
     /// adjustment come from <see cref="LevelTable"/>, which the console harness writes by actually
@@ -18,10 +18,6 @@ namespace Snapline.Core
         public const int Count = 200;
         public const int First = Levels.LadderCount + 1;
         public const int Last = First + Count - 1;
-
-        public const int StonesFrom = 81;
-        public const int GiftsFrom = 111;
-        public const int BombsFrom = 141;
 
         private static readonly Dictionary<int, LevelDef> Cache = new Dictionary<int, LevelDef>();
 
@@ -70,12 +66,6 @@ namespace Snapline.Core
             return (int)Math.Ceiling(LineTarget(number) * perLine + 2.0);
         }
 
-        public static int StoneCount(int number) => number < StonesFrom ? 0 : Math.Min(8, 2 + (number - StonesFrom) / 25);
-
-        public static int GiftCount(int number) => number < GiftsFrom ? 0 : Math.Min(2, 1 + (number - GiftsFrom) / 80);
-
-        public static int BombCount(int number) => number < BombsFrom ? 0 : Math.Min(3, 1 + (number - BombsFrom) / 45);
-
         /// <summary>Rows of clutter, from the bottom: four at first, six by the end.</summary>
         private static int ClutterRows(int number) => 4 + (int)Math.Round(Progress(number) * 2.0);
 
@@ -116,9 +106,8 @@ namespace Snapline.Core
 
             occupied = Daily.BreakFullLines(occupied, colours);
 
-            Scatter(ref rng, occupied, specials, Special.Stone, StoneCount(number));
-            Scatter(ref rng, occupied, specials, Special.Gift, GiftCount(number));
-            Scatter(ref rng, occupied, specials, Special.Bomb, BombCount(number));
+            foreach (Special kind in Specials.Kinds)
+                Scatter(ref rng, occupied, specials, kind, Specials.Count(number, kind));
 
             int lines = LineTarget(number);
             int moves = Math.Max(lines + 4, BaseMoves(number) + adjust);

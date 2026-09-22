@@ -184,7 +184,7 @@ namespace Snapline.App
             PushObjective();
             AfterReset();
 
-            foreach (Special kind in new[] { Special.Stone, Special.Gift, Special.Bomb })
+            foreach (Special kind in Specials.Kinds)
                 if (level.Has(kind) && !NewBlockPopup.HasSeen(kind)) _intros.Enqueue(kind);
 
             if (_intros.Count > 0)

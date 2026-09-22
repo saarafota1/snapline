@@ -30,6 +30,7 @@ namespace Snapline.Bench
             if (mode == "daily" || mode == "all") DailyChallenges();
             if (mode == "economy" || mode == "all") EconomyReport();
             if (mode == "levels-gen") GenerateLevelTable(args.Length > 1 ? args[1] : "Assets/Snapline/Scripts/Core/LevelTable.cs");
+            if (mode == "specials" || mode == "all") SpecialsMap();
 
             if (_failures > 0)
             {
@@ -492,7 +493,8 @@ namespace Snapline.Bench
                     LevelDef shown = Puzzles.Build(n, bestVariant, bestAdjust);
                     Console.WriteLine($"  levels {n - 19,3}-{n,3}: mean beat {blockSum / blockCount,5:P0} " +
                                       $"(target {target,4:P0}); level {n}: {shown.LineTarget} lines in {shown.MoveBudget} moves, " +
-                                      $"stones {Puzzles.StoneCount(n)} gifts {Puzzles.GiftCount(n)} bombs {Puzzles.BombCount(n)}");
+                                      $"stones {Specials.Count(n, Special.Stone)} gifts {Specials.Count(n, Special.Gift)} " +
+                                      $"bombs {Specials.Count(n, Special.Bomb)}");
                     blockSum = 0;
                     blockCount = 0;
                 }
@@ -587,6 +589,63 @@ namespace Snapline.Bench
         {
             board.Restore(level.StartOccupied, level.StartColours, level.StartSpecials);
             return board;
+        }
+
+        /// <summary>
+        /// Which levels hold which special blocks. The policy is random-but-fixed, so the only way to
+        /// know what a player actually meets, and how often, is to print it.
+        /// </summary>
+        private static void SpecialsMap()
+        {
+            Console.WriteLine("=== special blocks by level ===");
+
+            var totals = new Dictionary<Special, int>();
+            var firstSeen = new Dictionary<Special, int>();
+            foreach (Special kind in Specials.Kinds) { totals[kind] = 0; firstSeen[kind] = 0; }
+
+            var line = new System.Text.StringBuilder();
+            for (int n = 1; n <= Levels.Count; n++)
+            {
+                LevelDef level = Levels.Get(n);
+                string cell = "";
+
+                foreach (Special kind in Specials.Kinds)
+                {
+                    int count = Specials.Count(n, kind);
+                    if (count <= 0) continue;
+
+                    totals[kind]++;
+                    if (firstSeen[kind] == 0) firstSeen[kind] = n;
+                    cell += kind.ToString()[0] + count.ToString();
+                    if (!level.Has(kind)) cell += "!";
+                }
+
+                if (n <= 60)
+                {
+                    line.Append($"{n,3}:{cell,-8}");
+                    if (n % 6 == 0) { Console.WriteLine("  " + line); line.Clear(); }
+                }
+            }
+
+            if (line.Length > 0) Console.WriteLine("  " + line);
+
+            Console.WriteLine();
+            foreach (Special kind in Specials.Kinds)
+                Console.WriteLine($"  {kind,-6} debut {Specials.Debut(kind),4}, first built {firstSeen[kind],4}, " +
+                                  $"on {totals[kind],4} of {Levels.Count} levels " +
+                                  $"({totals[kind] * 100.0 / Levels.Count:F0} %)");
+
+            int bare = 0;
+            for (int n = 1; n <= Levels.Count; n++)
+            {
+                bool any = false;
+                foreach (Special kind in Specials.Kinds) any |= Specials.Count(n, kind) > 0;
+                if (!any) bare++;
+            }
+
+            Console.WriteLine($"  levels with no special block at all: {bare} of {Levels.Count}");
+            Assert(firstSeen[Special.Stone] == Specials.StoneDebut, "stones debut where the policy says");
+            Assert(bare > 20, "plenty of levels are still plain");
         }
 
         private static void LevelLadder()

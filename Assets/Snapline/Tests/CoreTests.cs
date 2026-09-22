@@ -767,6 +767,53 @@ namespace Snapline.Tests
         }
 
         [Test]
+        public void SpecialBlocks_StartAtLevelFiveAndDebutOneAtATime()
+        {
+            // Nothing before the first debut, so the opening levels teach the plain game.
+            for (int n = 1; n < Specials.StoneDebut; n++)
+            {
+                LevelDef early = Levels.Get(n);
+                Assert.AreEqual(0UL, early.StartOccupied, $"Level {n} should open on an empty board.");
+                foreach (Special kind in Specials.Kinds)
+                    Assert.IsFalse(early.Has(kind), $"Level {n} must not hold a {kind}.");
+            }
+
+            // Each debut holds exactly one of its kind, and none of a kind not yet introduced, so the
+            // NEW BLOCK! card that fires there explains one thing.
+            foreach (Special kind in Specials.Kinds)
+            {
+                int debut = Specials.Debut(kind);
+                LevelDef level = Levels.Get(debut);
+                Assert.AreEqual(1, Specials.Count(debut, kind), $"{kind} debut should hold one.");
+                Assert.IsTrue(level.Has(kind), $"Level {debut} should hold a {kind}.");
+
+                foreach (Special other in Specials.Kinds)
+                    if (Specials.Debut(other) > debut)
+                        Assert.IsFalse(level.Has(other), $"Level {debut} introduces {kind}, not {other}.");
+            }
+
+            // Fixed per level: the same level always holds the same blocks, for everyone and on a retry.
+            for (int n = 1; n <= Levels.LadderCount; n++)
+            {
+                LevelDef a = Levels.Get(n);
+                foreach (Special kind in Specials.Kinds)
+                    Assert.AreEqual(Specials.Count(n, kind) > 0, a.Has(kind), $"Level {n} {kind}");
+            }
+
+            // Scattered across the ladder rather than switched on and left on.
+            int without = 0;
+            for (int n = Specials.BombDebut + 1; n <= Levels.LadderCount; n++)
+            {
+                LevelDef level = Levels.Get(n);
+                bool any = false;
+                foreach (Special kind in Specials.Kinds) any |= level.Has(kind);
+                if (!any) without++;
+            }
+
+            Assert.Greater(without, 3, "Special blocks should skip some levels, not appear on every one.");
+        }
+
+        [Test]
         public void PuzzleLevels_OpenFairWithEachBlockOnlyOnceIntroduced()
         {
             for (int n = Puzzles.First; n <= Puzzles.Last; n++)
@@ -784,9 +831,8 @@ namespace Snapline.Tests
                     if (level.StartSpecials[i] != 0)
                         Assert.AreNotEqual(0UL, level.StartOccupied & (1UL << i), $"Level {n} has a special block on an empty cell.");
 
-                Assert.AreEqual(n >= Puzzles.StonesFrom, level.Has(Special.Stone), $"Level {n} stones");
-                Assert.AreEqual(n >= Puzzles.GiftsFrom, level.Has(Special.Gift), $"Level {n} gifts");
-                Assert.AreEqual(n >= Puzzles.BombsFrom, level.Has(Special.Bomb), $"Level {n} bombs");
+                foreach (Special kind in Specials.Kinds)
+                    Assert.AreEqual(Specials.Count(n, kind) > 0, level.Has(kind), $"Level {n} {kind}");
             }
         }
 

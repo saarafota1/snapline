@@ -140,7 +140,7 @@ namespace Snapline.App
             }
 
             // --- the special blocks --------------------------------------------------------------
-            _app.StartLevel(Puzzles.BombsFrom + 4);
+            _app.StartLevel(Specials.FirstLevelHolding(Puzzles.First, Special.Stone, Special.Bomb));
             yield return new WaitForSeconds(1.8f);
             for (int i = 0; i < 3; i++)
             {
