@@ -142,6 +142,47 @@ namespace Snapline.Core
             return true;
         }
 
+        /// <summary>
+        /// Every occupied cell in the square of the given radius around one cell, clipped to the board.
+        /// Radius 1 is the 3 x 3 the hammer smashes.
+        /// </summary>
+        public ulong AreaMask(int col, int row, int radius)
+        {
+            ulong mask = 0UL;
+            for (int r = row - radius; r <= row + radius; r++)
+            for (int c = col - radius; c <= col + radius; c++)
+            {
+                if (c < 0 || r < 0 || c >= Width || r >= Height) continue;
+                ulong bit = 1UL << Bits.Index(c, r);
+                if ((_occupied & bit) != 0UL) mask |= bit;
+            }
+
+            return mask;
+        }
+
+        /// <summary>
+        /// Clears every occupied cell in that square and returns what it took, so the view can break
+        /// exactly the blocks the engine did. Stone goes in one blow: the hammer is bought, and a
+        /// tool that leaves a cracked block behind where a bomb would have cleared it is not worth
+        /// 250 coins. A bomb caught in the swing is defused rather than set off, as one hammered
+        /// directly always was.
+        /// </summary>
+        public ulong ClearArea(int col, int row, int radius)
+        {
+            ulong mask = AreaMask(col, row, radius);
+            ulong rest = mask;
+            while (rest != 0UL)
+            {
+                int index = Bits.TrailingZeroCount(rest);
+                rest &= rest - 1;
+                _colour[index] = 0;
+                _special[index] = 0;
+            }
+
+            _occupied &= ~mask;
+            return mask;
+        }
+
         public Board Clone()
         {
             var b = new Board { _occupied = _occupied };

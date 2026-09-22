@@ -525,7 +525,7 @@ namespace Snapline.Tests
         }
 
         [Test]
-        public void Hammer_RemovesOneBlockAndScoresNothing()
+        public void Hammer_SmashesTheAreaAroundTheCellAndScoresNothing()
         {
             var run = new GameRun();
             run.StartNew(1234UL);
@@ -542,13 +542,35 @@ namespace Snapline.Tests
 
             Assert.GreaterOrEqual(hitRow, 0, "Expected the board to hold at least one block.");
 
-            int filledBefore = Bits.PopCount(run.Board.Occupied);
-            Assert.IsTrue(run.Hammer(hitCol, hitRow));
+            ulong before = run.Board.Occupied;
+            ulong expected = run.Board.AreaMask(hitCol, hitRow, GameRun.HammerRadius);
+            Assert.IsTrue(run.Hammer(hitCol, hitRow, out ulong cleared));
 
-            Assert.AreEqual(filledBefore - 1, Bits.PopCount(run.Board.Occupied));
-            Assert.IsFalse(run.Board.IsOccupied(hitCol, hitRow));
+            Assert.AreEqual(expected, cleared, "The hammer must report exactly what it took.");
+            Assert.AreEqual(before & ~expected, run.Board.Occupied, "Only the smashed area may change.");
+
+            for (int r = hitRow - 1; r <= hitRow + 1; r++)
+            for (int c = hitCol - 1; c <= hitCol + 1; c++)
+            {
+                if (c < 0 || r < 0 || c >= Board.Width || r >= Board.Height) continue;
+                Assert.IsFalse(run.Board.IsOccupied(c, r), $"({c},{r}) was inside the smashed area.");
+            }
+
             Assert.AreEqual(scoreBefore, run.Score.Score, "A hammer must not earn points.");
             Assert.AreEqual(comboBefore, run.Score.ComboCount, "A hammer must not touch the combo.");
+        }
+
+        [Test]
+        public void Hammer_TakesStoneInOneBlowAndDoesNotSetOffBombs()
+        {
+            Board board = AlmostFullBottomRow((3, Special.Stone), (5, Special.Bomb));
+
+            ulong cleared = board.ClearArea(4, 7, GameRun.HammerRadius);
+
+            Assert.AreEqual(3, Bits.PopCount(cleared), "Three blocks of the bottom row were within reach.");
+            Assert.IsFalse(board.IsOccupied(3, 7), "Stone goes in one blow from a tool that was paid for.");
+            Assert.IsFalse(board.IsOccupied(5, 7), "A hammered bomb is taken away, not set off.");
+            Assert.IsTrue(board.IsOccupied(6, 7), "A block outside the area must survive a defused bomb.");
         }
 
         [Test]
@@ -559,6 +581,7 @@ namespace Snapline.Tests
 
             // A fresh run has an empty board, so any cell will do.
             Assert.IsFalse(run.Hammer(0, 0), "An empty cell must not consume the tool.");
+            Assert.AreEqual(0UL, run.Board.Occupied, "A refused hammer must not touch the board.");
         }
 
         [Test]

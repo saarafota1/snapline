@@ -44,7 +44,7 @@ namespace Snapline.UI
         {
             "Take back your last move",
             "Replace all three pieces",
-            "Remove one block",
+            "Smash a 3 x 3 area",
         };
 
         private RectTransform _root;
@@ -55,14 +55,16 @@ namespace Snapline.UI
         private readonly Text[] _owned = new Text[3];
         private readonly Button[] _price = new Button[3];
         private Button _watch;
+        private ConfirmPopup _confirm;
 
         public bool IsVisible => _root != null && _root.gameObject.activeSelf;
 
         /// <summary>The watch button, so coins paid for a video can fly out of it.</summary>
         public Transform WatchButton => _watch != null ? _watch.transform : null;
 
-        public void Init(RectTransform parent)
+        public void Init(RectTransform parent, ConfirmPopup confirm)
         {
+            _confirm = confirm;
             _root = UIKit.Stretch("Toolbox", parent);
             Vector2 top = W.Top;
 
@@ -170,16 +172,40 @@ namespace Snapline.UI
         private Image _adsLeft;
         private Text _adsLeftText;
 
+        /// <summary>
+        /// The plus and the price ask before they spend. Tapping either used to buy on the spot, so a
+        /// stray tap in a store built around big, inviting buttons cost up to 250 coins in silence.
+        /// </summary>
         private void Buy(int index)
+        {
+            Tool tool = Order[index];
+
+            if (!Wallet.CanAfford(Economy.Price(tool)))
+            {
+                Refuse(index);
+                return;
+            }
+
+            if (_confirm == null) Complete(index);
+            else _confirm.Ask(tool, () => Complete(index));
+        }
+
+        private void Refuse(int index)
+        {
+            Sound.Deny();
+            Tween.Shake((RectTransform)_price[index].transform, 16f, 0.4f);
+            Fx.Instance?.Text(_price[index].transform.position, "NOT ENOUGH COINS", CandyStyle.White, 48f, 1.1f, 180f);
+        }
+
+        /// <summary>The purchase itself, once it has been agreed to.</summary>
+        private void Complete(int index)
         {
             Tool tool = Order[index];
             int price = Economy.Price(tool);
 
             if (!Wallet.TryBuy(tool))
             {
-                Sound.Deny();
-                Tween.Shake((RectTransform)_price[index].transform, 16f, 0.4f);
-                Fx.Instance?.Text(_price[index].transform.position, "NOT ENOUGH COINS", CandyStyle.White, 48f, 1.1f, 180f);
+                Refuse(index);
                 return;
             }
 

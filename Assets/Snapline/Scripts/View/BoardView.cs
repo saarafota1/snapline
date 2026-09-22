@@ -509,13 +509,15 @@ namespace Snapline.View
         }
 
         /// <summary>
-        /// The hammer swings down onto a cell and the block there shatters. The engine has already
-        /// removed it; this only takes the picture away with a bang.
+        /// The hammer swings down onto a cell and every block in the smashed area shatters. The engine
+        /// has already removed them; this only takes the picture away with a bang. The mask says which
+        /// cells it took, so the view can never break a block the engine kept.
         /// </summary>
-        public IEnumerator Smash(int col, int row)
+        public IEnumerator Smash(ulong mask, int col, int row)
         {
             int idx = Bits.Index(col, row);
             Vector2 target = CellToLocal(col, row);
+            if (mask == 0UL) mask = 1UL << idx;
 
             if (_hammer == null)
             {
@@ -550,22 +552,31 @@ namespace Snapline.View
             if (fx != null)
             {
                 Sprite sprite = _blocks[idx] != null ? _blocks[idx].sprite : ArtKit.Block(0);
-                fx.Shards(world, sprite, 10, _cellSize * 14f, _cellSize * 1.2f);
-                fx.Sprinkles(world, 8, _cellSize * 13f, _cellSize * 0.4f);
-                fx.Ring(world, new Color(1f, 0.95f, 0.7f, 0.9f), _cellSize * 4f, 0.45f);
-                fx.Glow(world, new Color(1f, 1f, 1f, 0.9f), _cellSize * 3f, 0.3f);
-                fx.Shake(0.55f);
+                fx.Shards(world, sprite, 14, _cellSize * 15f, _cellSize * 1.2f);
+                fx.Sprinkles(world, 14, _cellSize * 14f, _cellSize * 0.45f);
+                fx.Ring(world, new Color(1f, 0.95f, 0.7f, 0.9f), _cellSize * 6.5f, 0.5f);
+                fx.Glow(world, new Color(1f, 1f, 1f, 0.9f), _cellSize * 4.5f, 0.32f);
+                fx.Shake(0.75f);
             }
 
             Sound.Smash();
             Haptics.Heavy();
 
-            if (_blocks[idx] != null)
+            // Outwards from the cell that was hit, so the area reads as one blow spreading rather
+            // than nine blocks vanishing at once.
+            ulong rest = mask;
+            while (rest != 0UL)
             {
-                Image block = _blocks[idx];
-                _blocks[idx] = null;
-                _blockSpecial[idx] = Special.None;
-                StartCoroutine(Burst(block, _blockColour[idx], world, 0f, false));
+                int cell = Bits.TrailingZeroCount(rest);
+                rest &= rest - 1;
+                if (_blocks[cell] == null) continue;
+
+                Image block = _blocks[cell];
+                Vector3 at = CellToWorld(Bits.ColOf(cell), Bits.RowOf(cell));
+                _blocks[cell] = null;
+                _blockSpecial[cell] = Special.None;
+                StartCoroutine(Burst(block, _blockColour[cell], at, cell == idx ? 0f : 0.05f, false));
+                if (cell != idx) fx?.Sprinkles(at, 4, _cellSize * 9f, _cellSize * 0.32f);
             }
 
             t = 0f;

@@ -341,20 +341,33 @@ namespace Snapline.UI
         /// bumping as they land. The balance itself rolls up as they arrive.
         /// </summary>
         public void CoinFly(Vector3 fromWorld, RectTransform target, int count, float size = 70f, Action onArrive = null)
+            => Fly(fromWorld, target, null, count, size, onArrive);
+
+        /// <summary>
+        /// The same flight for anything a player is given: a collected reward leaves the card and
+        /// lands on whatever holds it, a tool on its button as readily as a coin in the pill.
+        /// A null sprite flies coins.
+        /// </summary>
+        public void Fly(Vector3 fromWorld, RectTransform target, Sprite sprite, int count, float size = 70f,
+                        Action onArrive = null)
         {
             if (target == null) return;
             count = Mathf.Clamp(count, 1, 16);
-            StartCoroutine(FlyCoins(Local(fromWorld), target, count, size, onArrive));
+            StartCoroutine(FlyCoins(Local(fromWorld), target, sprite, count, size, onArrive));
         }
 
         private readonly List<Image> _coins = new List<Image>();
 
-        private Image CoinImage()
+        private Image CoinImage(Sprite sprite)
         {
             foreach (Image img in _coins)
-                if (!img.gameObject.activeSelf) return img;
+                if (!img.gameObject.activeSelf)
+                {
+                    img.sprite = sprite != null ? sprite : ArtLoader.Sprite("UI/coin");
+                    return img;
+                }
 
-            Image coin = UIKit.Image("coin", _layer, ArtLoader.Sprite("UI/coin"), Color.white);
+            Image coin = UIKit.Image("coin", _layer, sprite != null ? sprite : ArtLoader.Sprite("UI/coin"), Color.white);
             coin.raycastTarget = false;
             coin.preserveAspect = true;
             coin.rectTransform.anchorMin = coin.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
@@ -362,11 +375,12 @@ namespace Snapline.UI
             return coin;
         }
 
-        private IEnumerator FlyCoins(Vector2 from, RectTransform target, int count, float size, Action onArrive)
+        private IEnumerator FlyCoins(Vector2 from, RectTransform target, Sprite sprite, int count, float size,
+                                     Action onArrive)
         {
             for (int i = 0; i < count; i++)
             {
-                Image coin = CoinImage();
+                Image coin = CoinImage(sprite);
                 RectTransform rt = coin.rectTransform;
                 rt.sizeDelta = new Vector2(size, size);
                 rt.SetAsLastSibling();

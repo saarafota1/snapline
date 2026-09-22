@@ -390,23 +390,32 @@ namespace Snapline.Core
             return true;
         }
 
+        /// <summary>The 3 x 3 the hammer smashes: the cell tapped, and every block touching it.</summary>
+        public const int HammerRadius = 1;
+
         /// <summary>
-        /// Removes a single placed block — what the HAMMER tool does.
+        /// Smashes the tapped block and everything around it - what the HAMMER tool does.
         ///
         /// It scores nothing and clears no line even if it empties one. A hammer is a way out of a
         /// mistake, not a way to earn: paying coins for points would make score a function of
         /// spending, and the combo would break on a move the player did not really make.
         ///
-        /// Returns false if the cell was already empty, so a misplaced tap does not consume the tool.
+        /// Returns false if the tapped cell was empty, so a misplaced tap does not consume the tool.
+        /// Neighbours are a bonus rather than the aim: a tap on a lone block still spends the hammer.
         /// </summary>
-        public bool Hammer(int col, int row)
+        public bool Hammer(int col, int row) => Hammer(col, row, out _);
+
+        /// <summary>As above, reporting every cell it took, so the view breaks exactly those blocks.</summary>
+        public bool Hammer(int col, int row, out ulong cleared)
         {
+            cleared = 0UL;
             if (!Board.IsOccupied(col, row)) return false;
 
             _undoPoint = Snapshot();
-            if (!Board.ClearCell(col, row)) return false;
+            cleared = Board.ClearArea(col, row, HammerRadius);
+            if (cleared == 0UL) return false;
 
-            // Clearing a cell can only ever open the board up, so a run that was over may not be.
+            // Clearing cells can only ever open the board up, so a run that was over may not be.
             IsGameOver = false;
             RefreshGameOver();
             return true;

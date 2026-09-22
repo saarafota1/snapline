@@ -48,8 +48,10 @@ namespace Snapline.App
         {
             public static readonly Vector2 EndlessSlot = new Vector2(328f, 296f);
             public const float EndlessSlotSpacing = 336f;
-            public const float EndlessTrayY = 326f;
-            public const float EndlessToolsY = 622f;
+            // The pieces sit above the tools in both modes. The endless reference had them the other
+            // way up, which put the tools between the board and the pieces being dragged off it.
+            public const float EndlessTrayY = 560f;
+            public const float EndlessToolsY = 250f;
             public const float EndlessToolsScale = 1.04f;
             public const float EndlessBottomReserve = 772f;
 
@@ -70,6 +72,8 @@ namespace Snapline.App
         private RectTransform _gameRoot;
         private RectTransform _boardPanel;
         private RectTransform _trayRoot;
+        private RewardPopup _reward;
+        private ConfirmPopup _confirm;
         private float _safeHeight;
 
         private GameController _controller;
@@ -178,8 +182,15 @@ namespace Snapline.App
             var newBlock = Make<NewBlockPopup>("NewBlockPopup", safeRoot);
             newBlock.Init(safeRoot);
 
+            // Above the store, which is where both are raised from most often.
+            _confirm = Make<ConfirmPopup>("ConfirmPopup", safeRoot);
+            _confirm.Init(safeRoot);
+            ConfirmPopup confirm = _confirm;
+            _reward = Make<RewardPopup>("RewardPopup", safeRoot);
+            _reward.Init(safeRoot);
+
             _toolbox = Make<ToolboxPanel>("Toolbox", safeRoot);
-            _toolbox.Init(safeRoot);
+            _toolbox.Init(safeRoot, confirm);
 
             // Services come up in the background. Nothing waits on them: with no SDK installed the
             // kit hands back offline implementations and the game plays exactly the same.
@@ -194,7 +205,8 @@ namespace Snapline.App
             ads.Init(_gameKitConfig);
 
             _controller = gameObject.AddComponent<GameController>();
-            _controller.Init(boardView, _tray, _drag, hud, _tools, ads, _pause, noMoves, greatRun, levelEnd, newBlock);
+            _controller.Init(boardView, _tray, _drag, hud, _tools, ads, _pause, noMoves, greatRun, levelEnd, newBlock,
+                             confirm);
             _controller.LayoutRequested += ApplyLayout;
             _controller.MenuRequested += ShowMenu;
             _controller.LevelsRequested += ShowLevelSelect;
@@ -339,6 +351,16 @@ namespace Snapline.App
             _toolboxOverGame = false;
         }
 
+        /// <summary>Raises the reward card as a finished video would. The smoke harness only.</summary>
+        internal void DebugRewardCard() =>
+            _reward.ShowCoins(Economy.AdReward, CoinPill.Visible()?.Coin, () => Wallet.Grant(Economy.AdReward));
+
+        /// <summary>Presses COLLECT on the reward card. The smoke harness only.</summary>
+        internal void CollectRewardForHarness() => _reward.CollectForHarness();
+
+        /// <summary>Presses BUY on the purchase card. The smoke harness only.</summary>
+        internal void ConfirmPurchaseForHarness() => _confirm.ConfirmForHarness();
+
         internal void OpenSettings() =>
             _pause.ShowSettings(GameKit.GameKitRuntime.Consent.IsPrivacyOptionsRequired);
 
@@ -409,15 +431,17 @@ namespace Snapline.App
                 return;
             }
 
-            CoinPill.HoldRoll(1.2f);
+            // The video played, so the day count is spent whatever happens next. The coins themselves
+            // are granted as they land, so the pill rolls up under the arriving coins rather than
+            // before the player has seen what they won.
             Wallet.RecordAdReward();
-            Wallet.Grant(Economy.AdReward);
-            _toolbox.Refresh();
 
             CoinPill pill = CoinPill.Visible();
-            if (pill != null && _toolbox.WatchButton != null)
-                Fx.Instance?.CoinFly(_toolbox.WatchButton.position, pill.Coin, 10, 72f);
-            Sound.Prize();
+            _reward.ShowCoins(Economy.AdReward, pill != null ? pill.Coin : null, () =>
+            {
+                Wallet.Grant(Economy.AdReward);
+                _toolbox.Refresh();
+            });
         }
 
         /// <summary>

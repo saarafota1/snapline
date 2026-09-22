@@ -35,6 +35,9 @@ namespace Snapline.App
 
         private bool _busy;
         private bool _hammerArmed;
+        private ConfirmPopup _confirm;
+
+        private bool ConfirmVisible => _confirm != null && _confirm.IsVisible;
 
         /// <summary>
         /// True while a result card is closing and a possible interstitial is running, so a second tap
@@ -65,8 +68,9 @@ namespace Snapline.App
 
         public void Init(BoardView board, TrayView tray, DragController drag, Hud hud, ToolsBar tools,
                          AdController ads, PausePopup pause, NoMovesPopup noMoves, GreatRunPopup greatRun,
-                         LevelEndPopup levelEnd, NewBlockPopup newBlock)
+                         LevelEndPopup levelEnd, NewBlockPopup newBlock, ConfirmPopup confirm)
         {
+            _confirm = confirm;
             _newBlock = newBlock;
             _newBlock.Done += NextIntro;
             _board = board;
@@ -202,7 +206,8 @@ namespace Snapline.App
                 return;
             }
 
-            if (!_run.IsGameOver && !_pause.IsVisible && !_hammerArmed && !_busy) _drag.InputEnabled = true;
+            if (!_run.IsGameOver && !_pause.IsVisible && !_hammerArmed && !_busy && !ConfirmVisible)
+                _drag.InputEnabled = true;
         }
 
         /// <summary>Closes the block explainer as if GOT IT were tapped. The smoke harness uses it.</summary>
@@ -210,6 +215,12 @@ namespace Snapline.App
         {
             if (_newBlock.IsVisible) _newBlock.Dismiss();
         }
+
+        /// <summary>Taps a tool button, buy card and all. The smoke harness uses it.</summary>
+        public void DebugTapTool(Tool tool) => OnTool(tool);
+
+        /// <summary>Swings an armed hammer at a cell. The smoke harness uses it.</summary>
+        public void DebugHammerCell(int col, int row) => OnHammerCell(col, row);
 
         /// <summary>Fires the big-clear celebration for a number of lines. The smoke harness uses it.</summary>
         public void DebugCelebrate(int lines)
@@ -758,7 +769,7 @@ namespace Snapline.App
 
         public void OpenPause()
         {
-            if (_busy || _run.IsGameOver || _pause.IsVisible || _newBlock.IsVisible) return;
+            if (_busy || _run.IsGameOver || _pause.IsVisible || _newBlock.IsVisible || ConfirmVisible) return;
 
             Disarm();
             _drag.InputEnabled = false;
@@ -816,8 +827,17 @@ namespace Snapline.App
                 return;
             }
 
-            if (Wallet.Count(tool) <= 0 && !Buy(tool, button)) return;
+            if (Wallet.Count(tool) > 0)
+            {
+                Use(tool);
+                return;
+            }
 
+            AskToBuy(tool, button);
+        }
+
+        private void Use(Tool tool)
+        {
             switch (tool)
             {
                 case Tool.Undo:
@@ -832,22 +852,38 @@ namespace Snapline.App
             }
         }
 
-        /// <summary>Buys a tool on the spot when none is held, rather than leaving the run for a store.</summary>
-        private bool Buy(Tool tool, RectTransform button)
+        /// <summary>
+        /// Buys a tool on the spot when none is held, rather than leaving the run for a store - but
+        /// never on the tap alone. The tool buttons sit a thumb away from the tray, and 250 coins is
+        /// several runs of earnings, so the card asks first and the tool is used on the way back.
+        /// </summary>
+        private void AskToBuy(Tool tool, RectTransform button)
         {
             int price = Economy.Price(tool);
-            if (!Wallet.TrySpend(price))
+            if (!Wallet.CanAfford(price))
             {
                 Refuse(button, $"NEED {price} COINS");
                 CoinPill pill = CoinPill.Visible();
                 if (pill != null) Tween.Shake((RectTransform)pill.transform, 14f, 0.4f);
-                return false;
+                return;
             }
 
-            Wallet.GrantTool(tool);
-            Sound.Purchase();
-            Fx.Instance?.Text(button.position, $"-{price}", CandyStyle.Gold, 60f, 0.9f, 200f);
-            return true;
+            // The board is deaf while the card is up, and hears again however the card leaves.
+            _drag.InputEnabled = false;
+            _confirm.Ask(tool, () =>
+            {
+                if (!Wallet.TrySpend(price)) return;
+
+                Wallet.GrantTool(tool);
+                Sound.Purchase();
+                Haptics.Medium();
+                Fx.Instance?.Text(button.position, $"-{price}", CandyStyle.Gold, 60f, 0.9f, 200f);
+                Tween.Punch(button, 0.4f, 0.3f);
+                Use(tool);
+            }, () =>
+            {
+                if (!_run.IsGameOver && !_pause.IsVisible && !_hammerArmed) _drag.InputEnabled = true;
+            });
         }
 
         private static void Refuse(RectTransform button, string why)
@@ -901,7 +937,8 @@ namespace Snapline.App
             _drag.InputEnabled = false;
             _board.SetHammerMode(true, OnHammerCell);
             _tools.SetArmed(Tool.Hammer);
-            Fx.Instance?.Text(_board.CentreWorld, "TAP A BLOCK", CandyStyle.White, 80f, 1.5f, 40f);
+            // Short enough to be gone before the smash it asks for, which it used to hang over.
+            Fx.Instance?.Text(_board.CentreWorld, "TAP TO SMASH", CandyStyle.White, 80f, 1.0f, 40f);
         }
 
         private void Disarm()
@@ -930,12 +967,12 @@ namespace Snapline.App
             if (!Wallet.TryUseTool(Tool.Hammer)) yield break;
 
             _busy = true;
-            _run.Hammer(col, row);
+            _run.Hammer(col, row, out ulong cleared);
             _hammerArmed = false;
             _board.SetHammerMode(false, null);
             _tools.SetArmed(null);
 
-            yield return _board.Smash(col, row);
+            yield return _board.Smash(cleared, col, row);
 
             RefreshSlotPlayability();
             PushObjective();

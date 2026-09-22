@@ -93,6 +93,7 @@ namespace Snapline.App
             yield return PausePhase();
             yield return LevelPhase();
             yield return SpecialPhase();
+            yield return ToolsPhase();
             yield return StorePhase();
             yield return DailyPhase();
 
@@ -347,6 +348,77 @@ namespace Snapline.App
             yield return new WaitForSeconds(0.55f);
             yield return Capture("20_unnatural");
             yield return new WaitForSeconds(2.4f);
+        }
+
+        /// <summary>
+        /// Buying and spending a tool: the card that asks before coins are spent, the hammer taking a
+        /// whole area, and the reward card a finished video pays onto.
+        /// </summary>
+        private IEnumerator ToolsPhase()
+        {
+            _app.StartNewGame();
+            yield return new WaitForSeconds(1.2f);
+
+            GameRun run = _controller.Run;
+            var rng = new Rng(4242UL);
+            var player = new AutoPlayer(PlayerSkill.Heuristic);
+            for (int i = 0; i < 16 && !run.IsGameOver; i++)
+            {
+                while (_controller.IsBusy) yield return null;
+                if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+                _drag.SimulateDragTo(slot, col, row);
+                yield return new WaitForSeconds(0.2f);
+            }
+
+            // Nothing in the toolbox and enough coins to buy: the state the buy card exists for.
+            while (Wallet.Count(Tool.Hammer) > 0) Wallet.TryUseTool(Tool.Hammer);
+            if (!Wallet.CanAfford(Economy.HammerPrice)) Wallet.Grant(Economy.HammerPrice);
+
+            _controller.DebugTapTool(Tool.Hammer);
+            yield return new WaitForSeconds(1.1f);
+            yield return Capture("21_buy_confirm");
+
+            _app.ConfirmPurchaseForHarness();
+            yield return new WaitForSeconds(1.2f);
+            yield return Capture("22_hammer_armed");
+
+            // The fullest 3 x 3 on the board, so the smash has something to take.
+            int bestCol = -1, bestRow = -1, best = -1;
+            for (int r = 0; r < Board.Height; r++)
+            for (int c = 0; c < Board.Width; c++)
+            {
+                if (!run.Board.IsOccupied(c, r)) continue;
+                int count = Bits.PopCount(run.Board.AreaMask(c, r, GameRun.HammerRadius));
+                if (count <= best) continue;
+                best = count;
+                bestCol = c;
+                bestRow = r;
+            }
+
+            if (bestCol >= 0)
+            {
+                Debug.Log($"[Snapline] smoke: hammering ({bestCol},{bestRow}), {best} blocks in the area");
+                _controller.DebugHammerCell(bestCol, bestRow);
+                yield return new WaitForSeconds(0.34f);
+                yield return Capture("23_hammer_smash");
+                yield return new WaitForSeconds(1.0f);
+                yield return Capture("24_after_smash");
+            }
+            else
+            {
+                Debug.LogError("[Snapline] smoke: no block to hammer");
+            }
+
+            _app.ShowToolbox();
+            yield return new WaitForSeconds(1.0f);
+            _app.DebugRewardCard();
+            yield return new WaitForSeconds(1.3f);
+            yield return Capture("25_reward_card");
+
+            _app.CollectRewardForHarness();
+            yield return new WaitForSeconds(0.55f);
+            yield return Capture("26_reward_collecting");
+            yield return new WaitForSeconds(1.4f);
         }
 
         private IEnumerator StorePhase()
