@@ -51,6 +51,7 @@ namespace Snapline.Core
         public int ComboCount;
         public int BestCombo;
         public int TotalLinesCleared;
+        public int BonusLines;
         public int TotalPiecesPlaced;
         public int BestSimultaneousLines;
         public bool GameOver;
@@ -136,7 +137,14 @@ namespace Snapline.Core
 
         /// <summary>Lines still needed. Level mode only.</summary>
         public int LinesRemaining =>
-            Objective == null ? 0 : Math.Max(0, Objective.LineTarget - Score.TotalLinesCleared);
+            Objective == null ? 0 : Math.Max(0, Objective.LineTarget - LinesTowardsTarget);
+
+        /// <summary>
+        /// Progress towards the level's line target: the lines cleared plus the bonus lines earned by
+        /// clearing several at once. The endless payout and the lifetime stats read
+        /// <see cref="ScoreState.TotalLinesCleared"/> instead, which counts only real lines.
+        /// </summary>
+        public int LinesTowardsTarget => Score.TotalLinesCleared + Score.BonusLines;
 
         public void StartNew(ulong seed)
         {
@@ -250,7 +258,7 @@ namespace Snapline.Core
         {
             if (Objective == null || LevelComplete || LevelFailed) return;
 
-            if (Score.TotalLinesCleared >= Objective.LineTarget)
+            if (LinesTowardsTarget >= Objective.LineTarget)
             {
                 LevelComplete = true;
                 IsGameOver = true;
@@ -470,6 +478,7 @@ namespace Snapline.Core
                 ComboCount = Score.ComboCount,
                 BestCombo = Score.BestCombo,
                 TotalLinesCleared = Score.TotalLinesCleared,
+                BonusLines = Score.BonusLines,
                 TotalPiecesPlaced = Score.TotalPiecesPlaced,
                 BestSimultaneousLines = Score.BestSimultaneousLines,
                 GameOver = IsGameOver,
@@ -509,6 +518,7 @@ namespace Snapline.Core
             Score.ComboCount = snap.ComboCount;
             Score.BestCombo = snap.BestCombo;
             Score.TotalLinesCleared = snap.TotalLinesCleared;
+            Score.BonusLines = snap.BonusLines;
             Score.TotalPiecesPlaced = snap.TotalPiecesPlaced;
             Score.BestSimultaneousLines = snap.BestSimultaneousLines;
 

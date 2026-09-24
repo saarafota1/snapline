@@ -254,6 +254,7 @@ namespace Snapline.App
             var player = new AutoPlayer(PlayerSkill.Heuristic);
             int moves = 0;
             bool captured = false;
+            bool bonusCaptured = false;
 
             while (!run.IsGameOver && moves < MaxMoves)
             {
@@ -261,9 +262,19 @@ namespace Snapline.App
                 if (run.IsGameOver) break;
                 if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
 
+                int bonusBefore = run.Score.BonusLines;
                 _drag.SimulateDragTo(slot, col, row);
                 moves++;
                 yield return new WaitForSeconds(0.24f);
+
+                // A double or better: the shout that says what the extra lines bought.
+                if (!bonusCaptured && run.Score.BonusLines > bonusBefore)
+                {
+                    bonusCaptured = true;
+                    Debug.Log($"[Snapline] smoke: bonus lines on move {moves}, " +
+                              $"{run.Score.TotalLinesCleared} cleared counts as {run.LinesTowardsTarget}");
+                    yield return Capture("07b_bonus_lines");
+                }
 
                 if (!captured && moves >= 6)
                 {
@@ -272,11 +283,14 @@ namespace Snapline.App
                 }
             }
 
+            if (!bonusCaptured) Debug.Log("[Snapline] smoke: no multi-line clear happened in this level");
+
             yield return new WaitForSeconds(4.0f);
             yield return Capture("08_level_result");
 
             Debug.Log($"[Snapline] level {level}: complete={run.LevelComplete} failed={run.LevelFailed} " +
-                      $"lines={run.Score.TotalLinesCleared}/{run.Objective?.LineTarget} moves={run.MovesUsed}");
+                      $"lines={run.Score.TotalLinesCleared} (+{run.Score.BonusLines} bonus) " +
+                      $"of {run.Objective?.LineTarget} moves={run.MovesUsed}");
 
             _app.ShowLevelSelect();
             yield return new WaitForSeconds(1.2f);
@@ -321,12 +335,15 @@ namespace Snapline.App
             bool captured = false;
             int guard = 0;
 
+            bool bonusShot = false;
+
             while (!run.IsGameOver && guard++ < 40)
             {
                 while (_controller.IsBusy) yield return null;
                 if (run.IsGameOver) break;
                 if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
 
+                int bonusBefore = run.Score.BonusLines;
                 ulong specialsBefore = run.Board.SpecialMask;
                 ulong stonesBefore = run.Board.StickyMask;
                 _drag.SimulateDragTo(slot, col, row);
@@ -337,6 +354,17 @@ namespace Snapline.App
                     yield return new WaitForSeconds(0.2f);
                     yield return Capture("18b_special_clear");
                     Debug.Log($"[Snapline] special clear seen after {guard} moves:\n{run.Board}");
+                }
+
+                // A cluttered puzzle level is where doubles actually happen, so the bonus shout is
+                // caught here rather than on the early level the ladder phase plays.
+                if (!bonusShot && run.Score.BonusLines > bonusBefore)
+                {
+                    bonusShot = true;
+                    yield return new WaitForSeconds(0.18f);
+                    yield return Capture("18c_bonus_lines");
+                    Debug.Log($"[Snapline] smoke: bonus lines after {guard} moves, " +
+                              $"{run.Score.TotalLinesCleared} cleared counts as {run.LinesTowardsTarget}");
                 }
 
                 yield return new WaitForSeconds(0.26f);

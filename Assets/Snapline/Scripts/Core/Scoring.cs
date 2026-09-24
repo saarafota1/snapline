@@ -50,6 +50,17 @@ namespace Snapline.Core
         /// <summary>Flat bonus for emptying the board completely. Rare, and should feel like it.</summary>
         public int PerfectClearBonus = 3000;
 
+        /// <summary>
+        /// Extra lines credited towards a level's target for clearing several at once: a double pays
+        /// one bonus line, a triple two, and so on.
+        ///
+        /// Points already reward a multi-line clear, but points do not open the next level. The
+        /// target did, and it counted a hard-won double exactly as two dull singles, so the cheapest
+        /// way through every level was to keep filling one row at a time. Now the board pays for the
+        /// harder play, and levels get easier for the player who sets one up.
+        /// </summary>
+        public int BonusLinesFor(int lines) => Math.Max(0, lines - 1);
+
         public double MultiplierForLines(int lines)
         {
             if (lines <= 0) return 0.0;
@@ -71,6 +82,13 @@ namespace Snapline.Core
         public int TotalPiecesPlaced;
         public int BestSimultaneousLines;
 
+        /// <summary>
+        /// Lines credited by multi-line clears on top of the ones actually cleared. Counts towards a
+        /// level's target; deliberately not added to <see cref="TotalLinesCleared"/>, which stays a
+        /// truthful count for the lifetime stats and the endless payout.
+        /// </summary>
+        public int BonusLines;
+
         /// <summary>Dry moves since the last clear. Compared against ScoreRules.ComboGraceMoves.</summary>
         public int DryMovesSinceClear;
 
@@ -82,6 +100,7 @@ namespace Snapline.Core
             TotalLinesCleared = 0;
             TotalPiecesPlaced = 0;
             BestSimultaneousLines = 0;
+            BonusLines = 0;
             DryMovesSinceClear = 0;
         }
     }
@@ -96,6 +115,9 @@ namespace Snapline.Core
         public double ComboMultiplier;
         public int ComboCount;
         public int LinesCleared;
+
+        /// <summary>Extra lines this move credited towards the level target, from clearing several at once.</summary>
+        public int BonusLines;
 
         public int Total => PlacementPoints + LinePoints + PerfectClearPoints;
     }
@@ -129,9 +151,12 @@ namespace Snapline.Core
                 delta.ComboMultiplier = comboMult;
                 delta.LinePoints = (int)Math.Round(lines * rules.PointsPerLine * simMult * comboMult);
 
+                delta.BonusLines = rules.BonusLinesFor(lines);
+
                 state.ComboCount++;
                 state.DryMovesSinceClear = 0;
                 state.TotalLinesCleared += lines;
+                state.BonusLines += delta.BonusLines;
                 if (state.ComboCount > state.BestCombo) state.BestCombo = state.ComboCount;
                 if (lines > state.BestSimultaneousLines) state.BestSimultaneousLines = lines;
 

@@ -109,6 +109,9 @@ namespace Snapline.UI
         /// <summary>The pill the score is shown in, for points to fly at.</summary>
         public RectTransform ScoreTarget => _mode == GameMode.Level ? _levelPill : _scorePill;
 
+        /// <summary>The LINES chip, for an effect that credits lines to point at.</summary>
+        public RectTransform LinesPill => _linesPill;
+
         public void Init(RectTransform parent, long bestScore)
         {
             Root = UIKit.Rect("Hud", parent);

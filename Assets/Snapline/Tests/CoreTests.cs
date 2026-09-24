@@ -767,6 +767,64 @@ namespace Snapline.Tests
         }
 
         [Test]
+        public void MultiLineClear_CreditsBonusLinesTowardsTheTargetButNotTheStats()
+        {
+            var rules = new ScoreRules();
+            Assert.AreEqual(0, rules.BonusLinesFor(0));
+            Assert.AreEqual(0, rules.BonusLinesFor(1), "A single line is the plain play; no bonus.");
+            Assert.AreEqual(1, rules.BonusLinesFor(2));
+            Assert.AreEqual(2, rules.BonusLinesFor(3));
+            Assert.AreEqual(3, rules.BonusLinesFor(4));
+
+            // A board one piece away from clearing two rows at once.
+            ulong occupied = 0UL;
+            var colours = new byte[Board.CellCount];
+            for (int r = 6; r <= 7; r++)
+            for (int c = 0; c < Board.Width - 1; c++)
+            {
+                int i = Bits.Index(c, r);
+                occupied |= 1UL << i;
+                colours[i] = 1;
+            }
+
+            // A level deals from its own seed, so the tray is fixed: look for a seed whose tray can
+            // actually clear both rows at once, rather than hoping the first one can.
+            LevelDef level = null;
+            int slot = -1, atCol = -1, atRow = -1;
+
+            for (ulong seed = 1; seed <= 200 && slot < 0; seed++)
+            {
+                var candidate = new LevelDef(1, 4, 10, seed, occupied, colours);
+                for (int i = 0; i < 3 && slot < 0; i++)
+                for (int r = 0; r < Board.Height && slot < 0; r++)
+                for (int c = 0; c < Board.Width && slot < 0; c++)
+                {
+                    var probe = new GameRun();
+                    probe.StartLevel(candidate);
+                    MoveResult trial = probe.Place(i, c, r);
+                    if (trial.Accepted && trial.Placement.LinesCleared == 2)
+                    {
+                        level = candidate;
+                        slot = i;
+                        atCol = c;
+                        atRow = r;
+                    }
+                }
+            }
+
+            Assert.GreaterOrEqual(slot, 0, "No seed in 200 dealt a piece that clears both rows at once.");
+
+            var run = new GameRun();
+            run.StartLevel(level);
+            MoveResult move = run.Place(slot, atCol, atRow);
+            Assert.AreEqual(2, move.Placement.LinesCleared, "Expected a double.");
+            Assert.AreEqual(1, move.Score.BonusLines, "A double pays one bonus line.");
+            Assert.AreEqual(2, run.Score.TotalLinesCleared, "The stat counts real lines only.");
+            Assert.AreEqual(3, run.LinesTowardsTarget, "The target counts the bonus too.");
+            Assert.AreEqual(4 - 3, run.LinesRemaining);
+        }
+
+        [Test]
         public void SpecialBlocks_StartAtLevelFiveAndDebutOneAtATime()
         {
             // Nothing before the first debut, so the opening levels teach the plain game.

@@ -272,7 +272,7 @@ namespace Snapline.App
         private void PushObjective()
         {
             if (_run.Objective == null) return;
-            _hud.SetObjective(LevelName, _run.Score.TotalLinesCleared, _run.Objective.LineTarget,
+            _hud.SetObjective(LevelName, _run.LinesTowardsTarget, _run.Objective.LineTarget,
                               _run.MovesRemaining, _level);
         }
 
@@ -461,6 +461,22 @@ namespace Snapline.App
 
             fx.Text(At(-70f), $"+{Hud.Format(move.Score.Total)}", CandyStyle.White, 64f, 0.95f, 160f, 0.08f);
 
+            // The bonus is the reason to set up a double rather than take two singles, so it is said
+            // where it is actually spent: on the LINES chip, which jumps as the extra lines land. Said
+            // over the board instead, it read as one more number among the points and the combo.
+            if (move.Score.BonusLines > 0 && _run.Objective != null && _hud.LinesPill != null)
+            {
+                RectTransform chip = _hud.LinesPill;
+
+                // Just below the chip, rising a little: over it, the shout hid the very number it had
+                // just changed.
+                Vector3 under = chip.position - new Vector3(0f, chip.rect.height * chip.lossyScale.y * 0.85f, 0f);
+                fx.Text(under, move.Score.BonusLines == 1 ? "+1 BONUS LINE!" : $"+{move.Score.BonusLines} BONUS LINES!",
+                        CandyStyle.Gold, 54f, 1.3f, 70f, 0.1f);
+                fx.Sparkles(chip.position, 12, 110f, 52f);
+                Tween.Punch(chip, 0.4f, 0.32f);
+            }
+
             if (combo >= 2 && !celebrating)
                 fx.Text(At(150f), $"COMBO x{combo}", CandyStyle.Gold, 70f + 4f * Mathf.Min(combo, 8), 1.1f, 180f, 0.14f);
 
@@ -507,7 +523,9 @@ namespace Snapline.App
 
         private IEnumerator ResolveLevelEnd(MoveResult move)
         {
-            int lines = _run.Score.TotalLinesCleared;
+            // What the objective counted, bonus lines included, so the card agrees with the target
+            // the player just met rather than reporting a smaller number than the level asked for.
+            int lines = _run.LinesTowardsTarget;
 
             // A finished level or daily, won or lost, counts toward the interstitial pacing exactly as
             // a finished endless run does, so the first-ad grace and the gap between ads span both.
@@ -775,7 +793,7 @@ namespace Snapline.App
             _drag.InputEnabled = false;
 
             string info = _run.Mode == GameMode.Level
-                ? $"{Mathf.Min(_run.Score.TotalLinesCleared, _run.Objective.LineTarget)} / {_run.Objective.LineTarget} LINES   •   {_run.MovesRemaining} MOVES LEFT"
+                ? $"{Mathf.Min(_run.LinesTowardsTarget, _run.Objective.LineTarget)} / {_run.Objective.LineTarget} LINES   •   {_run.MovesRemaining} MOVES LEFT"
                 : $"SCORE {Hud.Format(_run.Score.Score)}   •   BEST {Hud.Format(Math.Max(SaveSystem.HighScore, _run.Score.Score))}";
 
             string title = _run.Mode == GameMode.Level ? LevelName : "ENDLESS";
