@@ -77,6 +77,10 @@ for key in ("firebase_analytics_collection_enabled",
     val = m.group(2) if m else "?"
     check("consent default off: " + key, present and val == "false", "value=" + val)
 
+# In-app purchases (1.4.1). Play will not let a one-time product be created until it sees this
+# permission in an uploaded build, and Unity IAP is what puts it there.
+check("billing permission declared", "com.android.vending.BILLING" in manifest)
+
 for meta in ("com.facebook.sdk.ApplicationId", "com.facebook.sdk.ClientToken"):
     check("Meta meta-data present: " + meta, meta in manifest)
 
@@ -163,7 +167,8 @@ for marker in ("FirebaseAnalyticsService", "[Snapline] Firebase", "Snapline.Serv
 # Leaderboards (1.4.1). The adapter registers itself from RuntimeInitializeOnLoadMethod, so nothing
 # names it and IL2CPP may strip the whole assembly - the kit's own link.xml does not cover it, which is
 # why Snapline preserves it. If this check fails, scores go nowhere and the WORLD board is just empty.
-for marker in ("UgsLeaderboards", "LeaderboardsService", "SubmitBestScore", "UpdatePlayerNameAsync"):
+for marker in ("UgsLeaderboards", "LeaderboardsService", "SubmitBestScore", "UpdatePlayerNameAsync",
+               "BuyRemoveAdsAsync", "remove_ads"):
     check("metadata carries " + repr(marker), m_(marker) > 0, str(m_(marker)))
 
 check("metadata free of 'GoogleMobileAds.Api'", m_("GoogleMobileAds.Api") == 0, str(m_("GoogleMobileAds.Api")))

@@ -100,6 +100,10 @@ namespace Snapline.App
             yield return new WaitForSeconds(0.9f);
             yield return Capture("00d_name_saved");
 
+            _app.DebugRemoveAdsCard();
+            yield return new WaitForSeconds(1.2f);
+            yield return Capture("00e_remove_ads");
+
             yield return EndlessPhase();
             yield return PausePhase();
             yield return LevelPhase();

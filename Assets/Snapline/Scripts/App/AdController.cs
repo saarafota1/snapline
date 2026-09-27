@@ -39,6 +39,15 @@ namespace Snapline.App
         /// <summary>True while an ad is on screen, so the game can ignore input.</summary>
         public bool IsShowingAd => _busy;
 
+        /// <summary>Rewarded video is deliberately untouched: it is the player own opt-in benefit.</summary>
+        private void ApplyAdsRemoved()
+        {
+            _policy.AdsRemoved = GameKitRuntime.AdsRemoved;
+            Debug.Log("[Snapline] ads removed entitlement: " + GameKitRuntime.AdsRemoved);
+        }
+
+        private void OnDestroy() => GameKitRuntime.AdsRemovedChanged -= ApplyAdsRemoved;
+
         public void Init(GameKitConfig config)
         {
             if (config != null)
@@ -48,6 +57,12 @@ namespace Snapline.App
                 _policy.GamesBetweenAds = Mathf.Max(1, config.levelsBetweenInterstitials);
                 _policy.GamesBeforeFirstAd = Mathf.Max(0, config.interstitialGraceLevels);
             }
+
+            // A player who paid sees no interstitials. Applied before the store has connected, from
+            // what the device remembers, so nobody who paid meets an ad while a network call is in
+            // flight; the kit revokes it only when a reachable store says the product is not owned.
+            ApplyAdsRemoved();
+            GameKitRuntime.AdsRemovedChanged += ApplyAdsRemoved;
 
             if (SimulationRequested())
             {

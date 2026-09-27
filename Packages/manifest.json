@@ -1,6 +1,16 @@
 {
   "dependencies": {
     "com.sciboxstudios.studiokit": "file:../../_StudioKit",
+    "com.unity.microsoft.gdk": "1.7.0",
+    "com.unity.microsoft.gdk.tools": "1.7.0",
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "com.unity.purchasing": "5.4.3",
+    "com.unity.services.authentication": "3.8.0",
+    "com.unity.services.core": "1.18.0",
+    "com.unity.services.leaderboards": "2.3.4",
+    "com.unity.services.levelplay": "9.5.1",
+    "com.unity.test-framework": "1.4.6",
+    "com.unity.ugui": "2.0.0",
     "com.unity.modules.accessibility": "1.0.0",
     "com.unity.modules.androidjni": "1.0.0",
     "com.unity.modules.animation": "1.0.0",
@@ -20,13 +30,6 @@
     "com.unity.modules.unitywebrequestassetbundle": "1.0.0",
     "com.unity.modules.unitywebrequesttexture": "1.0.0",
     "com.unity.modules.unitywebrequestwww": "1.0.0",
-    "com.unity.modules.video": "1.0.0",
-    "com.unity.nuget.newtonsoft-json": "3.2.1",
-    "com.unity.services.authentication": "3.8.0",
-    "com.unity.services.core": "1.18.0",
-    "com.unity.services.leaderboards": "2.3.4",
-    "com.unity.services.levelplay": "9.5.1",
-    "com.unity.test-framework": "1.4.6",
-    "com.unity.ugui": "2.0.0"
+    "com.unity.modules.video": "1.0.0"
   }
 }

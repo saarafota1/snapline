@@ -46,4 +46,6 @@ MonoBehaviour:
   leaderboardLevelsSolved: levels_solved
   leaderboardDailyChallenge: daily_challenge
   leaderboardBestScore: Top_10_Endless_LeaderBoard
+  enablePurchases: 1
+  removeAdsProductId: remove_ads
   cloudSaveKey: progress

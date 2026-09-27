@@ -31,7 +31,7 @@ namespace Snapline.UI
             public const float RowStep = 98f;
             // One row lower than it was: the NAME row now sits where HOW TO PLAY used to start, and
             // the two were drawn on top of each other.
-            public const float HowToY = 1350f;
+            public const float HowToY = 1448f;
         }
 
         public event Action ResumeRequested;
@@ -43,6 +43,9 @@ namespace Snapline.UI
         /// <summary>The name row was tapped.</summary>
         public event Action NameRequested;
 
+        /// <summary>The remove-ads row was tapped.</summary>
+        public event Action RemoveAdsRequested;
+
         private Text _name;
         private Text _info;
         private Image _infoPill;
@@ -52,6 +55,8 @@ namespace Snapline.UI
         private Button _home;
         private Button _privacy;
         private Text _playerName;
+        private Text _adsValue;
+        private GameObject _adsRow;
         private RectTransform _settings;
         private CandyToggle _music;
         private CandyToggle _sound;
@@ -129,6 +134,21 @@ namespace Snapline.UI
             editName.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f);
             CandyUI.Place(editName, W.Centre, Vector2.zero, new Vector2(640f, 86f));
             editName.onClick.AddListener(() => NameRequested?.Invoke());
+
+            Image adsRow = W.Rounded("AdsRow", _settings, CandyText.Hex(0xFCEBDD), CandyText.Hex(0xF4D7C2), W.Top,
+                                     new Vector2(0f, -(Layout.MusicY + 4 * Layout.RowStep)), new Vector2(640f, 86f), 40f);
+            W.Img("Icon", adsRow.transform, "icon_noads", W.Left, new Vector2(70f, 0f), new Vector2(70f, 70f));
+            W.Text("Caption", adsRow.transform, "REMOVE ADS", W.Left, new Vector2(290f, 0f), new Vector2(300f, 60f),
+                   40, CandyStyle.Cocoa, Color.white, TextAnchor.MiddleLeft);
+            _adsValue = W.Text("Value", adsRow.transform, "", W.Right, new Vector2(-170f, 0f), new Vector2(300f, 60f),
+                               32, CandyStyle.Blue, Color.white, TextAnchor.MiddleRight);
+            _adsValue.font = Design.Display;
+
+            Button adsButton = CandyUI.SpriteButton("RemoveAds", adsRow.transform, null);
+            adsButton.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f);
+            CandyUI.Place(adsButton, W.Centre, Vector2.zero, new Vector2(640f, 86f));
+            adsButton.onClick.AddListener(() => RemoveAdsRequested?.Invoke());
+            _adsRow = adsRow.gameObject;
 
             Button howTo = CandyUI.SpriteButton("HowTo", _settings, null);
             howTo.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f);
@@ -240,7 +260,7 @@ namespace Snapline.UI
 
             // Room for the NAME row, which the card was not sized for.
             var size = new Vector2(Layout.Card.x,
-                                   Layout.Card.y - lift + Layout.RowStep + (privacyAvailable ? 80f : 0f));
+                                   Layout.Card.y - lift + 2f * Layout.RowStep + (privacyAvailable ? 80f : 0f));
             Card.sizeDelta = size;
             Card.anchoredPosition = Vector2.zero;
             ResizeCardBackground(size);
@@ -253,6 +273,25 @@ namespace Snapline.UI
         {
             if (_playerName == null) return;
             _playerName.text = PlayerName.Chosen ? PlayerName.Current.ToUpperInvariant() : "TAP TO SET";
+            RefreshAds();
+        }
+
+        /// <summary>
+        /// The row prints the store price, never a price of ours. Until Google answers there is none,
+        /// and the row says so rather than inventing one.
+        /// </summary>
+        public void RefreshAds()
+        {
+            if (_adsValue == null) return;
+
+            if (GameKit.GameKitRuntime.AdsRemoved)
+            {
+                _adsValue.text = "OFF";
+                return;
+            }
+
+            string price = GameKit.GameKitRuntime.Store != null ? GameKit.GameKitRuntime.Store.RemoveAdsPrice : null;
+            _adsValue.text = string.IsNullOrEmpty(price) ? "TAP" : price;
         }
 
         private void SetRunButtons(bool on)

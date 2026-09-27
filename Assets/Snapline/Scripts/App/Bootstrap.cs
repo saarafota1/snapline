@@ -74,6 +74,7 @@ namespace Snapline.App
         private RectTransform _trayRoot;
         private RewardPopup _reward;
         private NamePopup _name;
+        private RemoveAdsPopup _removeAds;
         private ConfirmPopup _confirm;
         private float _safeHeight;
 
@@ -192,6 +193,8 @@ namespace Snapline.App
 
             _name = Make<NamePopup>("NamePopup", safeRoot);
             _name.Init(safeRoot);
+            _removeAds = Make<RemoveAdsPopup>("RemoveAdsPopup", safeRoot);
+            _removeAds.Init(safeRoot);
 
             _toolbox = Make<ToolboxPanel>("Toolbox", safeRoot);
             _toolbox.Init(safeRoot, confirm);
@@ -240,10 +243,17 @@ namespace Snapline.App
 
             _toolbox.BackRequested += CloseToolbox;
             _toolbox.WatchAdRequested += WatchAdForCoins;
+            _toolbox.RemoveAdsRequested += () => _removeAds.Show();
             Nav.ToolboxRequested += ShowToolbox;
 
             _pause.PrivacyRequested += ShowPrivacyOptions;
             _pause.NameRequested += () => _name.Show();
+            _pause.RemoveAdsRequested += () => _removeAds.Show();
+            _removeAds.Changed += () =>
+            {
+                _pause.RefreshAds();
+                if (_toolbox.IsVisible) _toolbox.Refresh();
+            };
             _name.Saved += () =>
             {
                 _pause.RefreshName();
@@ -373,6 +383,9 @@ namespace Snapline.App
 
         /// <summary>Shows the world leaderboard table. The smoke harness only.</summary>
         internal void ShowWorldScoresForHarness() => _scores.ShowWorldForHarness();
+
+        /// <summary>Opens the remove-ads card. The smoke harness only.</summary>
+        internal void DebugRemoveAdsCard() => _removeAds.Show();
 
         /// <summary>Opens the name card with a name typed in. The smoke harness only.</summary>
         internal void DebugNameCard(string typed) => _name.ShowForHarness(typed);

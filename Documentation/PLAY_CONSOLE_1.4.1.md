@@ -104,6 +104,30 @@ by the game, and the player is never asked for one.
 
 ---
 
+## In-app purchases (new in 1.4.1)
+
+The game sells one thing: remove_ads, a one-time USD 1.00 product that stops the interstitials. The
+videos a player chooses to watch for coins or a continue are untouched.
+
+| Question | Answer | Why |
+|---|---|---|
+| Financial info > **Purchase history** collected | **Yes** | The game asks Google what this account owns, to know whether to show ads |
+| Purchase history shared | **Yes** | The Unity Ads section above already declares it; the form answers per data type |
+| Purposes | **App functionality**, plus the advertising and analytics purposes Unity Ads needs | The entitlement decides whether an ad is shown |
+
+The store listing gains an **In-app purchases** label automatically once the product is active; there
+is nothing to fill in for that.
+
+Checklist before the first release that carries it:
+
+- Payments profile complete (Play Console > Setup > Payments profile), or nothing can be sold.
+- The product exists, is **Active**, and its id is exactly **remove_ads**.
+- The build is on a Play track and the tester is on the licence-tester list. Until both are true the
+  store reports no product, which looks exactly like a wrong id.
+- Price comes from Google, never from the game. The buttons print whatever the store returns.
+
+---
+
 ## App content › Advertising ID
 
 Keep it identical to the Device or other IDs row, as Play cross-checks the two: add
