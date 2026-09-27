@@ -45,4 +45,5 @@ MonoBehaviour:
   tiktokAppId: 7680497997288914964
   leaderboardLevelsSolved: levels_solved
   leaderboardDailyChallenge: daily_challenge
+  leaderboardBestScore: Top_10_Endless_LeaderBoard
   cloudSaveKey: progress

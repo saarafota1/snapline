@@ -361,6 +361,9 @@ namespace Snapline.App
         /// <summary>Presses BUY on the purchase card. The smoke harness only.</summary>
         internal void ConfirmPurchaseForHarness() => _confirm.ConfirmForHarness();
 
+        /// <summary>Shows the world leaderboard table. The smoke harness only.</summary>
+        internal void ShowWorldScoresForHarness() => _scores.ShowWorldForHarness();
+
         internal void OpenSettings() =>
             _pause.ShowSettings(GameKit.GameKitRuntime.Consent.IsPrivacyOptionsRequired);
 

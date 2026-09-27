@@ -80,6 +80,30 @@ property passes review. Until then Audience Network shows as present in LevelPla
 
 ---
 
+## Leaderboards (new in 1.4.1)
+
+The game submits scores to Unity Gaming Services leaderboards, signed in anonymously, so a score can
+be compared with other players. That adds one SDK and one identifier.
+
+**It adds no row you are not already adding.** The Unity Ads section above already puts
+Personal info > **User IDs** on the form; the leaderboard player id is a second source of the same
+data type, and the form answers per data type rather than per SDK.
+
+| Question | Answer | Why |
+|---|---|---|
+| User IDs collected | **Yes** | Unity issues an anonymous player id, and a score is attached to it |
+| User IDs shared | **Yes** | Driven by Unity Ads, which shares its identifier. The leaderboard id on its own would be "No": Unity processes it as a service provider. One SDK sharing makes the row Yes |
+| Purposes | **App functionality** (plus whatever Unity Ads needs) | The score board is app functionality |
+| Ephemeral / Required | No / Required | Unchanged |
+
+*Account creation* stays "My app does not allow users to create an account": anonymous sign-in creates
+nothing a player could log into, exactly as the 1.4 form argued for UGS.
+
+Nothing else moves. A submitted score is a number and a player id: no name, email or device id is sent
+by the game, and the player is never asked for one.
+
+---
+
 ## App content › Advertising ID
 
 Keep it identical to the Device or other IDs row, as Play cross-checks the two: add

@@ -553,6 +553,7 @@ namespace Snapline.App
                 int previous = SaveSystem.StarsForLevel(number);
                 SaveSystem.RecordLevelResult(number, stars);
                 SaveSystem.SubmitScore(_run.Score.Score);
+                Boards.SubmitLevelsSolved(SaveSystem.LevelsCompleted());
                 Telemetry.LevelCompleted();
 
                 int coins = Economy.LevelReward(previous, stars);
@@ -581,6 +582,10 @@ namespace Snapline.App
         {
             int today = DailyProgress.Today;
             bool first = DailyProgress.MarkDone(today);
+
+            // Everyone plays the same daily board, so the scores on it are actually comparable -
+            // which makes it the one leaderboard here that measures play rather than persistence.
+            Boards.SubmitDaily(_run.Score.Score);
             Daily.Reward reward = Daily.RewardFor(Daily.WeekdayOf(today));
 
             int before = Wallet.Coins;
@@ -727,6 +732,7 @@ namespace Snapline.App
             int lines = _run.Score.TotalLinesCleared;
             int bestCombo = _run.Score.BestCombo;
             SaveSystem.RecordFinishedRun(score, lines, bestCombo);
+            Boards.SubmitBestScore(score);
             SaveSystem.ClearRun();
 
             int coins = Economy.EndlessReward(lines, bestCombo);

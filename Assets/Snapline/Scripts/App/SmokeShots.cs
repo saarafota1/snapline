@@ -305,6 +305,10 @@ namespace Snapline.App
             _app.ShowScores();
             yield return new WaitForSeconds(1.2f);
             yield return Capture("10_scores");
+
+            _app.ShowWorldScoresForHarness();
+            yield return new WaitForSeconds(2.2f);
+            yield return Capture("10b_world_scores");
         }
 
         /// <summary>

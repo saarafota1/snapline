@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using GameKit;
 using Snapline.App;
 using Snapline.Art;
 using GameKit.Art;
@@ -23,14 +24,19 @@ namespace Snapline.UI
             public const float StatsY = 346f;
             public const float CardY = 990f;
             public static readonly Vector2 Card = new Vector2(900f, 1110f);
-            public const float FirstRowY = 534f;
+            // Below the tabs, which the first row used to sit on top of.
+            public const float FirstRowY = 576f;
             public const float RowStep = 101f;
             public static readonly Vector2 Row = new Vector2(790f, 90f);
+            public const float TabsY = 486f;
             public const float ShareFromBottom = 318f;
             public const float PlayFromBottom = 150f;
         }
 
         private const int Rows = 10;
+
+        /// <summary>Which table the card is showing.</summary>
+        private enum Table { Mine, World }
 
         public event Action BackRequested;
         public event Action ShareRequested;
@@ -45,6 +51,12 @@ namespace Snapline.UI
         private readonly Text[] _rank = new Text[Rows];
         private readonly Text[] _score = new Text[Rows];
         private readonly Text[] _date = new Text[Rows];
+        private Button _mineTab;
+        private Button _worldTab;
+        private Table _table = Table.Mine;
+
+        /// <summary>Rises on every switch, so a slow fetch cannot paint over a newer one.</summary>
+        private int _fetch;
         private Text _empty;
 
         public bool IsVisible => _root != null && _root.gameObject.activeSelf;
@@ -79,7 +91,17 @@ namespace Snapline.UI
 
             Image card = W.Card("Card", _root, top, new Vector2(0f, -Layout.CardY), Layout.Card, 48f);
             _card = card.rectTransform;
+
+            _mineTab = W.Pill("MineTab", _root, "pill_white", "MY BEST", top, new Vector2(-172f, -Layout.TabsY),
+                              new Vector2(320f, 84f), 44, CandyStyle.OnBlue, tint: W.CandyBlue);
+            _mineTab.onClick.AddListener(() => SetTable(Table.Mine));
+
+            _worldTab = W.Pill("WorldTab", _root, "pill_white", "WORLD", top, new Vector2(172f, -Layout.TabsY),
+                               new Vector2(320f, 84f), 44, CandyStyle.OnBlue, tint: W.CandyBlue);
+            _worldTab.onClick.AddListener(() => SetTable(Table.World));
+
             BuildRows();
+
 
             _empty = W.Text("Empty", _root, "No runs yet.\nPlay a game to get on the board!", top,
                             new Vector2(0f, -Layout.CardY), new Vector2(800f, 200f), 50, CandyStyle.Cocoa, Color.white);
@@ -140,6 +162,35 @@ namespace Snapline.UI
 
         public void Show()
         {
+            _root.gameObject.SetActive(true);
+            SetTable(Table.Mine);
+
+            Tween.PopIn(_titleGroup, 0f, 0.5f, 0.3f);
+            for (int i = 0; i < 3; i++) Tween.PopIn(_statTiles[i], 0.1f + i * 0.07f, 0.45f, 0.2f);
+            Sound.Swoosh();
+        }
+
+        /// <summary>Switches table and repaints. The world table paints again when its fetch lands.</summary>
+        private void SetTable(Table table)
+        {
+            _table = table;
+            _fetch++;
+
+            Highlight(_mineTab, table == Table.Mine);
+            Highlight(_worldTab, table == Table.World);
+
+            if (table == Table.Mine) ShowMine();
+            else ShowWorld(_fetch);
+        }
+
+        private static void Highlight(Button tab, bool on)
+        {
+            tab.GetComponent<Image>().color = on ? Color.white : new Color(0.74f, 0.78f, 0.86f, 1f);
+            tab.transform.localScale = Vector3.one * (on ? 1f : 0.94f);
+        }
+
+        private void ShowMine()
+        {
             List<SaveSystem.ScoreEntry> scores = SaveSystem.BestScores();
             DateTime today = DateTime.UtcNow.Date;
 
@@ -155,21 +206,99 @@ namespace Snapline.UI
                     : date.ToString("MMM d", System.Globalization.CultureInfo.InvariantCulture).ToUpperInvariant();
             }
 
+            _empty.text = "No runs yet.\nPlay a game to get on the board!";
             _empty.gameObject.SetActive(scores.Count == 0);
 
             _statValues[0].text = SaveSystem.GamesPlayed.ToString();
             _statValues[1].text = Hud.Format(SaveSystem.LifetimeLines);
             _statValues[2].text = "x" + Mathf.Max(1, SaveSystem.BestCombo);
 
-            _root.gameObject.SetActive(true);
-
-            Tween.PopIn(_titleGroup, 0f, 0.5f, 0.3f);
-            for (int i = 0; i < 3; i++) Tween.PopIn(_statTiles[i], 0.1f + i * 0.07f, 0.45f, 0.2f);
             for (int i = 0; i < Rows; i++)
-                if (_rows[i].gameObject.activeSelf) Tween.SlideIn(_rows[i], new Vector2(0f, -120f), 0.2f + i * 0.045f, 0.4f);
+                if (_rows[i].gameObject.activeSelf) Tween.SlideIn(_rows[i], new Vector2(0f, -120f), 0.06f + i * 0.04f, 0.4f);
             if (scores.Count > 0) Tween.Delay(0.25f, () => Fx.Instance?.Sparkles(_rows[0].position, 12, 300f, 80f));
-            Sound.Swoosh();
         }
+
+        /// <summary>
+        /// The global top ten, and where the player sits in it.
+        ///
+        /// Written so every way this can go wrong ends in a sentence on the card: no board id, no
+        /// linked project, no network, an empty board, or a player who has not ranked yet.
+        /// </summary>
+        private async void ShowWorld(int fetch)
+        {
+            for (int i = 0; i < Rows; i++) _rows[i].gameObject.SetActive(false);
+
+            _empty.text = "Loading the world board...";
+            _empty.gameObject.SetActive(true);
+
+            string id = Boards.BestScoreId;
+            if (string.IsNullOrEmpty(id) || !Boards.Available)
+            {
+                _empty.text = "The world board is offline.\nYour own scores are safe on this device.";
+                return;
+            }
+
+            List<LeaderboardEntry> top = await GameKitRuntime.Leaderboards.TopAsync(id, Rows);
+            LeaderboardEntry? mine = await GameKitRuntime.Leaderboards.PlayerEntryAsync(id);
+
+            // The player switched tables, or left the screen, while the network was thinking.
+            if (fetch != _fetch || _table != Table.World) return;
+
+            _empty.gameObject.SetActive(top.Count == 0);
+            if (top.Count == 0)
+            {
+                _empty.text = "Nobody is on the board yet.\nFinish an endless run to be the first!";
+                return;
+            }
+
+            for (int i = 0; i < Rows; i++)
+            {
+                bool has = i < top.Count;
+                _rows[i].gameObject.SetActive(has);
+                if (!has) continue;
+
+                _rank[i].text = top[i].rank.ToString();
+                _score[i].text = Hud.Format((long)top[i].score);
+                _date[i].text = Name(top[i].playerName);
+            }
+
+            // Where the player is in all this. In the ten, their row says YOU; outside it, the last
+            // row becomes their row, rank and all, so the card always answers "where am I".
+            if (mine.HasValue)
+            {
+                int rank = mine.Value.rank;
+                int slot = rank <= Rows ? rank - 1 : Rows - 1;
+
+                if (rank > Rows)
+                {
+                    _rows[slot].gameObject.SetActive(true);
+                    _rank[slot].text = rank.ToString();
+                    _score[slot].text = Hud.Format((long)mine.Value.score);
+                }
+
+                _date[slot].text = "YOU";
+                _rows[slot].GetComponent<Image>().color = new Color(1f, 0.86f, 0.42f, 1f);
+            }
+
+            for (int i = 0; i < Rows; i++)
+                if (_rows[i].gameObject.activeSelf) Tween.SlideIn(_rows[i], new Vector2(0f, -120f), 0.04f + i * 0.04f, 0.4f);
+        }
+
+        /// <summary>
+        /// Unity hands back an empty name for a player who never set one, and appends a discriminator
+        /// to the ones that did: Bob#1234 is Bob to everyone reading the board.
+        /// </summary>
+        private static string Name(string playerName)
+        {
+            if (string.IsNullOrWhiteSpace(playerName)) return "PLAYER";
+
+            int hash = playerName.IndexOf((char)35);
+            string clean = hash > 0 ? playerName.Substring(0, hash) : playerName;
+            return clean.Length <= 12 ? clean.ToUpperInvariant() : clean.Substring(0, 12).ToUpperInvariant();
+        }
+
+        /// <summary>Switches to the world table. The smoke harness uses it.</summary>
+        public void ShowWorldForHarness() => SetTable(Table.World);
 
         public void Hide()
         {
