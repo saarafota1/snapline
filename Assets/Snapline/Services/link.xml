@@ -7,4 +7,13 @@
 -->
 <linker>
   <assembly fullname="Snapline.Services" preserve="all"/>
+
+  <!--
+    StudioKit.Ugs holds the leaderboard adapter, and registers itself from a
+    RuntimeInitializeOnLoadMethod - nothing names the type, so IL2CPP is free to strip the assembly
+    and the game ships with scores that go nowhere and a WORLD board that is simply empty. The kit
+    generates its own link.xml and that list does NOT include this assembly (it covers the ad,
+    consent, store and attribution adapters), so Snapline preserves it here. Tell the kit owner.
+  -->
+  <assembly fullname="StudioKit.Ugs" preserve="all" ignoreIfMissing="1"/>
 </linker>

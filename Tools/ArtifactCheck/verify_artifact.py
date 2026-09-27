@@ -160,6 +160,12 @@ for marker in ("FirebaseAnalyticsService", "[Snapline] Firebase", "Snapline.Serv
                "LevelPlayService", "asking UMP directly, without the AdMob plugin",
                "[Snapline] analytics collection", "PRIVACY SETTINGS", "Privacy options failed"):
     check("metadata carries " + repr(marker), m_(marker) > 0, str(m_(marker)))
+# Leaderboards (1.4.1). The adapter registers itself from RuntimeInitializeOnLoadMethod, so nothing
+# names it and IL2CPP may strip the whole assembly - the kit's own link.xml does not cover it, which is
+# why Snapline preserves it. If this check fails, scores go nowhere and the WORLD board is just empty.
+for marker in ("UgsLeaderboards", "LeaderboardsService", "SubmitBestScore", "UpdatePlayerNameAsync"):
+    check("metadata carries " + repr(marker), m_(marker) > 0, str(m_(marker)))
+
 check("metadata free of 'GoogleMobileAds.Api'", m_("GoogleMobileAds.Api") == 0, str(m_("GoogleMobileAds.Api")))
 
 print("\nRESULT:", "ALL PASS" if ok else "FAILURES ABOVE")
