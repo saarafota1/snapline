@@ -4,8 +4,16 @@ using System.Collections.Generic;
 namespace Snapline.Core
 {
     /// <summary>
-    /// Levels 61 to 260: puzzle levels that open on a half-built board. Which of them hold special
-    /// blocks is decided by <see cref="Specials"/>, the same policy the first sixty follow.
+    /// Levels 4 to 260: puzzle levels that open on a part-built board, which is the game this game is
+    /// actually about - a board with something to solve on the first move, rather than an empty grid
+    /// and a line quota. They used to start at 61, and the owner found the game more fun from there.
+    ///
+    /// Levels 1 to 3 stay open boards (see <see cref="Levels"/>): the first thing to learn is that a
+    /// full row disappears, and a cluttered board is a poor place to learn it.
+    ///
+    /// The clutter grows with the ladder - two rows at level 4, six by 260 - as does the line target,
+    /// so an early puzzle is a tidy little problem and a late one is a siege. Which levels hold
+    /// special blocks is decided by <see cref="Specials"/>.
     ///
     /// Each level is generated from its number, a variant and a move adjustment. The variant and the
     /// adjustment come from <see cref="LevelTable"/>, which the console harness writes by actually
@@ -15,7 +23,7 @@ namespace Snapline.Core
     /// </summary>
     public static class Puzzles
     {
-        public const int Count = 200;
+        public const int Count = 257;
         public const int First = Levels.LadderCount + 1;
         public const int Last = First + Count - 1;
 
@@ -49,10 +57,11 @@ namespace Snapline.Core
             return level;
         }
 
-        /// <summary>0 at level 61, 1 at level 260.</summary>
+        /// <summary>0 at the first puzzle level, 1 at level 260.</summary>
         private static double Progress(int number) => Math.Max(0.0, Math.Min(1.0, (number - First) / (double)(Count - 1)));
 
-        public static int LineTarget(int number) => 6 + (int)Math.Round(Progress(number) * 8.0);
+        /// <summary>3 lines at level 4, 14 by level 260.</summary>
+        public static int LineTarget(int number) => 3 + (int)Math.Round(Progress(number) * 11.0);
 
         /// <summary>
         /// The starting move budget the harness tunes from. The first guess, 2.9 moves a line plus 4,
@@ -62,15 +71,27 @@ namespace Snapline.Core
         public static int BaseMoves(int number)
         {
             double t = Progress(number);
-            double perLine = 2.5 - 0.5 * t;
+            double perLine = 3.0 - 1.0 * t;
             return (int)Math.Ceiling(LineTarget(number) * perLine + 2.0);
         }
 
-        /// <summary>Rows of clutter, from the bottom: four at first, six by the end.</summary>
-        private static int ClutterRows(int number) => 4 + (int)Math.Round(Progress(number) * 2.0);
+        /// <summary>
+        /// Rows of clutter, from the bottom: two at level 4, six by the end. Two rows is enough to
+        /// give a level 4 something to solve without burying a player who has cleared three lines in
+        /// their life.
+        /// </summary>
+        private static int ClutterRows(int number) => 2 + (int)Math.Round(Progress(number) * 4.0);
 
-        public static bool IsFair(LevelDef level) =>
-            Daily.LooksFair(level.StartOccupied, 14, 6 * ClutterRows(level.Number));
+        /// <summary>
+        /// The opening board has to be worth solving: enough blocks to matter, not so many that it is
+        /// a wall, a row already close to clearing, and no hole a piece could never reach. The bounds
+        /// scale with the clutter, since a fixed floor of 14 blocks is most of a two-row opening.
+        /// </summary>
+        public static bool IsFair(LevelDef level)
+        {
+            int rows = ClutterRows(level.Number);
+            return Daily.LooksFair(level.StartOccupied, Math.Max(6, 3 * rows), 6 * rows);
+        }
 
         public static LevelDef Build(int number, int variant, int adjust)
         {

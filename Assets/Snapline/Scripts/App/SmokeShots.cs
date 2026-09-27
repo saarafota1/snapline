@@ -245,7 +245,13 @@ namespace Snapline.App
             yield return new WaitForSeconds(1.2f);
             yield return Capture("06_level_select");
 
-            int level = Mathf.Min(SaveSystem.HighestUnlockedLevel(), 3);
+            // Level 1 is the open board the first three levels teach on...
+            _app.StartLevel(1);
+            yield return new WaitForSeconds(1.1f);
+            yield return Capture("06b_tutorial_open_board");
+
+            // ...and this is what the other 257 look like: something to solve on the first move.
+            int level = Levels.LadderCount + 3;
             _app.StartLevel(level);
             yield return new WaitForSeconds(1.2f);
 

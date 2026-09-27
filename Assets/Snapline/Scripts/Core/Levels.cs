@@ -86,27 +86,25 @@ namespace Snapline.Core
     }
 
     /// <summary>
-    /// The level ladder: sixty open-board levels, then two hundred puzzle levels (see <see cref="Puzzles"/>)
-    /// that open half built. Special blocks appear from level 5 across both halves - see <see cref="Specials"/>.
+    /// The level ladder: three open-board levels to learn on, then 257 puzzle levels (see
+    /// <see cref="Puzzles"/>) that open part built. Special blocks appear from level 5 - see
+    /// <see cref="Specials"/>.
     ///
-    /// The first sixty are generated from a curve rather than hand-authored, because a curve can be
-    /// swept and verified. `dotnet run -- levels` plays every level with the heuristic autoplayer
-    /// and reports the beat rate, so a level that is accidentally impossible shows up as a number
-    /// rather than as a one-star review. The first version of this curve had 20 unbeatable levels.
+    /// The three are generated from the same curve the old sixty used, because a curve can be swept
+    /// and verified: `dotnet run -- levels` plays every level with the heuristic autoplayer and
+    /// reports the beat rate, so a level that is accidentally impossible shows up as a number rather
+    /// than as a one-star review. That sweep is what caught 20 unbeatable levels in the first curve.
     ///
-    /// Shipped curve for the first sixty, measured:
-    ///
-    ///   level   lines   moves   beat rate   avg stars
-    ///      1       4      22       100 %       3.00
-    ///     20      11      42       100 %       2.06
-    ///     40      18      57        97 %       1.93
-    ///     50      22      63        95 %       1.43
-    ///     60      25      66        73 %       1.16
+    /// What is left of it is the teaching stretch: 4 lines in 22 moves at level 1, all three beaten
+    /// 100% of the time.
     /// </summary>
     public static class Levels
     {
-        /// <summary>Open-board levels, from the curve below.</summary>
-        public const int LadderCount = 60;
+        /// <summary>
+        /// Open-board levels: the tutorial, and all that is left of the original sixty-level ladder.
+        /// Everything from level 4 up opens part built - see <see cref="Puzzles"/>.
+        /// </summary>
+        public const int LadderCount = 3;
 
         /// <summary>Every level in the game.</summary>
         public const int Count = LadderCount + Puzzles.Count;

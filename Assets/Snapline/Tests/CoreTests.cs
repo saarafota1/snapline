@@ -831,10 +831,16 @@ namespace Snapline.Tests
             for (int n = 1; n < Specials.StoneDebut; n++)
             {
                 LevelDef early = Levels.Get(n);
-                Assert.AreEqual(0UL, early.StartOccupied, $"Level {n} should open on an empty board.");
                 foreach (Special kind in Specials.Kinds)
                     Assert.IsFalse(early.Has(kind), $"Level {n} must not hold a {kind}.");
             }
+
+            // The teaching levels open empty; everything above them opens part built.
+            for (int n = 1; n <= Levels.LadderCount; n++)
+                Assert.AreEqual(0UL, Levels.Get(n).StartOccupied, $"Level {n} should open on an empty board.");
+
+            for (int n = Levels.LadderCount + 1; n <= Levels.Count; n++)
+                Assert.AreNotEqual(0UL, Levels.Get(n).StartOccupied, $"Level {n} should open part built.");
 
             // Each debut holds exactly one of its kind, and none of a kind not yet introduced, so the
             // NEW BLOCK! card that fires there explains one thing.
@@ -851,7 +857,9 @@ namespace Snapline.Tests
             }
 
             // Fixed per level: the same level always holds the same blocks, for everyone and on a retry.
-            for (int n = 1; n <= Levels.LadderCount; n++)
+            // Across the early game, where a player actually meets them.
+            const int earlyGame = 60;
+            for (int n = 1; n <= earlyGame; n++)
             {
                 LevelDef a = Levels.Get(n);
                 foreach (Special kind in Specials.Kinds)
@@ -860,7 +868,7 @@ namespace Snapline.Tests
 
             // Scattered across the ladder rather than switched on and left on.
             int without = 0;
-            for (int n = Specials.BombDebut + 1; n <= Levels.LadderCount; n++)
+            for (int n = Specials.BombDebut + 1; n <= earlyGame; n++)
             {
                 LevelDef level = Levels.Get(n);
                 bool any = false;
