@@ -1,6 +1,6 @@
-# Snapline 1.4.1 — Play Console changes for adding Unity Ads and Meta Audience Network
+# Snapline 1.4.2 — Play Console changes for adding Unity Ads and Meta Audience Network
 
-1.4.1 adds **Unity Ads as a third LevelPlay network** (ironSource adapter
+1.4.2 adds **Unity Ads as a third LevelPlay network** (ironSource adapter
 `com.unity3d.ads-mediation:unityads-adapter:5.12.0` + `com.unity3d.ads:unity-ads:4.20.0`) and picks up the
 kit's ad-reload fix. Nothing else in the data flow changes: LevelPlay, the AdMob adapter, Firebase,
 Meta and TikTok are as in 1.4.
@@ -19,7 +19,7 @@ disclosure covers the Unity Ads SDK only; the rest of the app stays as declared.
 
 Unity Ads uses these for **App functionality** as well. Tick it; leave every other answer as it is.
 
-| Data type | 1.4 purposes | 1.4.1 purposes |
+| Data type | 1.4 purposes | 1.4.2 purposes |
 |---|---|---|
 | Location › **Approximate location** | Advertising · Analytics · Fraud prevention | + **App functionality** |
 | App info and performance › **Diagnostics** | Analytics · Fraud prevention · Advertising | + **App functionality** |
@@ -50,9 +50,9 @@ true for UGS; the new row is Unity Ads' own identifier, not a player account.
 
 ---
 
-## Meta Audience Network (also new in 1.4.1)
+## Meta Audience Network (also new in 1.4.2)
 
-1.4.1 also adds **Meta Audience Network** as a LevelPlay network: LevelPlay's adapter file 5.7.0.0,
+1.4.2 also adds **Meta Audience Network** as a LevelPlay network: LevelPlay's adapter file 5.7.0.0,
 which is `facebook-adapter:5.4.0` + `audience-network-sdk:6.22.0`. This is separate from the Meta app-events SDK
 that 1.3 already had.
 
@@ -80,7 +80,7 @@ property passes review. Until then Audience Network shows as present in LevelPla
 
 ---
 
-## Leaderboards (new in 1.4.1)
+## Leaderboards (new in 1.4.2)
 
 The game submits scores to Unity Gaming Services leaderboards, signed in anonymously, so a score can
 be compared with other players. That adds one SDK and one identifier.
@@ -104,7 +104,7 @@ by the game, and the player is never asked for one.
 
 ---
 
-## In-app purchases (new in 1.4.1)
+## In-app purchases (new in 1.4.2)
 
 The game sells one thing: remove_ads, a one-time USD 1.00 product that stops the interstitials. The
 videos a player chooses to watch for coins or a continue are untouched.

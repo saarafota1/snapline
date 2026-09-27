@@ -1,11 +1,19 @@
 [
   {
-    "version": "1.4.1",
-    "date": "2026-09-15",
-    "title": "Ads that show up when you want them",
+    "version": "1.4.2",
+    "date": "2026-09-27",
+    "title": "World leaderboard, an ad-free option, and a fuller board",
     "changes": [
+      { "category": "new", "text": "A world leaderboard: see the top players, where you rank, and choose the name everyone sees you under." },
+      { "category": "new", "text": "Remove the ads between levels with a one-time purchase. The videos you choose to watch for coins or a second chance keep working." },
+      { "category": "new", "text": "Levels now open with blocks already on the board, and special blocks start at level 5 instead of level 81." },
+      { "category": "new", "text": "Clearing two or more lines at once earns bonus lines towards the level goal, so setting up a double is worth more than two singles." },
+      { "category": "improved", "text": "The hammer now smashes a three by three area instead of a single block." },
+      { "category": "improved", "text": "Buying a power-up asks first, and shows what it costs and what you have left." },
+      { "category": "improved", "text": "A finished video pays on a card you collect, and the coins fly into your purse." },
+      { "category": "improved", "text": "Every level can now be finished with three stars; before this, more than half could not." },
       { "category": "fixed", "text": "The video to keep a finished run going, and the video for extra coins, could stay unavailable for a whole session after the first one failed to load. They now keep trying in the background." },
-      { "category": "improved", "text": "Ads now come from more ad networks, so a video is ready more often when you ask for one." }
+      { "category": "fixed", "text": "On some screens the home screen buttons overlapped each other." }
     ]
   },
   {
