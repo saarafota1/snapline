@@ -104,6 +104,18 @@ namespace Snapline.App
             yield return new WaitForSeconds(1.2f);
             yield return Capture("00e_remove_ads");
 
+            // Leaving a card up meant the next phase photographed the game through it.
+            _app.DebugCloseCards();
+            yield return new WaitForSeconds(0.4f);
+
+            _app.OpenSettings();
+            yield return new WaitForSeconds(0.6f);
+            _app.DebugHelp();
+            yield return new WaitForSeconds(1.0f);
+            yield return Capture("00f_how_to_play");
+            _app.DebugCloseCards();
+            yield return new WaitForSeconds(0.4f);
+
             yield return EndlessPhase();
             yield return PausePhase();
             yield return LevelPhase();

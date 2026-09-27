@@ -64,6 +64,9 @@ namespace Snapline.App
 
             public const float ToolSpacing = 292f;
             public const float BoardGap = 14f;
+
+            /// <summary>Between the bottom of the board frame and the top of the piece slots.</summary>
+            public const float TrayGap = 24f;
         }
 
         /// <summary>Services config. Assigned by SceneBuilder, so the reference is visible in the scene.</summary>
@@ -384,6 +387,17 @@ namespace Snapline.App
         /// <summary>Shows the world leaderboard table. The smoke harness only.</summary>
         internal void ShowWorldScoresForHarness() => _scores.ShowWorldForHarness();
 
+        /// <summary>Shuts the cards the harness opened, so the next shot is of the game. Harness only.</summary>
+        internal void DebugCloseCards()
+        {
+            _removeAds.HideNow();
+            _name.HideNow();
+            _pause.HideNow();
+        }
+
+        /// <summary>Opens the how-to-play panel over the settings card. The smoke harness only.</summary>
+        internal void DebugHelp() => _pause.ShowHelpForHarness();
+
         /// <summary>Opens the remove-ads card. The smoke harness only.</summary>
         internal void DebugRemoveAdsCard() => _removeAds.Show();
 
@@ -510,9 +524,17 @@ namespace Snapline.App
             bool level = mode == GameMode.Level;
 
             float top = Hud.Bottom(mode) + PlayLayout.BoardGap;
-            float reserve = level ? PlayLayout.LevelBottomReserve : PlayLayout.EndlessBottomReserve;
-            float available = _safeHeight - top - reserve - PlayLayout.BoardGap;
-            _boardPanel.anchoredPosition = new Vector2(0f, -(top + available * 0.5f));
+
+            // Sat right above the pieces, rather than centred in whatever room was left between the
+            // HUD and them. Centring put the slack under the board on a tall phone, so the piece you
+            // are dragging started a long way from where it has to land.
+            float slot = level ? PlayLayout.LevelSlot.y : PlayLayout.EndlessSlot.y;
+            float trayTop = (level ? PlayLayout.LevelTrayY : PlayLayout.EndlessTrayY) + slot * 0.5f;
+            float size = _boardPanel.sizeDelta.y;
+            float centre = _safeHeight - trayTop - PlayLayout.TrayGap - size * 0.5f;
+
+            // Never so high that it runs into the HUD; on a short screen the gap gives way first.
+            _boardPanel.anchoredPosition = new Vector2(0f, -Mathf.Max(centre, top + size * 0.5f));
 
             _trayRoot.anchoredPosition = new Vector2(0f, level ? PlayLayout.LevelTrayY : PlayLayout.EndlessTrayY);
             _tray.Layout(level ? PlayLayout.LevelSlot : PlayLayout.EndlessSlot,

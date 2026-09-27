@@ -136,34 +136,34 @@ namespace Snapline.UI
             editName.onClick.AddListener(() => NameRequested?.Invoke());
 
             Image adsRow = W.Rounded("AdsRow", _settings, CandyText.Hex(0xFCEBDD), CandyText.Hex(0xF4D7C2), W.Top,
-                                     new Vector2(0f, -(Layout.MusicY + 4 * Layout.RowStep)), new Vector2(640f, 86f), 40f);
-            W.Img("Icon", adsRow.transform, "icon_noads", W.Left, new Vector2(70f, 0f), new Vector2(70f, 70f));
-            W.Text("Caption", adsRow.transform, "REMOVE ADS", W.Left, new Vector2(290f, 0f), new Vector2(300f, 60f),
-                   40, CandyStyle.Cocoa, Color.white, TextAnchor.MiddleLeft);
-            _adsValue = W.Text("Value", adsRow.transform, "", W.Right, new Vector2(-170f, 0f), new Vector2(300f, 60f),
-                               32, CandyStyle.Blue, Color.white, TextAnchor.MiddleRight);
+                                     new Vector2(0f, -(Layout.MusicY + 4 * Layout.RowStep)), new Vector2(660f, 104f), 44f);
+            W.Img("Icon", adsRow.transform, "icon_noads", W.Left, new Vector2(76f, 0f), new Vector2(82f, 82f));
+            W.Text("Caption", adsRow.transform, "REMOVE ADS", W.Left, new Vector2(320f, 0f), new Vector2(340f, 70f),
+                   50, CandyStyle.Cocoa, Color.white, TextAnchor.MiddleLeft);
+            _adsValue = W.Text("Value", adsRow.transform, "", W.Right, new Vector2(-160f, 0f), new Vector2(280f, 66f),
+                               38, CandyStyle.Blue, Color.white, TextAnchor.MiddleRight);
             _adsValue.font = Design.Display;
 
             Button adsButton = CandyUI.SpriteButton("RemoveAds", adsRow.transform, null);
             adsButton.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f);
-            CandyUI.Place(adsButton, W.Centre, Vector2.zero, new Vector2(640f, 86f));
+            CandyUI.Place(adsButton, W.Centre, Vector2.zero, new Vector2(660f, 104f));
             adsButton.onClick.AddListener(() => RemoveAdsRequested?.Invoke());
             _adsRow = adsRow.gameObject;
 
             Button howTo = CandyUI.SpriteButton("HowTo", _settings, null);
             howTo.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f);
-            CandyUI.Place(howTo, W.Top, new Vector2(0f, -Layout.HowToY), new Vector2(360f, 64f));
-            _howTo = W.Text("Text", howTo.transform, "HOW TO PLAY", W.Centre, Vector2.zero, new Vector2(360f, 60f),
-                            38, CandyStyle.Blue, Color.white);
+            CandyUI.Place(howTo, W.Top, new Vector2(0f, -Layout.HowToY), new Vector2(440f, 76f));
+            _howTo = W.Text("Text", howTo.transform, "HOW TO PLAY", W.Centre, Vector2.zero, new Vector2(440f, 72f),
+                            48, CandyStyle.Blue, Color.white);
             W.Rounded("Underline", howTo.transform, CandyText.Hex(0x2A57D8), CandyText.Hex(0x2A57D8), W.Centre,
-                      new Vector2(0f, -24f), new Vector2(250f, 4f), 2f);
+                      new Vector2(0f, -30f), new Vector2(310f, 5f), 2f);
             howTo.onClick.AddListener(ToggleHelp);
 
             _privacy = CandyUI.SpriteButton("Privacy", _settings, null);
             _privacy.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f);
-            CandyUI.Place(_privacy, W.Top, new Vector2(0f, -Layout.HowToY - 70f), new Vector2(420f, 56f));
-            W.Text("Text", _privacy.transform, "PRIVACY SETTINGS", W.Centre, Vector2.zero, new Vector2(420f, 56f),
-                   30, CandyStyle.Cocoa, Color.white);
+            CandyUI.Place(_privacy, W.Top, new Vector2(0f, -Layout.HowToY - 86f), new Vector2(480f, 66f));
+            W.Text("Text", _privacy.transform, "PRIVACY SETTINGS", W.Centre, Vector2.zero, new Vector2(480f, 66f),
+                   38, CandyStyle.Cocoa, Color.white);
             _privacy.onClick.AddListener(() => PrivacyRequested?.Invoke());
             _privacy.gameObject.SetActive(false);
 
@@ -185,34 +185,40 @@ namespace Snapline.UI
         private void BuildHelp()
         {
             Image panel = W.Rounded("Help", Card, CandyText.Hex(0xFFF7EC), CandyText.Hex(0xF3C9DD), W.Top,
-                                    new Vector2(0f, -560f), new Vector2(690f, 720f), 44f);
+                                    new Vector2(0f, -600f), new Vector2(720f, 880f), 48f);
             panel.raycastTarget = true;
             _help = panel.rectTransform;
 
             string[] steps =
             {
-                "Drag a piece from the tray onto the board.",
-                "Fill a whole row or column to clear it.",
-                "Clear lines back to back for a COMBO.",
-                "UNDO, SHUFFLE and HAMMER get you out of trouble.",
-                "The run ends when no piece fits.",
+                "Drag a piece onto the board.",
+                "Fill a row or column to clear it.",
+                "Chain clears for a COMBO.",
+                "UNDO, SHUFFLE and HAMMER help.",
+                "It ends when no piece fits.",
             };
 
             for (int i = 0; i < steps.Length; i++)
             {
                 Image dot = W.Img("Dot" + i, _help, i % 2 == 0 ? "circle_pink" : "circle_purple", W.Top,
-                                  new Vector2(-280f, -80f - i * 124f), new Vector2(64f, 64f));
-                W.Text("N", dot.transform, (i + 1).ToString(), W.Centre, new Vector2(0f, 2f), new Vector2(60f, 60f),
-                       34, CandyStyle.OnPink, Color.white);
-                Text t = W.Text("Step" + i, _help, steps[i], W.Top, new Vector2(40f, -80f - i * 124f),
-                                new Vector2(540f, 110f), 34, CandyStyle.Cocoa, Color.white, TextAnchor.MiddleLeft);
+                                  new Vector2(-300f, -92f - i * 150f), new Vector2(76f, 76f));
+                W.Text("N", dot.transform, (i + 1).ToString(), W.Centre, new Vector2(0f, 2f), new Vector2(70f, 70f),
+                       40, CandyStyle.OnPink, Color.white);
+                Text t = W.Text("Step" + i, _help, steps[i], W.Top, new Vector2(44f, -92f - i * 150f),
+                                new Vector2(600f, 120f), 40, CandyStyle.Cocoa, Color.white, TextAnchor.MiddleLeft);
                 t.horizontalOverflow = HorizontalWrapMode.Wrap;
             }
 
-            Button ok = W.Pill("Ok", _help, "pill_green", "GOT IT", W.Bottom, new Vector2(0f, 70f),
-                               new Vector2(360f, 100f), 50, CandyStyle.OnGreen);
+            Button ok = W.Pill("Ok", _help, "pill_green", "GOT IT", W.Bottom, new Vector2(0f, 62f),
+                               new Vector2(400f, 112f), 58, CandyStyle.OnGreen);
             ok.onClick.AddListener(ToggleHelp);
             _help.gameObject.SetActive(false);
+        }
+
+        /// <summary>Opens the how-to-play panel. The smoke harness uses it.</summary>
+        public void ShowHelpForHarness()
+        {
+            if (!_help.gameObject.activeSelf) ToggleHelp();
         }
 
         private void ToggleHelp()
