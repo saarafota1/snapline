@@ -73,6 +73,7 @@ namespace Snapline.App
         private RectTransform _boardPanel;
         private RectTransform _trayRoot;
         private RewardPopup _reward;
+        private NamePopup _name;
         private ConfirmPopup _confirm;
         private float _safeHeight;
 
@@ -189,6 +190,9 @@ namespace Snapline.App
             _reward = Make<RewardPopup>("RewardPopup", safeRoot);
             _reward.Init(safeRoot);
 
+            _name = Make<NamePopup>("NamePopup", safeRoot);
+            _name.Init(safeRoot);
+
             _toolbox = Make<ToolboxPanel>("Toolbox", safeRoot);
             _toolbox.Init(safeRoot, confirm);
 
@@ -239,6 +243,12 @@ namespace Snapline.App
             Nav.ToolboxRequested += ShowToolbox;
 
             _pause.PrivacyRequested += ShowPrivacyOptions;
+            _pause.NameRequested += () => _name.Show();
+            _name.Saved += () =>
+            {
+                _pause.RefreshName();
+                Sound.Tap();
+            };
 
             // Over every screen and card, so an effect fired from a result card is never hidden by it.
             Fx.Create(canvasRect, shakeRoot);
@@ -363,6 +373,12 @@ namespace Snapline.App
 
         /// <summary>Shows the world leaderboard table. The smoke harness only.</summary>
         internal void ShowWorldScoresForHarness() => _scores.ShowWorldForHarness();
+
+        /// <summary>Opens the name card with a name typed in. The smoke harness only.</summary>
+        internal void DebugNameCard(string typed) => _name.ShowForHarness(typed);
+
+        /// <summary>Taps SAVE on the name card. The smoke harness only.</summary>
+        internal void DebugSaveName() => _name.SaveForHarness();
 
         internal void OpenSettings() =>
             _pause.ShowSettings(GameKit.GameKitRuntime.Consent.IsPrivacyOptionsRequired);

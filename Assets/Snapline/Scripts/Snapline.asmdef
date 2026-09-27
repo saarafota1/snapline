@@ -5,7 +5,8 @@
         "Snapline.Core",
         "UnityEngine.UI",
         "StudioKit",
-        "StudioKit.Art"
+        "StudioKit.Art",
+        "Unity.Services.Authentication"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -14,6 +15,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.services.authentication",
+            "expression": "1.0.0",
+            "define": "SNAPLINE_UGS_AUTH"
+        }
+    ],
     "noEngineReferences": false
 }

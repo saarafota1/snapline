@@ -89,6 +89,17 @@ namespace Snapline.App
             yield return new WaitForSeconds(1.0f);
             yield return Capture("00b_settings");
 
+            // Picking a name, against the live service: the world board shows it afterwards.
+            _app.DebugNameCard("SNAPLINEBOT");
+            yield return new WaitForSeconds(1.0f);
+            yield return Capture("00c_name_card");
+
+            _app.DebugSaveName();
+            yield return new WaitForSeconds(2.5f);
+            _app.OpenSettings();
+            yield return new WaitForSeconds(0.9f);
+            yield return Capture("00d_name_saved");
+
             yield return EndlessPhase();
             yield return PausePhase();
             yield return LevelPhase();

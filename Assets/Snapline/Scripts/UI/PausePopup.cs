@@ -29,7 +29,9 @@ namespace Snapline.UI
             public const float RuleY = 876f;
             public const float MusicY = 950f;
             public const float RowStep = 98f;
-            public const float HowToY = 1242f;
+            // One row lower than it was: the NAME row now sits where HOW TO PLAY used to start, and
+            // the two were drawn on top of each other.
+            public const float HowToY = 1350f;
         }
 
         public event Action ResumeRequested;
@@ -37,6 +39,9 @@ namespace Snapline.UI
         public event Action LevelsRequested;
         public event Action HomeRequested;
         public event Action PrivacyRequested;
+
+        /// <summary>The name row was tapped.</summary>
+        public event Action NameRequested;
 
         private Text _name;
         private Text _info;
@@ -46,6 +51,7 @@ namespace Snapline.UI
         private Button _levels;
         private Button _home;
         private Button _privacy;
+        private Text _playerName;
         private RectTransform _settings;
         private CandyToggle _music;
         private CandyToggle _sound;
@@ -105,6 +111,24 @@ namespace Snapline.UI
                 Settings.VibrationEnabled = on;
                 if (on) Haptics.Medium();
             });
+
+            // The name the world board shows. Settings is where a player looks for it, and there is
+            // room here, which the scores screen has none of.
+            Image nameRow = W.Rounded("NameRow", _settings, CandyText.Hex(0xFCEBDD), CandyText.Hex(0xF4D7C2), W.Top,
+                                      new Vector2(0f, -(Layout.MusicY + 3 * Layout.RowStep)), new Vector2(640f, 86f), 40f);
+            W.Img("Icon", nameRow.transform, "reward_trophy", W.Left, new Vector2(70f, 0f), new Vector2(66f, 66f));
+            W.Text("Caption", nameRow.transform, "NAME", W.Left, new Vector2(250f, 0f), new Vector2(200f, 60f),
+                   40, CandyStyle.Cocoa, Color.white, TextAnchor.MiddleLeft);
+            // Inside the row: at -120 the box hung 40 units past its right edge, so the longest name
+            // allowed would have spilled out of the card.
+            _playerName = W.Text("Value", nameRow.transform, "", W.Right, new Vector2(-170f, 0f), new Vector2(300f, 60f),
+                                 32, CandyStyle.Blue, Color.white, TextAnchor.MiddleRight);
+            _playerName.font = Design.Display;
+
+            Button editName = CandyUI.SpriteButton("EditName", nameRow.transform, null);
+            editName.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f);
+            CandyUI.Place(editName, W.Centre, Vector2.zero, new Vector2(640f, 86f));
+            editName.onClick.AddListener(() => NameRequested?.Invoke());
 
             Button howTo = CandyUI.SpriteButton("HowTo", _settings, null);
             howTo.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f);
@@ -206,18 +230,29 @@ namespace Snapline.UI
         /// <summary>The card as settings, from the front screen: just the switches.</summary>
         public void ShowSettings(bool privacyAvailable)
         {
+            RefreshName();
             _inGame = false;
             SetTitle("SETTINGS");
             SetRunButtons(false);
 
             const float lift = 640f;
             _settings.anchoredPosition = new Vector2(0f, lift + 120f);
-            var size = new Vector2(Layout.Card.x, Layout.Card.y - lift + (privacyAvailable ? 80f : 0f));
+
+            // Room for the NAME row, which the card was not sized for.
+            var size = new Vector2(Layout.Card.x,
+                                   Layout.Card.y - lift + Layout.RowStep + (privacyAvailable ? 80f : 0f));
             Card.sizeDelta = size;
             Card.anchoredPosition = Vector2.zero;
             ResizeCardBackground(size);
             _privacy.gameObject.SetActive(privacyAvailable);
             Open();
+        }
+
+        /// <summary>Puts the current name on the row, or a nudge when there is none yet.</summary>
+        public void RefreshName()
+        {
+            if (_playerName == null) return;
+            _playerName.text = PlayerName.Chosen ? PlayerName.Current.ToUpperInvariant() : "TAP TO SET";
         }
 
         private void SetRunButtons(bool on)
