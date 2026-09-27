@@ -62,11 +62,19 @@ namespace Snapline.Core
 
         public LevelObjective ToObjective() => new LevelObjective(LineTarget, MoveBudget);
 
-        /// <summary>Moves left over at the finish that still earn three stars.</summary>
-        public int ThreeStarSpare => Math.Max(2, MoveBudget / 5);
+        /// <summary>
+        /// Moves left over at the finish that still earn three stars.
+        ///
+        /// A fifth of the budget was unreachable on most of the ladder: the generator picks the
+        /// TIGHTEST budget that still meets its beat-rate target, so by construction a level is
+        /// beaten with almost nothing to spare. Measured over 120 plays of every level, 137 of 260
+        /// never yielded three stars and 40 never yielded two. An eighth is a stretch a good run can
+        /// actually reach, which is what a star is supposed to mean.
+        /// </summary>
+        public int ThreeStarSpare => Math.Max(2, MoveBudget / 8);
 
         /// <summary>Moves left over at the finish that still earn two stars.</summary>
-        public int TwoStarSpare => Math.Max(1, MoveBudget / 12);
+        public int TwoStarSpare => Math.Max(1, MoveBudget / 16);
 
         public int StarsFor(int movesRemaining)
         {

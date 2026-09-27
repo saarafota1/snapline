@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Snapline.Core;
 using Snapline.Core.Sim;
 
@@ -410,9 +411,47 @@ namespace Snapline.Bench
         }
 
         /// <summary>Fraction of attempts the heuristic autoplayer beats a level in.</summary>
-        private static double BeatRate(LevelDef level, int attempts, ulong salt)
+        /// <summary>
+        /// Whether three stars comes out of this level under the SAME piece sequences the ladder
+        /// sweep plays. The repair pass below used its own seeds, decided a level was fixed, and the
+        /// sweep then played different pieces and never saw three stars - so levels 119 and 191
+        /// shipped starless twice.
+        /// </summary>
+        private static bool ThreeStarSeenAsTheSweepPlaysIt(LevelDef level, int attempts)
+        {
+            for (int a = 0; a < attempts; a++)
+            {
+                var run = new GameRun(DealerConfig.Default(), new ScoreRules());
+                var player = new AutoPlayer(PlayerSkill.Heuristic);
+                var rng = new Rng(unchecked((ulong)(level.Number * 7919 + a) * 0x2545F4914F6CDD1DUL));
+
+                run.StartLevel(level);
+                while (!run.IsGameOver)
+                {
+                    if (!player.ChooseMove(run, ref rng, out int slot, out int col, out int row)) break;
+                    if (!run.Place(slot, col, row).Accepted) break;
+                }
+
+                if (run.LevelComplete && level.StarsFor(run.MovesRemaining) >= 3) return true;
+            }
+
+            return false;
+        }
+
+        private static double BeatRate(LevelDef level, int attempts, ulong salt) =>
+            BeatRate(level, attempts, salt, out _);
+
+        /// <summary>
+        /// The played beat rate, and whether three stars came out of it at least once.
+        ///
+        /// Both matter when choosing a budget. Tuning on the beat rate alone picks the tightest
+        /// budget that can still be beaten, which is by definition a budget with nothing to spare -
+        /// and spare moves are exactly what the stars are made of.
+        /// </summary>
+        private static double BeatRate(LevelDef level, int attempts, ulong salt, out bool threeStars)
         {
             int wins = 0;
+            threeStars = false;
             for (int a = 0; a < attempts; a++)
             {
                 var run = new GameRun(DealerConfig.Default(), new ScoreRules());
@@ -426,7 +465,10 @@ namespace Snapline.Bench
                     if (!run.Place(slot, col, row).Accepted) break;
                 }
 
-                if (run.LevelComplete) wins++;
+                if (!run.LevelComplete) continue;
+
+                wins++;
+                if (level.StarsFor(run.MovesRemaining) >= 3) threeStars = true;
             }
             return wins / (double)attempts;
         }
@@ -442,14 +484,15 @@ namespace Snapline.Bench
         private static void GenerateLevelTable(string outputPath)
         {
             Console.WriteLine("=== puzzle level generation ===");
-            const int attempts = 10;
+            const int attempts = 16;
             const int fairVariantsTried = 4;
             // Tightest first: the first budget that reaches the curve is the closest one to it.
-            int[] adjusts = { -10, -8, -6, -4, -2, 0, 2, 4, 7, 10 };
+            int[] adjusts = { -10, -8, -6, -4, -2, 0, 2, 4, 7, 10, 13, 16 };
 
             var data = new List<sbyte>();
+            var starless = new List<int>();
             double blockSum = 0;
-            int blockCount = 0, impossible = 0;
+            int blockCount = 0, impossible = 0, repaired = 0;
 
             for (int n = Puzzles.First; n <= Puzzles.Last; n++)
             {
@@ -458,6 +501,7 @@ namespace Snapline.Bench
 
                 int bestVariant = 0, bestAdjust = 10;
                 double bestRate = -1, bestScore = double.MaxValue;
+                bool bestThreeStars = false;
                 int fair = 0;
 
                 for (int v = 0; v < 60 && fair < fairVariantsTried; v++)
@@ -467,19 +511,51 @@ namespace Snapline.Bench
 
                     foreach (int adj in adjusts)
                     {
-                        double rate = BeatRate(Puzzles.Build(n, v, adj), attempts, (ulong)(n * 131 + v));
-                        double score = Math.Abs(rate - target) + 0.004 * Math.Abs(adj) + (rate < 0.3 ? 1.0 : 0.0);
+                        double rate = BeatRate(Puzzles.Build(n, v, adj), attempts, (ulong)(n * 131 + v),
+                                               out bool threeStars);
+
+                        // A level nobody can three-star is worse than a level half a notch too easy:
+                        // the stars are the progression, and an unreachable one reads as unfair.
+                        double score = Math.Abs(rate - target) + 0.004 * Math.Abs(adj) +
+                                       (rate < 0.3 ? 1.0 : 0.0) + (threeStars ? 0.0 : 0.22);
+
                         if (score < bestScore)
                         {
                             bestScore = score;
                             bestVariant = v;
                             bestAdjust = adj;
                             bestRate = rate;
+                            bestThreeStars = threeStars;
                         }
 
-                        // More moves only make it easier; once at or past the curve, stop adding.
-                        if (rate >= target) break;
+                        // More moves only make it easier; once the curve is met AND three stars is
+                        // on the table, stop adding.
+                        if (rate >= target && threeStars) break;
                     }
+                }
+
+                // A level nobody can three-star is a level whose stars are a lie. The search's own
+                // sample is not enough to settle it: levels 119 and 191 showed a three star under the
+                // search's piece sequences and none at all under the sweep's, twice. So the chosen
+                // setting is always checked the way the sweep will play it, and given more moves - a
+                // few at a time - until three stars is actually on the table.
+                bestThreeStars = ThreeStarSeenAsTheSweepPlaysIt(Puzzles.Build(n, bestVariant, bestAdjust), 120);
+
+                if (!bestThreeStars)
+                {
+                    for (int adj = bestAdjust + 2; adj <= 24; adj += 2)
+                    {
+                        LevelDef candidate = Puzzles.Build(n, bestVariant, adj);
+                        if (!ThreeStarSeenAsTheSweepPlaysIt(candidate, 120)) continue;
+
+                        bestAdjust = adj;
+                        bestRate = BeatRate(candidate, attempts, (ulong)(n * 977 + 13));
+                        bestThreeStars = true;
+                        repaired++;
+                        break;
+                    }
+
+                    if (!bestThreeStars) starless.Add(n);
                 }
 
                 if (bestRate <= 0) impossible++;
@@ -539,6 +615,8 @@ namespace Snapline.Bench
 
             System.IO.File.WriteAllText(outputPath, sb.ToString().Replace("\r\n", "\n"));
             Console.WriteLine($"  wrote {data.Count / 2} levels to {outputPath}; never beaten at the chosen setting: {impossible}");
+            Console.WriteLine($"  given extra moves so three stars is reachable: {repaired} level(s)" +
+                              (starless.Count == 0 ? "" : $"; still starless: {string.Join(", ", starless)}"));
             if (impossible > 0) _failures++;
         }
 
@@ -656,13 +734,19 @@ namespace Snapline.Bench
             int impossible = 0, trivialTail = 0;
             double sumRate = 0;
 
-            Console.WriteLine($"  {"lvl",4} {"lines",6} {"moves",6} {"beat",8} {"avg stars",10} {"avg spare",10}");
+            // Beating a level and three-starring it are different questions. The budgets are tuned to
+            // a beat rate, so a level can be winnable and still never leave the spare moves three
+            // stars asks for - which a player reads as an unfair level, not a tight one.
+            var noThreeStar = new List<int>();
+            var noTwoStar = new List<int>();
+
+            Console.WriteLine($"  {"lvl",4} {"lines",6} {"moves",6} {"beat",8} {"avg stars",10} {"avg spare",10} {"best",5}");
 
             for (int n = 1; n <= Levels.Count; n++)
             {
                 LevelDef level = Levels.Get(n);
 
-                int wins = 0, stars = 0, spare = 0;
+                int wins = 0, stars = 0, spare = 0, bestStars = 0;
 
                 for (int a = 0; a < attemptsPerLevel; a++)
                 {
@@ -682,7 +766,9 @@ namespace Snapline.Bench
 
                     wins++;
                     spare += run.MovesRemaining;
-                    stars += level.StarsFor(run.MovesRemaining);
+                    int got = level.StarsFor(run.MovesRemaining);
+                    stars += got;
+                    if (got > bestStars) bestStars = got;
                 }
 
                 double rate = wins / (double)attemptsPerLevel;
@@ -690,6 +776,8 @@ namespace Snapline.Bench
 
                 if (wins == 0) impossible++;
                 if (n > Levels.Count / 2 && rate > 0.97) trivialTail++;
+                if (bestStars < 3) noThreeStar.Add(n);
+                if (bestStars < 2) noTwoStar.Add(n);
 
                 // Print a sample rather than all 60 lines, plus anything alarming.
                 bool notable = n <= 3 || n % 10 == 0 || n == Levels.Count || wins == 0;
@@ -697,7 +785,7 @@ namespace Snapline.Bench
                 {
                     Console.WriteLine($"  {n,4} {level.LineTarget,6} {level.MoveBudget,6} {rate,8:P0} " +
                                       $"{(wins == 0 ? 0 : stars / (double)wins),10:F2} " +
-                                      $"{(wins == 0 ? 0 : spare / (double)wins),10:F1}");
+                                      $"{(wins == 0 ? 0 : spare / (double)wins),10:F1} {bestStars,5}");
                 }
             }
 
@@ -715,6 +803,13 @@ namespace Snapline.Bench
 
             if (trivialTail > 0)
                 Console.WriteLine($"  note: {trivialTail} level(s) in the back half are beaten >97% of the time");
+
+            Console.WriteLine($"  never reached 3 stars in {attemptsPerLevel} attempts: {noThreeStar.Count} level(s)" +
+                              (noThreeStar.Count == 0 ? "" : ": " + string.Join(", ", noThreeStar.Take(40)) +
+                                                              (noThreeStar.Count > 40 ? " ..." : "")));
+            Console.WriteLine($"  never reached 2 stars: {noTwoStar.Count} level(s)" +
+                              (noTwoStar.Count == 0 ? "" : ": " + string.Join(", ", noTwoStar.Take(40)) +
+                                                            (noTwoStar.Count > 40 ? " ..." : "")));
 
             Console.WriteLine();
         }
