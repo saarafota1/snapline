@@ -1,6 +1,6 @@
 [
   {
-    "version": "1.4.2",
+    "version": "1.4.3",
     "date": "2026-09-28",
     "title": "World leaderboard, an ad-free option, and a fuller board",
     "changes": [
@@ -13,7 +13,8 @@
       { "category": "improved", "text": "A finished video pays on a card you collect, and the coins fly into your purse." },
       { "category": "improved", "text": "Every level can now be finished with three stars; before this, more than half could not." },
       { "category": "fixed", "text": "The video to keep a finished run going, and the video for extra coins, could stay unavailable for a whole session after the first one failed to load. They now keep trying in the background." },
-      { "category": "fixed", "text": "On some screens the home screen buttons overlapped each other." }
+      { "category": "fixed", "text": "On some screens the home screen buttons overlapped each other." },
+      { "category": "new", "text": "Names on the world board are checked before they are used, and you can report one that should not be there." }
     ]
   },
   {
