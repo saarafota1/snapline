@@ -43,7 +43,7 @@ namespace Snapline.UI
         {
             // Tall enough that BUY clears the cost panel: at 1020 it sat over the "left after" line,
             // hiding the one number the decision needs.
-            BuildShell(parent, "Confirm", "BUY THIS?", new Vector2(880f, 1140f), -20f, true, 660f, 80);
+            BuildShell(parent, "Confirm", "BUY THIS?", new Vector2(880f, 1240f), -20f, true, 660f, 80);
 
             W.Starburst(Card, W.Top, new Vector2(0f, -300f), 480f, 18f);
             _hero = W.Img("Hero", Card, "tile_navy", W.Top, new Vector2(0f, -300f), new Vector2(210f, 210f));
@@ -71,12 +71,12 @@ namespace Snapline.UI
             _after = W.Text("After", panel.transform, "", W.Bottom, new Vector2(0f, 18f), new Vector2(660f, 48f),
                             32, CandyStyle.Cocoa, Color.white);
 
-            _buy = W.Pill("Buy", Card, "pill_green", "BUY", W.Bottom, new Vector2(0f, 250f), new Vector2(560f, 150f),
+            _buy = W.Pill("Buy", Card, "pill_green", "BUY", W.Bottom, new Vector2(0f, 300f), new Vector2(580f, 156f),
                           74, CandyStyle.OnGreen, "coin", 82f, sprinkles: true, shine: true, pulse: 0.025f);
             _buy.onClick.AddListener(Confirm);
 
-            _cancel = W.Pill("Cancel", Card, "pill_white", "NO, THANKS", W.Bottom, new Vector2(0f, 100f),
-                             new Vector2(460f, 104f), 46, CandyStyle.Blue, tint: W.CandyBlue);
+            _cancel = W.Pill("Cancel", Card, "pill_white", "NO, THANKS", W.Bottom, new Vector2(0f, 150f),
+                             new Vector2(500f, 112f), 50, CandyStyle.OnBlue, tint: W.CandyBlue);
             _cancel.onClick.AddListener(() => Close(Finish));
         }
 

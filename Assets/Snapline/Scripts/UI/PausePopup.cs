@@ -32,6 +32,12 @@ namespace Snapline.UI
             // One row lower than it was: the NAME row now sits where HOW TO PLAY used to start, and
             // the two were drawn on top of each other.
             public const float HowToY = 1448f;
+
+            /// <summary>
+            /// Where HOW TO PLAY sits while the card is the pause menu, which is shorter than the
+            /// settings card and does not carry the NAME and REMOVE ADS rows.
+            /// </summary>
+            public const float PausedHowToY = 1236f;
         }
 
         public event Action ResumeRequested;
@@ -57,6 +63,9 @@ namespace Snapline.UI
         private Text _playerName;
         private Text _adsValue;
         private GameObject _adsRow;
+        private GameObject _nameRow;
+        private RectTransform _howToRect;
+        private RectTransform _privacyRect;
         private RectTransform _settings;
         private CandyToggle _music;
         private CandyToggle _sound;
@@ -129,6 +138,7 @@ namespace Snapline.UI
             _playerName = W.Text("Value", nameRow.transform, "", W.Right, new Vector2(-170f, 0f), new Vector2(300f, 60f),
                                  32, CandyStyle.Blue, Color.white, TextAnchor.MiddleRight);
             _playerName.font = Design.Display;
+            _nameRow = nameRow.gameObject;
 
             Button editName = CandyUI.SpriteButton("EditName", nameRow.transform, null);
             editName.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f);
@@ -158,6 +168,7 @@ namespace Snapline.UI
             W.Rounded("Underline", howTo.transform, CandyText.Hex(0x2A57D8), CandyText.Hex(0x2A57D8), W.Centre,
                       new Vector2(0f, -30f), new Vector2(310f, 5f), 2f);
             howTo.onClick.AddListener(ToggleHelp);
+            _howToRect = (RectTransform)howTo.transform;
 
             _privacy = CandyUI.SpriteButton("Privacy", _settings, null);
             _privacy.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f);
@@ -165,6 +176,7 @@ namespace Snapline.UI
             W.Text("Text", _privacy.transform, "PRIVACY SETTINGS", W.Centre, Vector2.zero, new Vector2(480f, 66f),
                    38, CandyStyle.Cocoa, Color.white);
             _privacy.onClick.AddListener(() => PrivacyRequested?.Invoke());
+            _privacyRect = (RectTransform)_privacy.transform;
             _privacy.gameObject.SetActive(false);
 
             BuildHelp();
@@ -300,8 +312,25 @@ namespace Snapline.UI
             _adsValue.text = string.IsNullOrEmpty(price) ? "TAP" : price;
         }
 
+        /// <summary>
+        /// NAME and REMOVE ADS belong to the settings card. The pause card is shorter and keeps its
+        /// run buttons, so those two rows fell past its bottom edge and read as buttons floating on
+        /// the board. HOW TO PLAY moves up for the same reason.
+        /// </summary>
+        private void ShowSettingsOnlyRows(bool on)
+        {
+            if (_nameRow != null) _nameRow.SetActive(on);
+            if (_adsRow != null) _adsRow.SetActive(on);
+
+            float y = on ? Layout.HowToY : Layout.PausedHowToY;
+            if (_howToRect != null) _howToRect.anchoredPosition = new Vector2(0f, -y);
+            if (_privacyRect != null) _privacyRect.anchoredPosition = new Vector2(0f, -(y + 86f));
+        }
+
         private void SetRunButtons(bool on)
         {
+            ShowSettingsOnlyRows(!on);
+
             _name.gameObject.SetActive(on);
             _infoPill.gameObject.SetActive(on);
             _resume.gameObject.SetActive(on);

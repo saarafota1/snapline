@@ -26,7 +26,8 @@ namespace Snapline.UI
 
         public void Init(RectTransform parent)
         {
-            BuildShell(parent, "Name", "YOUR NAME", new Vector2(880f, 900f), -20f, true, 660f, 78);
+            // Taller so both buttons clear each other and the card's own border.
+            BuildShell(parent, "Name", "YOUR NAME", new Vector2(880f, 1020f), -20f, true, 660f, 78);
 
             W.Text("Blurb", Card, "This is the name other players see on the world board.", W.Top,
                    new Vector2(0f, -250f), new Vector2(740f, 120f), 36, CandyStyle.Cocoa, Color.white)
@@ -54,12 +55,12 @@ namespace Snapline.UI
             _hint = W.Text("Hint", Card, "", W.Top, new Vector2(0f, -540f), new Vector2(720f, 70f),
                            34, CandyStyle.Pink, Color.white);
 
-            _save = W.Pill("Save", Card, "pill_green", "SAVE", W.Bottom, new Vector2(0f, 236f),
-                           new Vector2(560f, 150f), 74, CandyStyle.OnGreen, sprinkles: true, shine: true, pulse: 0.025f);
+            _save = W.Pill("Save", Card, "pill_green", "SAVE", W.Bottom, new Vector2(0f, 300f),
+                           new Vector2(580f, 156f), 74, CandyStyle.OnGreen, sprinkles: true, shine: true, pulse: 0.025f);
             _save.onClick.AddListener(Save);
 
-            Button cancel = W.Pill("Cancel", Card, "pill_white", "NOT NOW", W.Bottom, new Vector2(0f, 96f),
-                                   new Vector2(460f, 104f), 46, CandyStyle.Blue, tint: W.CandyBlue);
+            Button cancel = W.Pill("Cancel", Card, "pill_white", "NOT NOW", W.Bottom, new Vector2(0f, 130f),
+                                   new Vector2(500f, 112f), 50, CandyStyle.OnBlue, tint: W.CandyBlue);
             cancel.onClick.AddListener(() => Close());
         }
 

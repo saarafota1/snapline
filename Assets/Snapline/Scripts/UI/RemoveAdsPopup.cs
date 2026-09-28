@@ -29,32 +29,32 @@ namespace Snapline.UI
 
         public void Init(RectTransform parent)
         {
-            // Tall enough for the status line to clear the BUY button: at 1040 the button sat over
-            // the one sentence that explains why the button says UNAVAILABLE.
-            BuildShell(parent, "RemoveAds", "REMOVE ADS", new Vector2(880f, 1140f), -20f, true, 700f, 76);
+            // Tall enough to hold bigger type and still leave a margin under the bottom button, which
+            // at 1140 sat on the card's own border.
+            BuildShell(parent, "RemoveAds", "REMOVE ADS", new Vector2(880f, 1280f), -20f, true, 700f, 76);
 
             W.Starburst(Card, W.Top, new Vector2(0f, -300f), 480f, 16f);
             Image hero = W.Img("Hero", Card, "icon_noads", W.Top, new Vector2(0f, -300f), new Vector2(230f, 230f));
             hero.gameObject.AddComponent<Glint>().Every = 0.9f;
 
             _blurb = W.Text("Blurb", Card, "No more ads between levels or after a run.", W.Top,
-                            new Vector2(0f, -470f), new Vector2(740f, 130f), 44, CandyStyle.Cocoa, Color.white);
+                            new Vector2(0f, -480f), new Vector2(740f, 150f), 50, CandyStyle.Cocoa, Color.white);
             _blurb.horizontalOverflow = HorizontalWrapMode.Wrap;
 
-            W.Text("Keep", Card, "Videos you choose to watch for coins or a second chance stay.", W.Top,
-                   new Vector2(0f, -610f), new Vector2(720f, 120f), 32, CandyStyle.Cocoa, Color.white)
+            W.Text("Keep", Card, "Videos you watch for coins or a second chance stay.", W.Top,
+                   new Vector2(0f, -640f), new Vector2(720f, 130f), 38, CandyStyle.Cocoa, Color.white)
              .horizontalOverflow = HorizontalWrapMode.Wrap;
 
-            _status = W.Text("Status", Card, "", W.Top, new Vector2(0f, -700f), new Vector2(720f, 70f),
-                             34, CandyStyle.Pink, Color.white);
+            _status = W.Text("Status", Card, "", W.Top, new Vector2(0f, -770f), new Vector2(720f, 80f),
+                             38, CandyStyle.Pink, Color.white);
 
-            _buy = W.Pill("Buy", Card, "pill_green", "BUY", W.Bottom, new Vector2(0f, 240f),
-                          new Vector2(600f, 156f), 68, CandyStyle.OnGreen, sprinkles: true, shine: true, pulse: 0.025f);
+            _buy = W.Pill("Buy", Card, "pill_green", "BUY", W.Bottom, new Vector2(0f, 300f),
+                          new Vector2(620f, 162f), 72, CandyStyle.OnGreen, sprinkles: true, shine: true, pulse: 0.025f);
             _buyLabel = W.Caption(_buy);
             _buy.onClick.AddListener(Buy);
 
-            _restore = W.Pill("Restore", Card, "pill_white", "RESTORE PURCHASE", W.Bottom, new Vector2(0f, 92f),
-                              new Vector2(520f, 104f), 40, CandyStyle.Blue, tint: W.CandyBlue);
+            _restore = W.Pill("Restore", Card, "pill_white", "RESTORE PURCHASE", W.Bottom, new Vector2(0f, 150f),
+                              new Vector2(560f, 112f), 46, CandyStyle.OnBlue, tint: W.CandyBlue);
             _restore.onClick.AddListener(Restore);
         }
 
