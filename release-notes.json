@@ -1,7 +1,7 @@
 [
   {
     "version": "1.4.2",
-    "date": "2026-09-27",
+    "date": "2026-09-28",
     "title": "World leaderboard, an ad-free option, and a fuller board",
     "changes": [
       { "category": "new", "text": "A world leaderboard: see the top players, where you rank, and choose the name everyone sees you under." },
