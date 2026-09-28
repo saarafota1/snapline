@@ -767,6 +767,24 @@ namespace Snapline.Tests
         }
 
         [Test]
+        public void NameFilter_CatchesTheCasualDodgesAndLeavesOrdinaryNamesAlone()
+        {
+            // The names this exists for, and the swaps people reach for when refused.
+            foreach (string blocked in new[] { "shithead", "SHIT", "sh1t", "s.h.i.t", "b1tch", "F_U_C_K", "n1gger" })
+                Assert.IsTrue(NameFilter.IsBlocked(blocked), $"{blocked} should be refused.");
+
+            // Impersonating the game or its staff is the other half of what a board gets used for.
+            foreach (string blocked in new[] { "admin", "Snapline", "SUPPORT" })
+                Assert.IsTrue(NameFilter.IsBlocked(blocked), $"{blocked} should be refused.");
+
+            // A filter that refuses ordinary names teaches players the box is broken.
+            foreach (string fine in new[] { "SAARA", "BlockKing", "mr_tidy", "player-1", "Cocoa", "Shifty", "Titan" })
+                Assert.IsFalse(NameFilter.IsBlocked(fine), $"{fine} should be allowed.");
+
+            Assert.IsFalse(NameFilter.IsBlocked(""), "An empty name is the length check's business, not this one.");
+        }
+
+        [Test]
         public void MultiLineClear_CreditsBonusLinesTowardsTheTargetButNotTheStats()
         {
             var rules = new ScoreRules();

@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using Snapline.Core;
 using UnityEngine;
 #if SNAPLINE_UGS_AUTH
 using Unity.Services.Authentication;
@@ -45,6 +46,10 @@ namespace Snapline.App
                 if (char.IsLetterOrDigit(c) || c == '_' || c == '-' || c == '.') continue;
                 return "Letters and numbers only.";
             }
+
+            // A name strangers see is moderated content. Refused without repeating the word back,
+            // which only teaches what the filter is looking for.
+            if (NameFilter.IsBlocked(trimmed)) return "Pick a different name, please.";
 
             return null;
         }

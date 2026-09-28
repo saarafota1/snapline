@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.UI;
 using GameKit;
 using Snapline.App;
@@ -51,6 +52,8 @@ namespace Snapline.UI
         private readonly Text[] _rank = new Text[Rows];
         private readonly Text[] _score = new Text[Rows];
         private readonly Text[] _date = new Text[Rows];
+        private Button _report;
+        private readonly List<string> _shown = new List<string>();
         private Button _mineTab;
         private Button _worldTab;
         private Table _table = Table.Mine;
@@ -92,15 +95,24 @@ namespace Snapline.UI
             Image card = W.Card("Card", _root, top, new Vector2(0f, -Layout.CardY), Layout.Card, 48f);
             _card = card.rectTransform;
 
-            _mineTab = W.Pill("MineTab", _root, "pill_white", "MY BEST", top, new Vector2(-172f, -Layout.TabsY),
-                              new Vector2(320f, 84f), 44, CandyStyle.OnBlue, tint: W.CandyBlue);
+            _mineTab = W.Pill("MineTab", _root, "pill_white", "MY BEST", top, new Vector2(-200f, -Layout.TabsY),
+                              new Vector2(290f, 84f), 42, CandyStyle.OnBlue, tint: W.CandyBlue);
             _mineTab.onClick.AddListener(() => SetTable(Table.Mine));
 
-            _worldTab = W.Pill("WorldTab", _root, "pill_white", "WORLD", top, new Vector2(172f, -Layout.TabsY),
-                               new Vector2(320f, 84f), 44, CandyStyle.OnBlue, tint: W.CandyBlue);
+            _worldTab = W.Pill("WorldTab", _root, "pill_white", "WORLD", top, new Vector2(100f, -Layout.TabsY),
+                               new Vector2(290f, 84f), 42, CandyStyle.OnBlue, tint: W.CandyBlue);
             _worldTab.onClick.AddListener(() => SetTable(Table.World));
 
             BuildRows();
+
+            // A name other players can see is content we are answerable for, so there has to be a way
+            // to tell us about one. Shown only on the WORLD table, where the names are.
+            // Beside the WORLD tab: at the foot of the screen it was drawn underneath SHARE BEST,
+            // which is created after it.
+            _report = W.Pill("Report", _root, "pill_white", "REPORT", top, new Vector2(352f, -Layout.TabsY),
+                             new Vector2(170f, 84f), 32, CandyStyle.Pink);
+            _report.onClick.AddListener(ReportNames);
+            _report.gameObject.SetActive(false);
 
 
             _empty = W.Text("Empty", _root, "No runs yet.\nPlay a game to get on the board!", top,
@@ -179,6 +191,8 @@ namespace Snapline.UI
             Highlight(_mineTab, table == Table.Mine);
             Highlight(_worldTab, table == Table.World);
 
+            _report.gameObject.SetActive(table == Table.World);
+
             if (table == Table.Mine) ShowMine();
             else ShowWorld(_fetch);
         }
@@ -244,6 +258,7 @@ namespace Snapline.UI
             // The player switched tables, or left the screen, while the network was thinking.
             if (fetch != _fetch || _table != Table.World) return;
 
+            _shown.Clear();
             _empty.gameObject.SetActive(top.Count == 0);
             if (top.Count == 0)
             {
@@ -260,6 +275,7 @@ namespace Snapline.UI
                 _rank[i].text = top[i].rank.ToString();
                 _score[i].text = Hud.Format((long)top[i].score);
                 _date[i].text = Name(top[i].playerName);
+                _shown.Add($"#{top[i].rank} {top[i].playerName}");
             }
 
             // Where the player is in all this. In the ten, their row says YOU; outside it, the last
@@ -282,6 +298,26 @@ namespace Snapline.UI
 
             for (int i = 0; i < Rows; i++)
                 if (_rows[i].gameObject.activeSelf) Tween.SlideIn(_rows[i], new Vector2(0f, -120f), 0.04f + i * 0.04f, 0.4f);
+        }
+
+        /// <summary>
+        /// Opens a mail to us listing the names on the board, so a player can say which one is a
+        /// problem. A mail client is a poor form, but it is a route that exists on every phone and
+        /// needs no account, and a route that exists beats a better one that does not.
+        /// </summary>
+        private void ReportNames()
+        {
+            Sound.Tap();
+
+            var body = new System.Text.StringBuilder();
+            body.Append("Which name is a problem, and why?").Append("\n\n");
+            body.Append("On the board when reported:").Append("\n");
+            foreach (string row in _shown) body.Append(row).Append("\n");
+
+            string url = "mailto:saar@scibox-studios.com" +
+                         "?subject=" + UnityWebRequest.EscapeURL("Snapline: report a leaderboard name") +
+                         "&body=" + UnityWebRequest.EscapeURL(body.ToString());
+            Application.OpenURL(url);
         }
 
         /// <summary>
