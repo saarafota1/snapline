@@ -106,7 +106,9 @@ by the game, and the player is never asked for one.
 
 ## In-app purchases (new in 1.4.2)
 
-The game sells one thing: remove_ads, a one-time USD 1.00 product that stops the interstitials. The
+The game sells one thing: remove_ads, a one-time purchase that stops the interstitials, priced by the
+owner in Play Console (USD 4.99 as of 28 Sep 2026; the game never hard-codes it and prints whatever
+Google returns in the player's own currency). The
 videos a player chooses to watch for coins or a continue are untouched.
 
 | Question | Answer | Why |
