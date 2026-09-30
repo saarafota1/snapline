@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.4.4",
+    "date": "2026-10-01",
+    "title": "Long videos pay out properly",
+    "changes": [
+      { "category": "fixed", "text": "Watching a long video to the end could leave you without the coins or the second chance it was offered for. It now pays out whenever the video actually played." },
+      { "category": "fixed", "text": "Being offered no video at all used to take the WATCH button away for the rest of the run, and could cost you one of the day's five videos. Neither happens now." }
+    ]
+  },
+  {
     "version": "1.4.3",
     "date": "2026-09-28",
     "title": "Safer names on the world board",
