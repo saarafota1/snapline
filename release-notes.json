@@ -10,7 +10,7 @@
   },
   {
     "version": "1.4.3",
-    "date": "2026-09-28",
+    "date": "2026-10-01",
     "title": "Safer names on the world board",
     "changes": [
       { "category": "new", "text": "Names on the world board are checked before they are used, and you can report one that should not be there." }
