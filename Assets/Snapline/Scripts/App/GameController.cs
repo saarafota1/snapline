@@ -664,18 +664,21 @@ namespace Snapline.App
                     }
 
                     _noMoves.SetWatchBusy(true);
-                    System.Threading.Tasks.Task<bool> watching = _ads.ShowRewardedAsync();
+                    var watching = _ads.ShowRewardedAsync();
                     while (!watching.IsCompleted) yield return null;
                     _noMoves.SetWatchBusy(false);
 
-                    if (!watching.Result)
+                    if (!RewardedVideo.Earned(watching.Result))
                     {
-                        // Do not offer it again this run; a second failure reads as a broken button.
-                        _noMoves.SetWatchAvailable(false);
+                        // A player who closed the ad loses the button, because a second failure reads
+                        // as broken. A player the network had no ad for keeps it: they did nothing,
+                        // and taking the revive away would punish them for empty inventory.
+                        if (!RewardedVideo.KeepOffering(watching.Result)) _noMoves.SetWatchAvailable(false);
                         _busy = false;
                         yield break;
                     }
 
+                    // TimedOut counts as watched here too: an ad played and an advertiser paid for it.
                     Telemetry.RewardedAdWatched();
                     break;
             }

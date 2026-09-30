@@ -120,27 +120,32 @@ namespace Snapline.App
         }
 
         /// <summary>
-        /// Play the rewarded ad. True only if it ran to the end — a player who closed it early
-        /// must not be paid, or the reward means nothing and the network eventually notices.
+        /// Play the rewarded ad and report how it ended, rather than yes or no.
+        ///
+        /// It used to answer bool, which folded "you closed it early" and "there was no ad" into the
+        /// same false - and, worse, read TimedOut as a refusal. The callers need all three apart:
+        /// what to pay (see <see cref="RewardedVideo.Earned"/>) and whether an offer withdrawn on a
+        /// failure should be handed back (see <see cref="RewardedVideo.KeepOffering"/>).
         ///
         /// Not revive-specific despite where it started: the store pays coins with the same unit.
         /// </summary>
-        public async Task<bool> ShowRewardedAsync()
+        public async Task<AdResult> ShowRewardedAsync()
         {
-            if (_busy) return false;
+            // Nothing reached the screen in either of these, which is what Unavailable means.
+            if (_busy) return AdResult.Unavailable;
             _busy = true;
 
             try
             {
                 AdResult result = await GameKitRuntime.Ads.ShowRewardedAsync();
-                Debug.Log($"[Snapline] rewarded continue: {result}");
-                return result == AdResult.Completed;
+                Debug.Log($"[Snapline] rewarded video: {result} (earned={RewardedVideo.Earned(result)})");
+                return result;
             }
             catch (System.Exception e)
             {
                 // An ad network throwing must never take a run down with it.
                 Debug.LogWarning($"[Snapline] rewarded ad failed: {e.Message}");
-                return false;
+                return AdResult.Unavailable;
             }
             finally
             {

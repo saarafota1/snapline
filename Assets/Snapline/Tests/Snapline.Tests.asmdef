@@ -3,6 +3,7 @@
     "rootNamespace": "Snapline.Tests",
     "references": [
         "Snapline.Core",
+        "Snapline",
         "StudioKit",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"

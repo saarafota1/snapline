@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Snapline.Art;
+using GameKit;
 using GameKit.Art;
 using Snapline.Core;
 using Snapline.UI;
@@ -470,22 +471,23 @@ namespace Snapline.App
                 return;
             }
 
-            bool watched = await ads.ShowRewardedAsync();
-            if (!watched)
+            AdResult result = await ads.ShowRewardedAsync();
+
+            // Pays on a finished view AND on one the network never reported the end of, and spends
+            // one of the day's five only when it pays.
+            int coins = RewardedVideo.SettleCoinVideo(result);
+            if (coins <= 0)
             {
                 Sound.Deny();
                 return;
             }
 
-            // The video played, so the day count is spent whatever happens next. The coins themselves
-            // are granted as they land, so the pill rolls up under the arriving coins rather than
-            // before the player has seen what they won.
-            Wallet.RecordAdReward();
-
+            // The coins are granted as they land, so the pill rolls up under the arriving coins
+            // rather than before the player has seen what they won.
             CoinPill pill = CoinPill.Visible();
-            _reward.ShowCoins(Economy.AdReward, pill != null ? pill.Coin : null, () =>
+            _reward.ShowCoins(coins, pill != null ? pill.Coin : null, () =>
             {
-                Wallet.Grant(Economy.AdReward);
+                Wallet.Grant(coins);
                 _toolbox.Refresh();
             });
         }
